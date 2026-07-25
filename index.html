@@ -377,7 +377,7 @@
    ============================================================ */
 const TIME_LIMIT = 30;   // 本番ラウンドの制限時間（秒）
 const ERASER_R   = 16;   // けしゴムの半径(px)
-const GAME_VER = "1.05";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
+const GAME_VER = "1.06";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
 // ネイティブアプリ（Capacitor/App Store版）で動いているか
 const CAP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 
@@ -670,13 +670,19 @@ function makeCube(rot,K,D,tx,ty,W,H,fixedK){
     if(!dx && !dy) break;
     tx += dx*D/K;  ty -= dy*D/K;
   }
-  // 余白の偏りから answers の方向を推測されないよう、
-  // 「置ける範囲」の中の一様ランダムな位置に置き直す（1キューブのモードのみ）
+  // 余白の偏りから答えの方向を推測されにくくしつつ、極端な端寄せは避ける:
+  // 中央を基準に、置ける余裕の±55%の範囲で「中央にピークを持つ分布」で散らす
   if(!fixedK){
     const xs=P.map(p=>p.x), ys=P.map(p=>p.y);
     const l=Math.min(...xs), r=Math.max(...xs), t=Math.min(...ys), b=Math.max(...ys);
-    tx += rnd(mL-l, (W-mR)-r)*D/K;
-    ty -= rnd(mT-t, (H-mB)-b)*D/K;
+    const cxT=(mL+(W-mR))/2, cyT=(mT+(H-mB))/2;          // 安全域の中心
+    const halfSlackX=Math.max(0,((W-mR-mL)-(r-l))/2);
+    const halfSlackY=Math.max(0,((H-mB-mT)-(b-t))/2);
+    const off=()=>(rng()+rng()-1);                        // -1..1（中央ピークの三角分布）
+    const dx=(cxT-(l+r)/2) + off()*halfSlackX*0.55;
+    const dy=(cyT-(t+b)/2) + off()*halfSlackY*0.55;
+    tx += dx*D/K;
+    ty -= dy*D/K;
     for(let it=0; it<6; it++){   // 透視によるズレを再クランプ
       P = projectVerts(R,K,D,tx,ty,W,H);
       const xs2=P.map(p=>p.x), ys2=P.map(p=>p.y);
