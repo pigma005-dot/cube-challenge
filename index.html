@@ -1,0 +1,1920 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#ffd6e7">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="立方体チャレンジ">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>立方体チャレンジ</title>
+<style>
+  :root{
+    --ink:#5f6fd6;
+    --plum:#6b5b6e;
+    --plum-dark:#54455a;
+    --pink:#ffd6e7;
+    --pink-strong:#ff8fb7;
+    --pink-deep:#e86f9e;
+    --mint:#c9f0dd;
+    --lav:#e3d9ff;
+    --sky:#cfe8ff;
+    --paper:#fff9f2;
+    --card:#fffdfa;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none;}
+  body{
+    font-family:"Segoe UI","Yu Gothic UI","Hiragino Maru Gothic ProN","Meiryo",system-ui,sans-serif;
+    background:var(--paper);color:var(--plum);
+    -webkit-user-select:none;user-select:none;
+  }
+  #cv{position:fixed;inset:0;touch-action:none;}
+  /* pencil cursor: tip at lower-left */
+  #cv.pen{cursor:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28'><g transform='rotate(45 14 14)'><rect x='10' y='1' width='8' height='4' rx='1.4' fill='%23a5d8ff' stroke='%237fb1dd' stroke-width='1'/><rect x='10' y='5' width='8' height='13' fill='%23ff9fbf' stroke='%23d6899f' stroke-width='1'/><polygon points='10,18 18,18 14,25.5' fill='%23f7c982' stroke='%23c99b55' stroke-width='1'/><polygon points='12.8,22.4 15.2,22.4 14,25.5' fill='%23555061'/></g></svg>") 6 22, crosshair;}
+  /* eraser cursor: hotspot center */
+  #cv.eraser{cursor:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26'><g transform='rotate(-18 13 13)'><rect x='4' y='7' width='18' height='12' rx='3.5' fill='%23ffb3c7' stroke='%23d6899f' stroke-width='1.4'/><rect x='4' y='13' width='18' height='6' rx='3' fill='%23fff4f8' stroke='%23d6899f' stroke-width='1'/></g></svg>") 13 13, cell;}
+
+  /* ---- top bar ---- */
+  #topbar{
+    position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;
+    align-items:flex-start;padding:10px 14px;pointer-events:none;z-index:5;
+  }
+  #topbar>div{display:flex;gap:8px;align-items:center;flex-wrap:wrap;max-width:46vw;}
+  .chip{
+    pointer-events:auto;background:#fff;border:2px solid var(--pink);border-radius:999px;
+    padding:5px 14px;font-size:13px;font-weight:700;color:var(--plum);
+    box-shadow:0 2px 6px rgba(232,111,158,.12);white-space:nowrap;
+  }
+  .chip.warn{background:#fff8dc;border-color:#f5d98d;color:#9a7b1a;}
+
+  #timerWrap{
+    position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:6;
+    width:46px;height:46px;pointer-events:none;
+  }
+  #timerNum{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-size:16px;font-weight:800;color:var(--plum-dark);
+  }
+  #timerWrap.danger #timerNum{color:#e14b5a;animation:pulse .5s infinite;}
+  @keyframes pulse{0%,100%{transform:scale(1);}50%{transform:scale(1.25);}}
+
+  #hint{
+    position:fixed;top:60px;left:50%;transform:translateX(-50%);
+    font-size:14px;font-weight:600;color:#9a7f92;background:rgba(255,255,255,.85);
+    border:1.5px solid var(--pink);
+    padding:5px 18px;border-radius:999px;z-index:4;pointer-events:none;white-space:nowrap;
+    max-width:92vw;overflow:hidden;text-overflow:ellipsis;
+  }
+
+  /* ---- bottom toolbar ---- */
+  #toolbar{
+    position:fixed;bottom:16px;left:50%;transform:translateX(-50%);
+    display:flex;gap:8px;z-index:5;align-items:center;
+    width:max-content;max-width:calc(100vw - 150px);
+    flex-wrap:wrap;justify-content:center;
+  }
+  .tgroup{display:flex;gap:4px;background:#fff;border:2px solid var(--pink);border-radius:999px;padding:4px;box-shadow:0 3px 8px rgba(232,111,158,.15);}
+  button{
+    font-family:inherit;font-size:14.5px;font-weight:700;color:var(--plum);
+    background:#fff;border:2px solid var(--pink);border-radius:999px;padding:10px 18px;
+    cursor:pointer;box-shadow:0 3px 8px rgba(232,111,158,.15);touch-action:manipulation;
+    white-space:nowrap;
+  }
+  button:active{transform:translateY(1px) scale(.98);}
+  button.primary{
+    background:linear-gradient(135deg,var(--pink-strong),#ff9fd0);
+    border-color:#ff9fc4;color:#fff;text-shadow:0 1px 2px rgba(180,60,110,.25);
+  }
+  button.tool{border:none;box-shadow:none;padding:8px 14px;background:transparent;}
+  button.tool.active{background:var(--lav);box-shadow:inset 0 1px 3px rgba(120,90,160,.18);}
+  button.ghost{background:rgba(255,255,255,.7);box-shadow:none;border-color:transparent;color:#9a8090;}
+  button.small{padding:5px 12px;font-size:13px;pointer-events:auto;}
+
+  /* 判定ボタン誘導矢印 */
+  #judgeHint{
+    position:fixed;z-index:7;font-size:38px;pointer-events:none;
+    filter:drop-shadow(0 2px 6px rgba(232,111,158,.55));
+  }
+  #judgeHint.bobX{animation:bobX 1.2s ease-in-out infinite;}
+  #judgeHint.bobY{animation:bobY 1.2s ease-in-out infinite;}
+  @keyframes bobX{0%,100%{transform:translateX(0);}50%{transform:translateX(14px);}}
+  @keyframes bobY{0%,100%{transform:translateY(0);}50%{transform:translateY(14px);}}
+
+  /* 横画面（PC含む）はツールバーを右側の縦列に — 描画エリアと重ならないように */
+  @media (orientation: landscape){
+    #toolbar{
+      left:auto;right:14px;bottom:auto;top:50%;transform:translateY(-50%);
+      flex-direction:column;align-items:stretch;
+      width:auto;max-width:170px;
+    }
+    .tgroup{flex-direction:column;width:100%;}
+    #toolbar>button,.tgroup button{width:100%;}
+  }
+
+  /* floating audio buttons */
+  /* itch.ioのフルスクリーンボタンが右下に重なるため左下に配置 */
+  #audioDock{position:fixed;left:12px;bottom:14px;display:flex;flex-direction:column;gap:8px;z-index:30;}
+  #audioDock button{width:46px;height:46px;padding:0;font-size:20px;border-radius:50%;}
+  #audioDock button.off{filter:grayscale(1);opacity:.55;}
+
+  /* ---- round result (frameless & minimal — keep the drawing visible) ---- */
+  #scoreFloat{
+    position:fixed;top:12px;left:50%;transform:translateX(-50%);
+    z-index:6;text-align:center;pointer-events:none;white-space:nowrap;
+    text-shadow:0 1px 0 #fff,0 0 8px #fff,0 0 16px rgba(255,255,255,.9);
+  }
+  #rpScore{font-size:40px;font-weight:800;line-height:1.1;color:var(--plum-dark);display:inline-block;animation:pop .45s cubic-bezier(.34,1.8,.64,1);}
+  @keyframes pop{from{transform:scale(.3);}to{transform:scale(1);}}
+  #rpScore small{font-size:17px;font-weight:700;margin-left:2px;}
+  #rpGrade{display:inline-block;font-size:15px;font-weight:800;border-radius:10px;padding:2px 11px;margin-left:8px;vertical-align:middle;color:#463a4d;text-shadow:none;}
+  #rpNote{font-size:13px;font-weight:800;color:#7a6ab8;margin-top:2px;}
+  #nextBar{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:5;}
+  body:not([data-state="roundResult"]) #scoreFloat,
+  body:not([data-state="roundResult"]) #nextBar{display:none;}
+
+  /* ---- overlays ---- */
+  .overlay{
+    position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(135deg,rgba(255,214,231,.8),rgba(227,217,255,.75),rgba(207,232,255,.8));
+    backdrop-filter:blur(5px);padding:16px 16px 80px;
+  }
+  .card{
+    background:var(--card);border:3px solid var(--pink);border-radius:28px;padding:28px 32px;
+    max-width:600px;width:100%;
+    box-shadow:0 16px 60px rgba(180,90,140,.28);max-height:calc(100vh - 110px);overflow-y:auto;
+  }
+  .card h1{margin:0 0 4px;font-size:29px;letter-spacing:.02em;color:var(--plum-dark);}
+  .card .sub{color:#b39aa8;font-size:14px;margin:0 0 18px;font-weight:600;}
+  #howtoBox{margin:0 0 16px;text-align:center;}
+  #howtoBox img{max-width:100%;max-height:230px;display:inline-block;border-radius:18px;}
+  .modeBtn{
+    display:flex;justify-content:space-between;align-items:center;width:100%;
+    text-align:left;padding:14px 18px;margin-bottom:10px;border-radius:18px;
+  }
+  .modeBtn[data-mode="normal"]{background:#fff0f6;border-color:#ffb8d2;}
+  .modeBtn[data-mode="wire"]{background:#f5f1ff;border-color:#cbb8ff;}
+  .modeBtn[data-mode="double"]{background:#eefaf3;border-color:#a8e6c5;}
+  .modeBtn:hover{transform:translateY(-1px);}
+  .modeBtn .mn{font-size:17px;font-weight:800;color:var(--plum-dark);}
+  .modeBtn .md{font-size:12.5px;color:#9a8a9e;font-weight:600;margin-top:2px;}
+  .modeBtn .best{font-size:12px;color:#7a6ab8;font-weight:800;white-space:nowrap;margin-left:12px;}
+  .foot{font-size:12px;color:#947d8b;margin-top:12px;line-height:1.7;font-weight:600;}
+  #menuOverlay .foot{display:flex;justify-content:space-between;align-items:center;}
+
+  /* final */
+  #finalScore{font-size:64px;font-weight:800;line-height:1;color:var(--plum-dark);display:inline-block;animation:pop .5s cubic-bezier(.34,1.8,.64,1);}
+  #finalScore small{font-size:24px;}
+  #finalGrade{display:inline-block;font-size:26px;font-weight:800;border-radius:14px;padding:2px 16px;margin-left:12px;color:#463a4d;vertical-align:middle;}
+  #finalBest{font-size:14px;font-weight:800;color:#e09a20;margin:8px 0 2px;min-height:20px;}
+  /* final: online ranking */
+  #rankBox{margin:2px 0 14px;}
+  #rankEntry{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
+  #rankName{
+    font-family:inherit;font-size:14px;font-weight:700;color:var(--plum);
+    border:2px solid var(--pink);border-radius:999px;padding:9px 16px;width:190px;
+    outline:none;background:#fff;user-select:text;-webkit-user-select:text;
+  }
+  #rankName:focus{border-color:var(--pink-strong);}
+  #rankResult{font-size:13px;font-weight:700;color:var(--plum);margin-top:10px;}
+  #rankResult .big{font-size:16px;color:#7a6ab8;margin-bottom:6px;}
+  #rankResult .rrow{display:flex;justify-content:space-between;max-width:280px;margin:2px auto;padding:3px 12px;border-radius:8px;background:#fff3f8;}
+  #rankResult .rrow.me{background:var(--lav);}
+
+  /* final: 5x2 round-snapshot grid */
+  #finalGrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:16px 0 18px;}
+  .shotCell{cursor:pointer;background:#fff;border:2px solid #ffd9e8;border-radius:10px;padding:3px 3px 1px;transition:transform .12s;}
+  .shotCell:hover{transform:scale(1.07);}
+  .shotCell img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:7px;display:block;background:#fff9f2;}
+  .shotLab{font-size:11px;font-weight:800;color:#8a6f80;text-align:center;padding:2px 0;white-space:nowrap;}
+  .shotCell.practice .shotLab{color:#b3a08a;}
+  #sharePopup{position:fixed;inset:0;z-index:65;background:rgba(40,30,40,.6);display:flex;align-items:center;justify-content:center;padding:16px;}
+  #shareCardBox{
+    background:var(--card);border:3px solid var(--pink);border-radius:22px;
+    padding:16px;max-width:520px;width:100%;text-align:center;
+    box-shadow:0 16px 60px rgba(0,0,0,.35);
+  }
+  #sharePrev{width:100%;border-radius:12px;border:2px solid #ffd9e8;display:block;}
+  #shareHint{font-size:13px;font-weight:700;color:#8a6f80;margin:10px 0 10px;}
+  #shareBtns{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;}
+  #shareBtns button{font-size:13.5px;padding:9px 14px;}
+
+  #shotPopup{position:fixed;inset:0;z-index:60;background:rgba(40,30,40,.72);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;cursor:zoom-out;}
+  #shotBig,#shotAnim{max-width:94vw;max-height:74vh;border-radius:14px;background:#fff9f2;box-shadow:0 10px 50px rgba(0,0,0,.4);}
+  #popupBtns{display:flex;gap:10px;}
+  #shotCap{color:#fff;font-weight:800;font-size:16px;text-shadow:0 1px 4px rgba(0,0,0,.5);}
+  #toast{position:fixed;bottom:76px;left:50%;transform:translateX(-50%);background:#54455a;color:#fff;font-weight:700;font-size:14px;padding:10px 20px;border-radius:999px;z-index:70;box-shadow:0 4px 16px rgba(0,0,0,.3);white-space:nowrap;max-width:94vw;}
+  .btnrow{display:flex;gap:10px;justify-content:center;}
+
+  @media (max-width:560px){
+    #timerWrap{top:52px;}
+    #scoreFloat{top:52px;}
+    #hint{top:102px;font-size:12.5px;}
+    button{font-size:13px;padding:8px 12px;}
+    .chip{font-size:12px;padding:4px 10px;}
+  }
+
+  /* PWA: iPhoneのノッチ・ホームバー等のセーフエリア対応 */
+  @supports (padding: env(safe-area-inset-top)){
+    #topbar{top:env(safe-area-inset-top);}
+    #timerWrap{top:calc(8px + env(safe-area-inset-top));}
+    #scoreFloat{top:calc(12px + env(safe-area-inset-top));}
+    #hint{top:calc(60px + env(safe-area-inset-top));}
+    #toolbar{bottom:calc(16px + env(safe-area-inset-bottom));}
+    #nextBar{bottom:calc(16px + env(safe-area-inset-bottom));}
+    #audioDock{bottom:calc(14px + env(safe-area-inset-bottom));left:calc(12px + env(safe-area-inset-left));}
+    #toast{bottom:calc(76px + env(safe-area-inset-bottom));}
+    @media (orientation: landscape){
+      #toolbar{right:calc(14px + env(safe-area-inset-right));bottom:auto;}
+    }
+  }
+
+  .hidden{display:none !important;}
+  body:not([data-state="draw"]) #toolbar,
+  body:not([data-state="draw"]) #hint,
+  body:not([data-state="draw"]) #timerWrap{display:none;}
+  body[data-state="menu"] #topbar,body[data-state="final"] #topbar{display:none;}
+</style>
+</head>
+<body data-state="menu">
+
+<canvas id="cv" class="pen"></canvas>
+
+<div id="topbar">
+  <div>
+    <span id="modeChip" class="chip"></span>
+    <span id="roundChip" class="chip"></span>
+    <span id="practiceChip" class="chip warn hidden">🌱 れんしゅう</span>
+  </div>
+  <div>
+    <span id="avgChip" class="chip"></span>
+    <button id="btnMenu" class="ghost small">🏠 やめる</button>
+  </div>
+</div>
+
+<div id="timerWrap" class="hidden">
+  <svg width="46" height="46" viewBox="0 0 46 46">
+    <circle cx="23" cy="23" r="19" fill="#fff" stroke="#ffe3ee" stroke-width="5"/>
+    <circle id="timerArc" cx="23" cy="23" r="19" fill="none" stroke="#ff8fb7" stroke-width="5"
+      stroke-linecap="round" stroke-dasharray="119.4" stroke-dashoffset="0" transform="rotate(-90 23 23)"/>
+  </svg>
+  <span id="timerNum">30</span>
+</div>
+
+<div id="hint"></div>
+
+<div id="judgeHint" class="hidden">👉</div>
+
+<div id="toolbar">
+  <span class="tgroup">
+    <button id="btnPen" class="tool active" title="ペン">✏️ ぺん</button>
+    <button id="btnEraser" class="tool" title="けしゴム">🧽 けしごむ</button>
+  </span>
+  <button id="btnUndo" title="ひとつ戻す (Ctrl+Z)">↩️ もどす</button>
+  <button id="btnClear" title="ぜんぶ消す">🗑️ ぜんぶけす</button>
+  <button id="btnSubmit" class="primary" title="判定！ (Enter)">✨ はんてい！</button>
+</div>
+
+<div id="audioDock">
+  <button id="btnSfx" title="効果音 オン/オフ">🔔</button>
+  <button id="btnBgm" title="BGM オン/オフ">🎵</button>
+</div>
+
+<div id="scoreFloat">
+  <div><span id="rpScore"></span><span id="rpGrade"></span></div>
+  <div id="rpNote"></div>
+</div>
+<div id="nextBar"><button id="btnNext" class="primary">➡️ つぎへ</button></div>
+
+<div id="menuOverlay" class="overlay">
+  <div class="card" style="position:relative">
+    <button id="btnLang" class="small" style="position:absolute;top:16px;right:18px;">🌐 English</button>
+    <h1>🧊 立方体チャレンジ</h1>
+    <p class="sub">1つの面から、立方体ののこりを予測してかこう！ペンタブ・液タブ・マウス対応</p>
+    <div id="howtoBox">
+      <img src="howto.png" alt="1つの面から立方体を完成させよう">
+    </div>
+    <div id="challengeSlot"></div>
+    <button class="modeBtn" id="btnDaily" style="background:#fff8dc;border-color:#f0d98c;">
+      <span><span class="mn">📅 きょうのチャレンジ</span></span>
+      <span class="best" id="bestDailyLab"></span>
+    </button>
+    <button class="modeBtn" data-mode="normal">
+      <span><span class="mn">🧊 ノーマル</span></span>
+      <span class="best" id="bestNormal"></span>
+    </button>
+    <button class="modeBtn" data-mode="wire" style="display:none">
+      <span><span class="mn">🩻 ハリガネ</span><br><span class="md">おくにかくれた辺まで、ぜんぶで8辺をかく</span></span>
+      <span class="best" id="bestWire"></span>
+    </button>
+    <button class="modeBtn" data-mode="double">
+      <span><span class="mn">🧊🧊 ダブル</span></span>
+      <span class="best" id="bestDouble"></span>
+    </button>
+    <button id="btnSeedPlay" style="display:none;width:100%;background:#f2fbff;border-color:#bfe3ff;font-size:13.5px;">🔗 シードを入力して同じお題であそぶ</button>
+    <div class="foot"><span style="opacity:.85">つくったひと：<a href="https://x.com/daromeon" target="_blank" rel="noopener" style="color:#e86f9e;text-decoration:none;font-weight:800;">@daromeon</a></span><span id="verLab" style="opacity:.6"></span></div>
+  </div>
+</div>
+
+<div id="finalOverlay" class="overlay hidden">
+  <div class="card" style="text-align:center">
+    <div id="finalMode" style="font-size:14px;font-weight:800;color:#b39aa8;"></div>
+    <div style="margin:4px 0 0"><span id="finalScore"></span></div>
+    <div style="margin:4px 0 0"><span id="finalGrade"></span></div>
+    <div id="finalTitleLine" style="font-size:27px;font-weight:800;color:#7a6ab8;margin:12px 0 4px;"></div>
+    <div id="finalBest"></div>
+    <div id="finalSeed" style="display:none;font-size:12px;font-weight:700;color:#9a8090;cursor:pointer;margin:2px 0 0;"></div>
+    <div id="finalGrid"></div>
+    <div id="rankBox" class="hidden">
+      <div id="rankEntry">
+        <input id="rankName" maxlength="12" placeholder="なまえ（12もじまで）">
+        <button id="btnRankSubmit" class="primary">🏆 ランキングにとうろく</button>
+      </div>
+      <div id="rankResult"></div>
+    </div>
+    <div class="btnrow">
+      <button id="btnRetry" class="primary">🔁 もういちど</button>
+      <button id="btnShare">📮 結果をシェア</button>
+      <button id="btnToMenu">🏠 モードをえらぶ</button>
+    </div>
+    <div class="foot">オンラインランキングは今後のアップデートで追加予定！</div>
+  </div>
+</div>
+
+<div id="sharePopup" class="hidden">
+  <div id="shareCardBox">
+    <img id="sharePrev" alt="">
+    <div id="shareHint"></div>
+    <div id="shareBtns">
+      <button id="btnShareX" class="primary">𝕏 に投稿</button>
+      <button id="btnShareIg">📷 インスタ用にほぞん</button>
+      <button id="btnShareSheet" class="hidden">📱 アプリでシェア</button>
+      <button id="btnShareCopy">📋 画像をコピー</button>
+      <button id="btnShareSave">💾 画像をほぞん</button>
+      <button id="btnShareClose">✕ とじる</button>
+    </div>
+  </div>
+</div>
+
+<div id="shotPopup" class="hidden">
+  <img id="shotBig" alt="">
+  <canvas id="shotAnim" class="hidden"></canvas>
+  <div id="shotCap"></div>
+  <div id="popupBtns">
+    <button id="btnReplay" class="primary">▶️ リプレイ</button>
+    <button id="btnPopupClose">✕ とじる</button>
+  </div>
+</div>
+<div id="toast" class="hidden"></div>
+
+<script>
+"use strict";
+/* ============================================================
+   設定
+   ============================================================ */
+const TIME_LIMIT = 30;   // 本番ラウンドの制限時間（秒）
+const ERASER_R   = 16;   // けしゴムの半径(px)
+const GAME_VER = "1.03";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
+
+// ===== BGM（画面ごとに切り替え・ループ再生）=====
+// mp3はこのファイルと同じフォルダに置く。ファイルが無い/空文字の画面は内蔵オルゴール曲になる。
+const BGM_TRACKS = {
+  menu:  "moonrabbit.mp3",   // ホーム画面
+  game:  "pandahush.mp3",    // ゲーム中（ラウンド結果も含む）
+  final: "lanternfrog.mp3",  // 最終結果画面
+};
+const BGM_VOL = 0.32;   // mp3 BGMの音量（0〜1）
+
+// ===== オンラインランキング（Supabase）=====
+// 同フォルダの「ランキング設定.md」の手順どおりに無料プロジェクトを作り、
+// URLとanonキーを貼ると有効化される。空のままならランキングは非表示。
+// 公開後のゲームページURL（例 "https://xxxx.itch.io/cube-challenge"）。
+// 設定するとシェア文のリンクがこのURLになる。itch.ioの場合はシードを文字で案内する形式になる。
+const PUBLIC_URL = "https://daromeon.itch.io/cube";
+
+const RANK_URL = "https://iqljfgnhzgdnooosblvz.supabase.co";
+const RANK_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlxbGpmZ25oemdkbm9vb3NibHZ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4ODc4MDEsImV4cCI6MjEwMDQ2MzgwMX0.AvrI4QT69HIJwD1Pq7d4R0eFjykOu5sSwHPL3kztiDI";
+
+/* ================= util ================= */
+const $ = s => document.querySelector(s);
+const clamp = (v,a,b) => v<a?a:v>b?b:v;
+const DEG = Math.PI/180;
+
+/* --- 言語判定: URLの?lang= ＞ ホーム画面の🌐ボタンで保存した設定 ＞ ブラウザ言語 --- */
+const _langParam = new URLSearchParams(location.search).get("lang");
+let _langPref=null; try{ _langPref=localStorage.getItem("cube-challenge-lang"); }catch(_){}
+const JA = _langParam ? _langParam!=="en"
+         : _langPref  ? _langPref!=="en"
+         : (navigator.language||"en").toLowerCase().startsWith("ja");
+const tr = (ja,en) => JA ? ja : en;
+
+/* --- シード付き乱数（シード共有・デイリーチャレンジ用） --- */
+function hashSeed(str){
+  let h=1779033703^str.length;
+  for(let i=0;i<str.length;i++){ h=Math.imul(h^str.charCodeAt(i),3432918353); h=h<<13|h>>>19; }
+  h=Math.imul(h^h>>>16,2246822507); h=Math.imul(h^h>>>13,3266489909);
+  return (h^h>>>16)>>>0;
+}
+function mulberry32(a){
+  return function(){
+    a|=0; a=a+0x6D2B79F5|0;
+    let t=Math.imul(a^a>>>15,1|a);
+    t=t+Math.imul(t^t>>>7,61|t)^t;
+    return ((t^t>>>14)>>>0)/4294967296;
+  };
+}
+let rng = Math.random;   // お題生成専用。演出系はMath.randomのまま
+const rnd = (a,b) => a+rng()*(b-a);
+const rndSign = () => rng()<.5?-1:1;
+const randomSeed = () => Math.random().toString(36).slice(2,8);
+const todaySeedStr = () => {
+  const d=new Date();
+  return `daily-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+};
+
+/* ============================================================
+   サウンド（効果音 + 内蔵オルゴールBGM / Web Audio合成）
+   ============================================================ */
+const Sound = (() => {
+  let ac=null, sfxGain=null, bgmGain=null;
+  let bgmTimer=null, bgmStep=0, bgmNext=0;
+  let bgmScene="menu";
+  const bgmEls={};
+  const PREF_KEY="cube-challenge-audio-v1";
+  let prefs;
+  try{ prefs=JSON.parse(localStorage.getItem(PREF_KEY))||{}; }catch(_){ prefs={}; }
+  if(prefs.sfx===undefined) prefs.sfx=true;
+  if(prefs.bgm===undefined) prefs.bgm=true;
+  const savePrefs=()=>{ try{ localStorage.setItem(PREF_KEY,JSON.stringify(prefs)); }catch(_){} };
+
+  function ensure(){
+    const AC=window.AudioContext||window.webkitAudioContext;
+    if(!AC) return false;
+    if(!ac){
+      ac=new AC();
+      sfxGain=ac.createGain(); sfxGain.gain.value=0.6; sfxGain.connect(ac.destination);
+      bgmGain=ac.createGain(); bgmGain.gain.value=0.9; bgmGain.connect(ac.destination);
+    }
+    if(ac.state==="suspended") ac.resume();
+    return true;
+  }
+  const n2f = m => 440*Math.pow(2,(m-69)/12);
+
+  function tone(o){
+    if(!ensure() || !prefs.sfx) return;
+    const {f=880,f2=null,t=0,dur=0.12,type="sine",vol=0.22,attack=0.005}=o;
+    try{
+      const osc=ac.createOscillator(), g=ac.createGain();
+      const now=ac.currentTime+t;
+      osc.type=type;
+      osc.frequency.setValueAtTime(f,now);
+      if(f2) osc.frequency.exponentialRampToValueAtTime(Math.max(f2,1),now+dur);
+      g.gain.setValueAtTime(0,now);
+      g.gain.linearRampToValueAtTime(vol,now+attack);
+      g.gain.exponentialRampToValueAtTime(0.0001,now+dur);
+      osc.connect(g); g.connect(sfxGain);
+      osc.start(now); osc.stop(now+dur+0.05);
+    }catch(_){}
+  }
+  function arp(freqs,gap,base){
+    freqs.forEach((f,i)=>tone({f,t:i*gap,dur:0.32,type:"sine",vol:0.2,...base}));
+  }
+
+  /* ---- 内蔵オルゴールBGM（C→Am→F→G のアルペジオ） ---- */
+  const MELODY=[
+    72,76,79,76,84,79,76,79,  69,72,76,72,81,76,72,76,
+    65,69,72,69,77,72,69,72,  67,71,74,71,79,74,71,74,
+  ];
+  const BASS=[48,45,41,43];
+  const STEP=0.29, LOOK=0.6;
+  let bgmNodes=[];
+  function musicNote(f,t,dur,vol,type){
+    const osc=ac.createOscillator(), g=ac.createGain();
+    osc.type=type||"sine"; osc.frequency.value=f;
+    g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(vol,t+0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    osc.connect(g); g.connect(bgmGain);
+    osc.start(t); osc.stop(t+dur+0.05);
+    bgmNodes.push(osc);
+    osc.onended=()=>{ const i=bgmNodes.indexOf(osc); if(i>=0) bgmNodes.splice(i,1); };
+  }
+  function bgmTick(){
+    while(bgmNext < ac.currentTime+LOOK){
+      const i=bgmStep%32, m=MELODY[i];
+      musicNote(n2f(m),   bgmNext, 0.9,  0.13);
+      musicNote(n2f(m+12),bgmNext, 0.45, 0.03);
+      if(i%8===0) musicNote(n2f(BASS[i/8]), bgmNext, STEP*7.5, 0.09, "triangle");
+      bgmNext+=STEP; bgmStep++;
+    }
+  }
+  function getBgmEl(scene){
+    const src=BGM_TRACKS[scene];
+    if(!src) return null;
+    if(!bgmEls[scene]){
+      const el=new Audio(src);
+      el.loop=true; el.volume=BGM_VOL; el.preload="auto";
+      el.addEventListener("error",()=>{ el._broken=true; });
+      bgmEls[scene]=el;
+    }
+    return bgmEls[scene];
+  }
+  function synthStop(){
+    if(bgmTimer){ clearInterval(bgmTimer); bgmTimer=null; }
+    if(ac&&bgmGain) bgmGain.gain.setTargetAtTime(0,ac.currentTime,0.08);
+    for(const o of bgmNodes){ try{ o.onended=null; o.stop(); }catch(_){} }
+    bgmNodes=[];
+  }
+  function cancelFade(el){
+    if(el && el._fadeIv){ clearInterval(el._fadeIv); el._fadeIv=null; el.volume=BGM_VOL; }
+  }
+  function fadeOutEl(el){
+    cancelFade(el);
+    const v0=el.volume; let t=0;
+    el._fadeIv=setInterval(()=>{
+      t+=50; el.volume=Math.max(0, v0*(1-t/250));
+      if(t>=250){ clearInterval(el._fadeIv); el._fadeIv=null; el.pause(); el.volume=BGM_VOL; }
+    },50);
+  }
+  function bgmStart(){
+    if(!prefs.bgm) return;
+    const el=getBgmEl(bgmScene);
+    if(el && !el._broken){
+      synthStop();               // フォールバック曲が鳴っていたら止める
+      cancelFade(el);            // フェードアウト中に戻ってきた場合の競合を防ぐ
+      el.volume=BGM_VOL;
+      el.play().catch(()=>{});
+      return;
+    }
+    // フォールバック: 内蔵オルゴール
+    if(!ensure() || bgmTimer) return;
+    bgmGain.gain.setValueAtTime(0.65,ac.currentTime);
+    bgmNext=ac.currentTime+0.1; bgmStep=0;
+    bgmTick();
+    bgmTimer=setInterval(bgmTick,150);
+  }
+  function bgmStop(){
+    for(const k in bgmEls){ try{ bgmEls[k].pause(); }catch(_){} }
+    synthStop();
+  }
+  function setScene(scene){
+    if(scene===bgmScene) return;
+    const prev=bgmEls[bgmScene];
+    bgmScene=scene;
+    if(!prefs.bgm) return;
+    if(prev && !prev.paused) fadeOutEl(prev); // 250msフェードアウトしてから停止
+    bgmStart();
+  }
+
+  return {
+    prefs, ensure, bgmStart, bgmStop, setScene,
+    get bgmDebug(){
+      return { scene:bgmScene, synth:!!bgmTimer,
+        els:Object.keys(bgmEls).map(k=>({k, src:bgmEls[k].src.split("/").pop(),
+          paused:bgmEls[k].paused, broken:!!bgmEls[k]._broken,
+          err:bgmEls[k].error?bgmEls[k].error.code:0, ready:bgmEls[k].readyState})) };
+    },
+    running(){ return !!(ac && ac.state==="running"); },
+    toggleSfx(){ prefs.sfx=!prefs.sfx; savePrefs(); if(prefs.sfx) this.click(); return prefs.sfx; },
+    toggleBgm(){ prefs.bgm=!prefs.bgm; savePrefs(); prefs.bgm?bgmStart():bgmStop(); return prefs.bgm; },
+    click(){ tone({f:640,dur:0.05,type:"triangle",vol:0.1}); },
+    pencil(){ tone({f:720,f2:960,dur:0.08,type:"triangle",vol:0.18}); },
+    eraser(){ tone({f:420,f2:300,dur:0.1,type:"triangle",vol:0.18}); },
+    undo(){ tone({f:520,f2:360,dur:0.08,type:"sine",vol:0.16}); },
+    clearAll(){ tone({f:950,f2:180,dur:0.3,type:"sine",vol:0.2}); tone({f:640,f2:140,t:0.05,dur:0.3,type:"sine",vol:0.12}); },
+    start(){ tone({f:660,dur:0.1,vol:0.18}); tone({f:880,t:0.1,dur:0.16,vol:0.18}); },
+    tick(){ tone({f:1180,dur:0.04,type:"triangle",vol:0.1}); },
+    timeup(){ tone({f:660,dur:0.16,vol:0.2}); tone({f:494,t:0.18,dur:0.3,vol:0.2}); },
+    score(grade){
+      const seq={
+        S:[523,659,784,1047,1319], A:[523,659,784,1047],
+        B:[523,659,784], C:[440,554], D:[392,330],
+      }[grade]||[440];
+      arp(seq,0.09);
+      if(grade==="S") tone({f:1568,f2:3136,t:0.5,dur:0.4,vol:0.12});
+    },
+    fanfare(best){
+      arp([523,659,784,1047],0.11);
+      if(best) [1047,1175,1319,1568,2093].forEach((f,i)=>tone({f,t:0.5+i*0.07,dur:0.3,vol:0.14}));
+    },
+  };
+})();
+
+/* ================= cube geometry ================= */
+const CUBE_V = [
+  [-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],
+  [-1,-1, 1],[1,-1, 1],[1,1, 1],[-1,1, 1],
+];
+const CUBE_FACES = [
+  {n:[ 0, 0,-1], idx:[0,1,2,3]},
+  {n:[ 0, 0, 1], idx:[5,4,7,6]},
+  {n:[-1, 0, 0], idx:[4,0,3,7]},
+  {n:[ 1, 0, 0], idx:[1,5,6,2]},
+  {n:[ 0,-1, 0], idx:[4,5,1,0]},
+  {n:[ 0, 1, 0], idx:[3,2,6,7]},
+];
+const CUBE_EDGES = (() => {
+  const m = {};
+  CUBE_FACES.forEach((f,fi)=>{
+    for(let k=0;k<4;k++){
+      const a=f.idx[k], b=f.idx[(k+1)%4];
+      const key = Math.min(a,b)+"_"+Math.max(a,b);
+      if(!m[key]) m[key] = {a:Math.min(a,b), b:Math.max(a,b), faces:[]};
+      m[key].faces.push(fi);
+    }
+  });
+  return Object.values(m);
+})();
+
+function rotMat(yaw,pitch){
+  const cy=Math.cos(yaw), sy=Math.sin(yaw), cp=Math.cos(pitch), sp=Math.sin(pitch);
+  return [
+    [cy, 0, sy],
+    [sp*sy, cp, -sp*cy],
+    [-cp*sy, sp, cp*cy],
+  ];
+}
+const mv = (m,v)=>[
+  m[0][0]*v[0]+m[0][1]*v[1]+m[0][2]*v[2],
+  m[1][0]*v[0]+m[1][1]*v[1]+m[1][2]*v[2],
+  m[2][0]*v[0]+m[2][1]*v[1]+m[2][2]*v[2],
+];
+
+function projectVerts(R,K,D,tx,ty,W,H){
+  return CUBE_V.map(v=>{
+    const q = mv(R,v);
+    const Z = q[2]+D;
+    return { x: W/2 + K*(q[0]+tx)/Z, y: H/2 - K*(q[1]+ty)/Z };
+  });
+}
+
+function makeCube(rot,K,D,tx,ty,W,H,fixedK){
+  const R = rotMat(rot.yaw, rot.pitch);
+  // 横画面はツールバーが右側の縦列、縦画面は下（折返しあり）なので空ける
+  const landscape = W>=H;
+  const mL=24, mR=landscape?195:24, mT=70, mB=landscape?40:175;
+  let P;
+  for(let it=0; it<14; it++){
+    P = projectVerts(R,K,D,tx,ty,W,H);
+    const xs=P.map(p=>p.x), ys=P.map(p=>p.y);
+    const l=Math.min(...xs), r=Math.max(...xs), t=Math.min(...ys), b=Math.max(...ys);
+    if(!fixedK && (r-l > W-mL-mR || b-t > H-mT-mB)){ K*=0.88; continue; }
+    let dx=0, dy=0;
+    if(l<mL) dx=mL-l; else if(r>W-mR) dx=W-mR-r;
+    if(t<mT) dy=mT-t; else if(b>H-mB) dy=H-mB-b;
+    if(!dx && !dy) break;
+    tx += dx*D/K;  ty -= dy*D/K;
+  }
+  const vis = CUBE_FACES.map(f=>{
+    const n = mv(R,f.n);
+    const cc = [n[0]+tx, n[1]+ty, n[2]+D];
+    return n[0]*cc[0]+n[1]*cc[1]+n[2]*cc[2] < 0;
+  });
+  let shown=-1, bs=-2;
+  CUBE_FACES.forEach((f,i)=>{
+    if(!vis[i]) return;
+    const n = mv(R,f.n);
+    const cc = [n[0]+tx, n[1]+ty, n[2]+D];
+    const L = Math.hypot(cc[0],cc[1],cc[2]);
+    const s = -(n[0]*cc[0]+n[1]*cc[1]+n[2]*cc[2])/L;
+    if(s>bs){ bs=s; shown=i; }
+  });
+  const edges = CUBE_EDGES.map(e=>({
+    a:e.a, b:e.b,
+    inShown: e.faces.includes(shown),
+    visible: vis[e.faces[0]] || vis[e.faces[1]],
+  }));
+  const xs=P.map(p=>p.x), ys=P.map(p=>p.y);
+  const bw=Math.max(...xs)-Math.min(...xs), bh=Math.max(...ys)-Math.min(...ys);
+  const tol = clamp(0.06*Math.max(bw,bh), 10, 26);
+  return { P, vis, shown, edges, tol, rot };
+}
+
+const randRot = () => ({ yaw: rndSign()*rnd(10,38)*DEG, pitch: rndSign()*rnd(7,26)*DEG });
+
+/* ================= round generation ================= */
+/* retry until every cube has enough drawable edges (rarely, an almost
+   head-on cube ends up with zero visible non-shown edges → NaN scores) */
+function genRound(mode, practice, W, H){
+  let r=null;
+  for(let i=0;i<40;i++){
+    r=buildRound(mode, practice, W, H);
+    if(r.cubes.every((c,ci)=>r.targets.filter(t=>t.cube===ci).length>=3)) break;
+  }
+  return r;
+}
+function buildRound(mode, practice, W, H){
+  const minWH = Math.min(W,H);
+  const cubes = [];
+  let shared = null;
+
+  if(mode==="double"){
+    const horizontal = W >= H;
+    const D1 = rnd(6.5,9.5);
+    const app = rnd(0.19,0.24)*minWH;
+    const K = app*D1/2;
+    const D2 = D1*rnd(0.85,1.2);
+    shared = rng()<0.5;
+    const rotA = randRot();
+    let rotB = rotA;
+    if(!shared){
+      do { rotB = randRot(); }
+      while(Math.abs(rotA.yaw-rotB.yaw)+Math.abs(rotA.pitch-rotB.pitch) < 20*DEG);
+    }
+    let ox1,oy1,ox2,oy2;
+    if(horizontal){
+      ox1=-rnd(0.18,0.25)*W; ox2=rnd(0.18,0.25)*W;
+      oy1=rnd(-0.05,0.05)*H; oy2=rnd(-0.05,0.05)*H;
+    }else{
+      oy1=-rnd(0.16,0.22)*H; oy2=rnd(0.16,0.22)*H;
+      ox1=rnd(-0.05,0.05)*W; ox2=rnd(-0.05,0.05)*W;
+    }
+    cubes.push(makeCube(rotA,K,D1, ox1*D1/K, -oy1*D1/K, W,H,true));
+    cubes.push(makeCube(rotB,K,D2, ox2*D2/K, -oy2*D2/K, W,H,true));
+  }else{
+    const D = rnd(3.8,8);
+    const app = rnd(0.30,0.40)*minWH;
+    const K = app*D/2;
+    const ox = rnd(-0.10,0.10)*W, oy = rnd(-0.06,0.06)*H;
+    cubes.push(makeCube(randRot(),K,D, ox*D/K, -oy*D/K, W,H,false));
+  }
+
+  const targets = [];
+  cubes.forEach((c,ci)=>{
+    c.edges.forEach(e=>{
+      if(e.inShown) return;
+      if(mode!=="wire" && !e.visible) return;
+      const pa=c.P[e.a], pb=c.P[e.b];
+      const len = Math.hypot(pb.x-pa.x, pb.y-pa.y);
+      const n = clamp(Math.round(len/8), 8, 40);
+      const samples = [];
+      for(let i=0;i<=n;i++) samples.push({x:pa.x+(pb.x-pa.x)*i/n, y:pa.y+(pb.y-pa.y)*i/n});
+      targets.push({cube:ci, pa, pb, hidden:!e.visible, tol:c.tol, samples, score:0});
+    });
+  });
+  const allSegs = [];
+  cubes.forEach(c=>c.edges.forEach(e=>allSegs.push({pa:c.P[e.a], pb:c.P[e.b], tol:c.tol})));
+
+  return { mode, practice, cubes, targets, allSegs, shared, result:null };
+}
+
+/* ================= scoring ================= */
+/* ガウシアン減衰: d=0 のときだけ 1.0 → 100.00点は事実上出ない */
+function falloff(d, tol){
+  const s=0.6*tol;
+  return Math.exp(-0.5*(d/s)*(d/s));
+}
+function distToSeg(px,py,ax,ay,bx,by){
+  const dx=bx-ax, dy=by-ay;
+  const L2=dx*dx+dy*dy;
+  let t = L2 ? ((px-ax)*dx+(py-ay)*dy)/L2 : 0;
+  t = clamp(t,0,1);
+  return Math.hypot(px-(ax+dx*t), py-(ay+dy*t));
+}
+function resampleStrokes(strokes, step){
+  const pts=[];
+  for(const s of strokes){
+    let prev=null, acc=0;
+    for(const p0 of s.pts){
+      const p={x:p0.x, y:p0.y};
+      if(!prev){ pts.push({x:p.x,y:p.y}); prev=p; continue; }
+      let d=Math.hypot(p.x-prev.x, p.y-prev.y);
+      while(acc+d>=step){
+        const t=(step-acc)/d;
+        prev={x:prev.x+(p.x-prev.x)*t, y:prev.y+(p.y-prev.y)*t};
+        pts.push({x:prev.x, y:prev.y});
+        d=Math.hypot(p.x-prev.x, p.y-prev.y);
+        acc=0;
+      }
+      acc+=d; prev=p;
+    }
+  }
+  return pts;
+}
+function scoreRound(round, strokes){
+  let sp = resampleStrokes(strokes, 4);
+  if(sp.length>3500){
+    const k=Math.ceil(sp.length/3500);
+    sp = sp.filter((_,i)=>i%k===0);
+  }
+  if(sp.length===0){
+    round.targets.forEach(t=>t.score=0);
+    return {score:0, cov:0, prec:0};
+  }
+  let covSum=0;
+  for(const t of round.targets){
+    let q=0;
+    for(const s of t.samples){
+      let best=Infinity;
+      for(const p of sp){
+        const dx=p.x-s.x, dy=p.y-s.y;
+        const d2=dx*dx+dy*dy;
+        if(d2<best) best=d2;
+      }
+      q += falloff(Math.sqrt(best), t.tol);
+    }
+    t.score = q/t.samples.length;
+    covSum += t.score;
+  }
+  const cov = round.targets.length ? covSum/round.targets.length : 0;
+  let pSum=0;
+  for(const p of sp){
+    let best=Infinity, tol=20;
+    for(const g of round.allSegs){
+      const d=distToSeg(p.x,p.y,g.pa.x,g.pa.y,g.pb.x,g.pb.y);
+      if(d<best){ best=d; tol=g.tol; }
+    }
+    pSum += falloff(best, tol);
+  }
+  const prec = pSum/sp.length;
+  const score = Math.round(100*Math.pow(cov,1.2)*(0.45+0.55*prec)*100)/100;
+  return {score, cov, prec};
+}
+const gradeOf = s => s>=88?"S":s>=72?"A":s>=55?"B":s>=35?"C":"D";
+const gradeColor = g => ({S:"#f5b73d",A:"#4fbf7f",B:"#6f9df0",C:"#f0a24f",D:"#ef6e8a"})[g];
+const gradeEmoji = g => ({S:"🌟",A:"💮",B:"😊",C:"🙂",D:"💪"})[g];
+const TITLES=[
+  [99.2,"チート疑い","Are you Cheating?","🧀"],
+  [97,"立方体の神","Cube God","👑"],
+  [94,"立方体の匠","Master of Cubes","🌟"],
+  [90,"立方体マイスター","Cube Meister","🎓"],
+  [82,"パース使い","Perspective Wizard","⚡"],
+  [74,"箱職人","Box Craftsman","📦"],
+  [66,"箱づくり研究生","Box Apprentice","🔨"],
+  [58,"ほぼ直方体","Almost-a-Cuboid","📏"],
+  [50,"台形愛好家","Trapezoid Enthusiast","🥴"],
+  [40,"とうふ建築士","Tofu Architect","🏗️"],
+  [30,"遠近法とけんか中","Beef with Perspective","🥊"],
+  [-1,"とうふくずし","Melted Tofu","🫠"],
+];
+const titleOf = s => { for(const x of TITLES) if(s>=x[0]) return {name: JA?x[1]:x[2], emoji:x[3]}; };
+
+/* ---- 紙吹雪 ---- */
+const fx=(()=>{
+  let c=null,g=null,parts=[],raf=null;
+  function ensure(){
+    if(!c){
+      c=document.createElement("canvas");
+      c.style.cssText="position:fixed;inset:0;pointer-events:none;z-index:55;";
+      document.body.appendChild(c);
+    }
+    c.width=window.innerWidth; c.height=window.innerHeight;
+    g=c.getContext("2d");
+  }
+  function tick(){
+    raf=requestAnimationFrame(tick);
+    g.clearRect(0,0,c.width,c.height);
+    for(const p of parts){ p.x+=p.vx; p.y+=p.vy; p.vy+=0.05; p.r+=p.vr; }
+    parts=parts.filter(p=>p.y<c.height+30);
+    for(const p of parts){
+      g.save(); g.translate(p.x,p.y); g.rotate(p.r);
+      g.fillStyle=p.col; g.fillRect(-p.s/2,-p.s/3,p.s,p.s*0.66); g.restore();
+    }
+    if(!parts.length){ cancelAnimationFrame(raf); raf=null; g.clearRect(0,0,c.width,c.height); }
+  }
+  return { burst(n){
+    ensure();
+    const cols=["#ff8fb7","#a5d8ff","#c9f0dd","#e3d9ff","#f5b73d","#ffd6e7"];
+    for(let i=0;i<n;i++) parts.push({
+      x:Math.random()*c.width, y:-20-Math.random()*c.height*0.25,
+      vx:(Math.random()-0.5)*2.6, vy:2+Math.random()*3.5,
+      s:6+Math.random()*8, r:Math.random()*Math.PI, vr:(Math.random()-0.5)*0.3,
+      col:cols[i%cols.length],
+    });
+    if(!raf) tick();
+  }};
+})();
+
+/* ================= canvas & rendering ================= */
+const cv=$("#cv");
+const ctx=cv.getContext("2d");
+const ink=document.createElement("canvas");
+const ictx=ink.getContext("2d");
+let W=0,H=0,dpr=1;
+let hideInk=false; // リプレイ用ベース画像キャプチャ時にインクを描かない
+
+function resizeCanvases(){
+  dpr=Math.min(window.devicePixelRatio||1,2);
+  W=window.innerWidth; H=window.innerHeight;
+  for(const c of [cv,ink]){ c.width=Math.round(W*dpr); c.height=Math.round(H*dpr); }
+  cv.style.width=W+"px"; cv.style.height=H+"px";
+  ictx.setTransform(dpr,0,0,dpr,0,0);
+  ictx.lineCap="round"; ictx.lineJoin="round"; ictx.strokeStyle="#5f6fd6";
+}
+
+function drawScene(){
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.fillStyle="#fff9f2";
+  ctx.fillRect(0,0,W,H);
+  if(!round) return;
+  ctx.lineCap="round"; ctx.lineJoin="round";
+
+  const showAnswer = (state==="roundResult");
+
+  if(showAnswer){
+    for(const c of round.cubes){
+      ctx.strokeStyle="rgba(120,100,120,.3)"; ctx.lineWidth=1.5; ctx.setLineDash([3,6]);
+      for(const e of c.edges){
+        if(e.inShown || e.visible) continue;
+        if(round.mode==="wire") continue;
+        ctx.beginPath(); ctx.moveTo(c.P[e.a].x,c.P[e.a].y); ctx.lineTo(c.P[e.b].x,c.P[e.b].y); ctx.stroke();
+      }
+      ctx.setLineDash([]);
+    }
+    for(const t of round.targets){
+      const col = t.score>=0.78 ? "#4fbf7f" : t.score>=0.45 ? "#f0a24f" : "#ef6e8a";
+      ctx.strokeStyle=col; ctx.lineWidth=3;
+      ctx.setLineDash(t.hidden?[7,7]:[]);
+      ctx.beginPath(); ctx.moveTo(t.pa.x,t.pa.y); ctx.lineTo(t.pb.x,t.pb.y); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }else if(round.practice){
+    for(const t of round.targets){
+      ctx.strokeStyle="rgba(214,137,159,.42)"; ctx.lineWidth=2;
+      ctx.setLineDash(t.hidden?[2,7]:[7,7]);
+      ctx.beginPath(); ctx.moveTo(t.pa.x,t.pa.y); ctx.lineTo(t.pb.x,t.pb.y); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
+
+  for(const c of round.cubes){
+    const f=CUBE_FACES[c.shown];
+    ctx.beginPath();
+    f.idx.forEach((vi,i)=> i?ctx.lineTo(c.P[vi].x,c.P[vi].y):ctx.moveTo(c.P[vi].x,c.P[vi].y));
+    ctx.closePath();
+    ctx.fillStyle="rgba(255,143,183,.13)"; ctx.fill();
+    ctx.strokeStyle="#54455a"; ctx.lineWidth=3; ctx.stroke();
+  }
+
+  if(!hideInk){
+    ctx.globalAlpha = showAnswer?0.4:1;
+    ctx.drawImage(ink,0,0,ink.width,ink.height,0,0,W,H);
+    ctx.globalAlpha = 1;
+  }
+
+  // eraser radius indicator
+  if(state==="draw" && tool==="eraser" && hoverPos){
+    ctx.strokeStyle="rgba(232,111,158,.7)"; ctx.lineWidth=1.5; ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.arc(hoverPos.x,hoverPos.y,ERASER_R,0,7); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle="rgba(255,179,199,.15)";
+    ctx.beginPath(); ctx.arc(hoverPos.x,hoverPos.y,ERASER_R,0,7); ctx.fill();
+  }
+}
+let rafPending=false;
+function render(){
+  if(rafPending) return;
+  rafPending=true;
+  requestAnimationFrame(()=>{ rafPending=false; drawScene(); });
+}
+
+/* ================= strokes / eraser / history ================= */
+let strokes=[], cur=null, activeId=null, lastPenAt=-1e9;
+let tool="pen";              // "pen" | "eraser"
+let hoverPos=null;           // eraser indicator
+let erasing=false, eraseChanged=false, erasePrev=null;
+let history=[];
+
+const mid=(a,b)=>({x:(a.x+b.x)/2, y:(a.y+b.y)/2});
+function segWidth(a,b){ return (a.w+b.w)/2; }
+function drawLiveSegment(pts){
+  const n=pts.length;
+  if(n===2){
+    ictx.lineWidth=segWidth(pts[0],pts[1]);
+    ictx.beginPath(); ictx.moveTo(pts[0].x,pts[0].y);
+    const m=mid(pts[0],pts[1]); ictx.lineTo(m.x,m.y); ictx.stroke();
+  }else if(n>=3){
+    const m0=mid(pts[n-3],pts[n-2]), m1=mid(pts[n-2],pts[n-1]);
+    ictx.lineWidth=segWidth(pts[n-2],pts[n-1]);
+    ictx.beginPath(); ictx.moveTo(m0.x,m0.y);
+    ictx.quadraticCurveTo(pts[n-2].x,pts[n-2].y,m1.x,m1.y); ictx.stroke();
+  }
+}
+function finishStrokeInk(pts){
+  const n=pts.length;
+  if(n===1){
+    ictx.beginPath(); ictx.arc(pts[0].x,pts[0].y,pts[0].w/2,0,7);
+    ictx.fillStyle="#5f6fd6"; ictx.fill();
+  }else if(n>=2){
+    const m=mid(pts[n-2],pts[n-1]);
+    ictx.lineWidth=pts[n-1].w;
+    ictx.beginPath(); ictx.moveTo(m.x,m.y); ictx.lineTo(pts[n-1].x,pts[n-1].y); ictx.stroke();
+  }
+}
+function rebuildInk(){
+  ictx.save(); ictx.setTransform(1,0,0,1,0,0);
+  ictx.clearRect(0,0,ink.width,ink.height); ictx.restore();
+  for(const s of strokes){
+    for(let i=2;i<=s.pts.length;i++) drawLiveSegment(s.pts.slice(0,i));
+    finishStrokeInk(s.pts);
+  }
+}
+function pushHistory(){
+  history.push(strokes.map(s=>({pts:s.pts})));
+  if(history.length>60) history.shift();
+}
+function undo(){
+  if(state!=="draw" || !history.length || activeId!==null) return;
+  strokes=history.pop();
+  Sound.undo();
+  rebuildInk(); render();
+}
+function clearAll(){
+  if(state!=="draw" || !strokes.length || activeId!==null) return;
+  pushHistory();
+  strokes=[];
+  Sound.clearAll();
+  rebuildInk(); render();
+}
+function setTool(t){
+  if(tool===t) return;
+  tool=t;
+  cv.classList.toggle("pen", t==="pen");
+  cv.classList.toggle("eraser", t==="eraser");
+  $("#btnPen").classList.toggle("active", t==="pen");
+  $("#btnEraser").classList.toggle("active", t==="eraser");
+  t==="pen" ? Sound.pencil() : Sound.eraser();
+  render();
+}
+/* insert points so consecutive stroke points are ≤6px apart —
+   makes point-based erasing behave like true segment erasing */
+function densifyStrokes(){
+  const GAP=6;
+  strokes=strokes.map(s=>{
+    const pts=s.pts;
+    if(pts.length<2) return s;
+    const out=[pts[0]];
+    for(let i=1;i<pts.length;i++){
+      const a=pts[i-1], b=pts[i];
+      const d=Math.hypot(b.x-a.x, b.y-a.y);
+      const n=Math.max(1, Math.ceil(d/GAP));
+      for(let k=1;k<=n;k++)
+        out.push(k===n ? b : {x:a.x+(b.x-a.x)*k/n, y:a.y+(b.y-a.y)*k/n,
+                              w:a.w+(b.w-a.w)*k/n, t:(a.t||0)+((b.t||0)-(a.t||0))*k/n});
+    }
+    return {pts:out};
+  });
+}
+/* remove stroke points near eraser segment; returns true if changed */
+function applyErase(a,b){
+  let changed=false;
+  const out=[];
+  for(const s of strokes){
+    let run=[], removedAny=false;
+    const runs=[];
+    for(const p of s.pts){
+      if(distToSeg(p.x,p.y,a.x,a.y,b.x,b.y)<=ERASER_R){
+        removedAny=true;
+        if(run.length){ runs.push(run); run=[]; }
+      }else run.push(p);
+    }
+    if(run.length) runs.push(run);
+    if(!removedAny){ out.push(s); continue; }
+    changed=true;
+    for(const r of runs){
+      if(r.length>1 || s.pts.length===1) out.push({pts:r});
+    }
+  }
+  if(changed) strokes=out;
+  return changed;
+}
+
+function evPoint(e){
+  const r=cv.getBoundingClientRect();
+  const pr = e.pressure || 0.5;
+  return { x:e.clientX-r.left, y:e.clientY-r.top, w:2.6*(0.45+0.9*pr),
+           t: performance.now()-roundStart };
+}
+cv.addEventListener("pointerdown", e=>{
+  if(state!=="draw") return;
+  if(e.pointerType==="pen") lastPenAt=performance.now();
+  if(e.pointerType==="touch" && performance.now()-lastPenAt<8000) return; // palm rejection
+  if(activeId!==null) return;
+  activeId=e.pointerId;
+  try{ cv.setPointerCapture(e.pointerId); }catch(_){}
+  const p=evPoint(e);
+  if(tool==="eraser"){
+    pushHistory();
+    densifyStrokes();
+    erasing=true; eraseChanged=false; erasePrev=p; hoverPos=p;
+    if(applyErase(p,p)){ eraseChanged=true; rebuildInk(); }
+    render();
+  }else{
+    cur={pts:[p]};
+  }
+  e.preventDefault();
+});
+window.addEventListener("pointermove", e=>{
+  if(e.pointerType==="pen") lastPenAt=performance.now();
+  // hover indicator for eraser (even when not pressing)
+  if(state==="draw" && tool==="eraser" && e.target===cv && activeId===null){
+    hoverPos=evPoint(e); render();
+  }
+  if(activeId!==e.pointerId) return;
+  let evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
+  if(!evs.length) evs=[e];
+  if(erasing){
+    let changed=false;
+    for(const ev of evs){
+      const p=evPoint(ev);
+      if(applyErase(erasePrev,p)) changed=true;
+      erasePrev=p; hoverPos=p;
+    }
+    if(changed){ eraseChanged=true; rebuildInk(); }
+    render();
+  }else if(cur){
+    for(const ev of evs){
+      const p=evPoint(ev);
+      const lp=cur.pts[cur.pts.length-1];
+      if(Math.hypot(p.x-lp.x,p.y-lp.y)<1.2) continue;
+      cur.pts.push(p);
+      drawLiveSegment(cur.pts);
+    }
+    render();
+  }
+});
+function endStroke(e){
+  if(activeId!==e.pointerId) return;
+  if(erasing){
+    erasing=false; erasePrev=null;
+    if(!eraseChanged) history.pop(); // no-op erase → drop snapshot
+    activeId=null;
+    return;
+  }
+  if(!cur){ activeId=null; return; }
+  if(state==="draw"){
+    finishStrokeInk(cur.pts);
+    pushHistory();
+    // pushHistory snapshots current strokes (without cur) — then commit
+    strokes.push(cur);
+    maybeShowJudgeHint();
+  }
+  cur=null; activeId=null;
+  render();
+}
+window.addEventListener("pointerup", endStroke);
+window.addEventListener("pointercancel", endStroke);
+cv.addEventListener("pointerout", ()=>{ if(activeId===null){ hoverPos=null; render(); } });
+cv.addEventListener("contextmenu", e=>e.preventDefault());
+
+/* ---- 判定ボタン誘導矢印（はじめてさん向け・手動判定5回で卒業） ---- */
+const JUDGE_KEY="cube-challenge-judged";
+let judgeHintTimer=null;
+const judgedTimes=()=>{ try{ return +localStorage.getItem(JUDGE_KEY)||0; }catch(_){ return 0; } };
+function maybeShowJudgeHint(){
+  const need=Math.min(4, round?round.targets.length:4); // お題が3辺なら3本で出す
+  if(state!=="draw" || strokes.length<need || judgedTimes()>=5) return;
+  clearTimeout(judgeHintTimer);
+  judgeHintTimer=setTimeout(()=>{
+    if(state!=="draw" || strokes.length<need) return;
+    const h=$("#judgeHint");
+    const r=$("#btnSubmit").getBoundingClientRect();
+    if(window.innerWidth>=window.innerHeight){
+      h.textContent="👉";
+      h.className="bobX";
+      h.style.left=(r.left-52)+"px";
+      h.style.top=(r.top+r.height/2-24)+"px";
+    }else{
+      h.textContent="👇";
+      h.className="bobY";
+      h.style.left=(r.left+r.width/2-19)+"px";
+      h.style.top=(r.top-52)+"px";
+    }
+  },1300);
+}
+function hideJudgeHint(){
+  clearTimeout(judgeHintTimer); judgeHintTimer=null;
+  $("#judgeHint").className="hidden";
+}
+
+/* ================= timer ================= */
+let timerId=null, deadline=0, lastTickSec=null, timedOut=false;
+const ARC_LEN=119.4;
+function updateTimerUI(t){
+  $("#timerNum").textContent=Math.ceil(t);
+  $("#timerArc").setAttribute("stroke-dashoffset", (ARC_LEN*(1-t/TIME_LIMIT)).toFixed(1));
+  const danger=t<=5.5;
+  $("#timerWrap").classList.toggle("danger",danger);
+  $("#timerArc").setAttribute("stroke", danger?"#e14b5a":"#ff8fb7");
+}
+function startTimer(){
+  stopTimer();
+  timedOut=false;
+  if(round.practice){ $("#timerWrap").classList.add("hidden"); return; }
+  $("#timerWrap").classList.remove("hidden");
+  deadline=performance.now()+TIME_LIMIT*1000;
+  lastTickSec=null;
+  updateTimerUI(TIME_LIMIT);
+  timerId=setInterval(()=>{
+    const t=(deadline-performance.now())/1000;
+    if(t<=0){
+      stopTimer();
+      updateTimerUI(0);
+      timedOut=true;
+      submit(true);
+    }else{
+      updateTimerUI(t);
+      const s=Math.ceil(t);
+      if(s<=5 && s!==lastTickSec){ lastTickSec=s; Sound.tick(); }
+    }
+  },100);
+}
+function stopTimer(){ if(timerId){ clearInterval(timerId); timerId=null; } }
+
+/* ================= game state ================= */
+const MODES={
+  normal:{name:tr("🧊 ノーマル","🧊 Normal"),
+          hint:tr("この面をヒントに、のこりの辺をかいてね！","Use this face as your clue — draw the remaining edges!")},
+  wire:{name:tr("🩻 ハリガネ","🩻 Wireframe"),
+        hint:tr("かくれてる辺も、ぜんぶかこう！","Draw every edge — even the hidden ones!")},
+  double:{name:tr("🧊🧊 ダブル","🧊🧊 Double"),
+          hint:tr("2つともかんせいさせよう！消失点はおなじかな…？","Finish both cubes! Same vanishing points… or not?")},
+};
+const TOTAL_ROUNDS=10, PRACTICE_ROUNDS=2;
+let state="menu", mode="normal", roundIdx=0, round=null, scores=[];
+let roundsInfo=[];   // {shot,baseShot,shotScale,strokes,score,practice,timedOut} per round
+let lastFinal=null;  // {avg,g,isBest,ttl}
+let gameSeed="", seededRun=false, isDaily=false, roundStart=0;
+
+const BEST_KEY="cube-challenge-best-v1";
+const loadBest=()=>{ try{ return JSON.parse(localStorage.getItem(BEST_KEY))||{}; }catch(_){ return {}; } };
+const saveBest=b=>{ try{ localStorage.setItem(BEST_KEY, JSON.stringify(b)); }catch(_){} };
+
+function setState(s){
+  state=s; document.body.dataset.state=s;
+  Sound.setScene(s==="menu" ? "menu" : s==="final" ? "final" : "game");
+}
+
+function updateHud(){
+  $("#modeChip").textContent = MODES[mode].name;
+  $("#roundChip").textContent = tr(`ラウンド ${roundIdx+1} / ${TOTAL_ROUNDS}`,`Round ${roundIdx+1} / ${TOTAL_ROUNDS}`);
+  $("#practiceChip").classList.toggle("hidden", !round.practice);
+  const done=scores.filter(s=>s!==null);
+  $("#avgChip").textContent = done.length
+    ? tr(`平均 ${(done.reduce((a,b)=>a+b,0)/done.length).toFixed(1)}点`,`Avg ${(done.reduce((a,b)=>a+b,0)/done.length).toFixed(1)}`)
+    : tr("平均 —","Avg —");
+  $("#hint").textContent = round.practice
+    ? tr("うすいガイドをなぞって、パースのかんかくをつかもう🌱","Trace the faint guides to get a feel for perspective 🌱")
+    : MODES[mode].hint;
+}
+
+function newRound(){
+  // ラウンドごとに決定論的なシードを張る（同じシード＝同じお題）
+  rng = mulberry32(hashSeed(`${gameSeed}#${mode}#${roundIdx}`));
+  round = genRound(mode, roundIdx<PRACTICE_ROUNDS, W, H);
+  roundStart = performance.now();
+  strokes=[]; cur=null; activeId=null; history=[]; erasing=false; hoverPos=null;
+  hideJudgeHint();
+  rebuildInk();
+  setState("draw");
+  updateHud();
+  startTimer();
+  render();
+}
+
+function startGame(m, opts){
+  opts=opts||{};
+  mode=m; roundIdx=0; scores=[]; roundsInfo=[];
+  gameSeed = opts.seed || randomSeed();
+  seededRun = !!opts.seed;
+  isDaily = !!opts.daily;
+  $("#menuOverlay").classList.add("hidden");
+  $("#finalOverlay").classList.add("hidden");
+  Sound.start();
+  newRound();
+}
+
+function submit(auto){
+  if(state!=="draw") return;
+  stopTimer();
+  hideJudgeHint();
+  if(!auto){ try{ localStorage.setItem(JUDGE_KEY, judgedTimes()+1); }catch(_){} }
+  if(cur){ // stroke still in progress at time-up: commit it
+    finishStrokeInk(cur.pts); pushHistory(); strokes.push(cur); cur=null; activeId=null;
+  }
+  erasing=false;
+  const res = scoreRound(round, strokes);
+  round.result=res;
+  scores.push(round.practice ? null : res.score);
+  setState("roundResult");
+  const g=gradeOf(res.score);
+  $("#rpScore").innerHTML = `${res.score.toFixed(2)}<small>${tr("点","pts")}</small>`;
+  const sc=$("#rpScore"); sc.style.animation="none"; void sc.offsetWidth; sc.style.animation="";
+  $("#rpGrade").textContent=`${g} ${gradeEmoji(g)}`;
+  $("#rpGrade").style.background=gradeColor(g);
+  const notes=[];
+  if(auto) notes.push(tr("⏰ じかんぎれ！","⏰ Time's up!"));
+  if(round.mode==="double") notes.push(tr(`消失点は「${round.shared?"共通":"別々"}」でした！`,`Vanishing points were ${round.shared?"shared":"different"}!`));
+  if(round.practice) notes.push(tr("🌱 れんしゅう（採点対象外）","🌱 Practice (not scored)"));
+  $("#rpNote").textContent = notes.join("　");
+  $("#btnNext").textContent = roundIdx===TOTAL_ROUNDS-1 ? tr("🏁 けっかをみる","🏁 See results") : tr("➡️ つぎへ","➡️ Next");
+  if(auto) Sound.timeup(); else Sound.score(g);
+  // 答え合わせスナップショット（最終画面グリッド＆シェア用）と
+  // インクなしベース画像（リプレイ用）を撮っておく
+  drawScene();
+  let shot=null, baseShot=null, shotScale=1;
+  try{
+    const k=Math.min(1, 1000/cv.width);
+    const cw=Math.round(cv.width*k), ch=Math.round(cv.height*k);
+    shotScale=cw/W;
+    const snap=()=>{
+      const c2=document.createElement("canvas");
+      c2.width=cw; c2.height=ch;
+      c2.getContext("2d").drawImage(cv,0,0,cw,ch);
+      return c2.toDataURL("image/jpeg",0.85);
+    };
+    shot=snap();
+    hideInk=true; drawScene(); baseShot=snap();
+    hideInk=false; drawScene();
+  }catch(_){ hideInk=false; }
+  roundsInfo.push({
+    shot, baseShot, shotScale,
+    strokes: strokes.map(s=>({pts:s.pts.map(p=>({x:p.x,y:p.y,w:p.w,t:p.t||0}))})),
+    score:res.score, practice:round.practice, timedOut:!!auto,
+  });
+  if(!round.practice && g==="S") fx.burst(70);
+  render();
+}
+
+function next(){
+  if(state!=="roundResult") return;
+  roundIdx++;
+  if(roundIdx>=TOTAL_ROUNDS){ showFinal(); } else { newRound(); }
+}
+
+function showFinal(){
+  setState("final");
+  const scored=scores.filter(s=>s!==null);
+  const avg=Math.round(scored.reduce((a,b)=>a+b,0)/scored.length*100)/100;
+  const g=gradeOf(avg);
+  $("#finalMode").textContent = MODES[mode].name + (isDaily?tr("・きょうのチャレンジ"," · Daily Challenge"):"");
+  $("#finalScore").innerHTML=`${avg.toFixed(2)}<small>${tr("点","pts")}</small>`;
+  $("#finalGrade").textContent=`${g} ${gradeEmoji(g)}`;
+  $("#finalGrade").style.background=gradeColor(g);
+  const grid=$("#finalGrid"); grid.innerHTML="";
+  roundsInfo.forEach((info,i)=>{
+    const cell=document.createElement("div");
+    cell.className="shotCell"+(info.practice?" practice":"");
+    const im=document.createElement("img");
+    if(info.shot) im.src=info.shot;
+    im.alt=`ラウンド${i+1}`;
+    const lab=document.createElement("div");
+    lab.className="shotLab";
+    lab.textContent = info.practice ? `R${i+1} 🌱` : `R${i+1}　${info.score.toFixed(2)}`;
+    cell.append(im,lab);
+    cell.addEventListener("click",()=>openShot(i));
+    grid.appendChild(cell);
+  });
+  const best=loadBest();
+  let isBest=false;
+  if(isDaily){
+    let rec=null; try{ rec=JSON.parse(localStorage.getItem(DAILY_KEY)); }catch(_){}
+    if(!rec || rec.date!==todaySeedStr() || avg>rec.score){
+      isBest=true;
+      try{ localStorage.setItem(DAILY_KEY, JSON.stringify({date:todaySeedStr(), score:avg})); }catch(_){}
+      $("#finalBest").textContent=tr("🏆 きょうのベストこうしん！","🏆 New daily best!");
+    }else{
+      $("#finalBest").textContent=tr(`きょうのベスト：${(+rec.score).toFixed(2)}点`,`Today's best: ${(+rec.score).toFixed(2)}`);
+    }
+  }else if(seededRun){
+    $("#finalBest").textContent = best[mode]!==undefined
+      ? tr(`自己ベスト：${(+best[mode]).toFixed(2)}点（シード戦は記録対象外）`,`Personal best: ${(+best[mode]).toFixed(2)} (seed runs aren't recorded)`)
+      : tr("シード戦は自己ベスト対象外","Seed runs don't count toward your best");
+  }else if(best[mode]===undefined || avg>best[mode]){
+    best[mode]=avg; saveBest(best); isBest=true;
+    $("#finalBest").textContent=tr("🏆 自己ベストこうしん！","🏆 New personal best!");
+  }else{
+    $("#finalBest").textContent=tr(`自己ベスト：${(+best[mode]).toFixed(2)}点`,`Personal best: ${(+best[mode]).toFixed(2)}`);
+  }
+  const ttl=titleOf(avg);
+  $("#finalTitleLine").textContent=`${ttl.emoji} ${ttl.name}`;
+  $("#finalSeed").textContent=tr(`🔗 シード ${gameSeed}（クリックでコピー）`,`🔗 Seed ${gameSeed} (click to copy)`);
+  lastFinal={avg, g, isBest, ttl};
+  // ランキング欄（設定済みかつ対象ボードがある時だけ表示）
+  const rb = RANK_ENABLED ? boardKey() : null;
+  $("#rankBox").classList.toggle("hidden", !rb);
+  if(rb){
+    $("#rankEntry").classList.remove("hidden");
+    $("#btnRankSubmit").disabled=false;
+    $("#rankResult").textContent="";
+    let nm=""; try{ nm=localStorage.getItem("cube-challenge-name")||""; }catch(_){}
+    $("#rankName").value = nm || "no name";
+  }
+  Sound.fanfare(isBest);
+  if(g==="S" || isBest){ fx.burst(150); setTimeout(()=>fx.burst(110),450); }
+  $("#finalOverlay").classList.remove("hidden");
+}
+
+/* ---- round snapshot popup & replay ---- */
+let curShotIdx=-1, replayRaf=null;
+function stopReplay(){
+  if(replayRaf){ cancelAnimationFrame(replayRaf); replayRaf=null; }
+  $("#shotAnim").classList.add("hidden");
+  $("#shotBig").classList.remove("hidden");
+}
+function openShot(i){
+  const info=roundsInfo[i];
+  if(!info || !info.shot) return;
+  stopReplay();
+  curShotIdx=i;
+  $("#shotBig").src=info.shot;
+  $("#shotCap").textContent = tr(
+    `ラウンド${i+1}${info.practice?"（れんしゅう）":""} — ${info.score.toFixed(2)}点${info.timedOut?" ⏰":""}`,
+    `Round ${i+1}${info.practice?" (practice)":""} — ${info.score.toFixed(2)} pts${info.timedOut?" ⏰":""}`);
+  $("#btnReplay").disabled = !(info.baseShot && info.strokes && info.strokes.length);
+  $("#shotPopup").classList.remove("hidden");
+}
+function startReplay(i){
+  const info=roundsInfo[i];
+  if(!info || !info.baseShot || !info.strokes || !info.strokes.length){
+    toast(tr("この回にはリプレイできる線がないよ","No strokes to replay in this round")); return;
+  }
+  stopReplay();
+  const img=new Image();
+  img.onload=()=>{
+    const c=$("#shotAnim");
+    c.width=img.width; c.height=img.height;
+    $("#shotBig").classList.add("hidden"); c.classList.remove("hidden");
+    const g=c.getContext("2d");
+    g.lineCap="round"; g.lineJoin="round";
+    const k=info.shotScale||1;
+    let t0=Infinity, t1=0;
+    for(const s of info.strokes) for(const p of s.pts){ if(p.t<t0)t0=p.t; if(p.t>t1)t1=p.t; }
+    if(!isFinite(t0)){ t0=0; t1=1; }
+    const durPlay=clamp((t1-t0)/2, 800, 6000); // 2倍速・0.8〜6秒におさめる
+    const start=performance.now();
+    (function frame(){
+      const prog=Math.min(1,(performance.now()-start)/durPlay);
+      const tNow=t0+(t1-t0)*prog;
+      g.clearRect(0,0,c.width,c.height);
+      g.drawImage(img,0,0);
+      g.strokeStyle="#5f6fd6"; g.fillStyle="#5f6fd6";
+      for(const s of info.strokes){
+        const pts=s.pts;
+        if(!pts.length || pts[0].t>tNow) continue;
+        if(pts.length===1){
+          g.beginPath(); g.arc(pts[0].x*k,pts[0].y*k,Math.max(1,pts[0].w*k/2),0,7); g.fill();
+          continue;
+        }
+        for(let j=1;j<pts.length;j++){
+          const a=pts[j-1], b=pts[j];
+          if(a.t>tNow) break;
+          let bx=b.x, by=b.y;
+          if(b.t>tNow){
+            const f=(tNow-a.t)/Math.max(1,b.t-a.t);
+            bx=a.x+(b.x-a.x)*f; by=a.y+(b.y-a.y)*f;
+          }
+          g.lineWidth=Math.max(0.6,((a.w+b.w)/2)*k);
+          g.beginPath(); g.moveTo(a.x*k,a.y*k); g.lineTo(bx*k,by*k); g.stroke();
+          if(b.t>tNow) break;
+        }
+      }
+      if(prog<1) replayRaf=requestAnimationFrame(frame);
+      else replayRaf=null;
+    })();
+  };
+  img.src=info.baseShot;
+}
+$("#shotPopup").addEventListener("click",()=>{ stopReplay(); $("#shotPopup").classList.add("hidden"); });
+$("#btnReplay").addEventListener("click",e=>{ e.stopPropagation(); startReplay(curShotIdx); });
+
+/* ---- toast ---- */
+let toastTimer=null;
+function toast(msg){
+  const t=$("#toast");
+  t.textContent=msg;
+  t.classList.remove("hidden");
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.add("hidden"),3500);
+}
+
+/* ---- online ranking (Supabase REST) ---- */
+const RANK_ENABLED = !!(RANK_URL && RANK_KEY);
+async function rankFetch(path, opts){
+  opts=opts||{};
+  const ctrl=new AbortController();
+  const timer=setTimeout(()=>ctrl.abort(),6000);
+  try{
+    return await fetch(RANK_URL+"/rest/v1/"+path,{
+      ...opts, signal:ctrl.signal,
+      headers:{ apikey:RANK_KEY, Authorization:"Bearer "+RANK_KEY,
+                "Content-Type":"application/json", ...(opts.headers||{}) },
+    });
+  }finally{ clearTimeout(timer); }
+}
+/* ランキングの集計単位: 通常プレイ=モード別 / デイリー=その日 / シード戦=対象外 */
+const boardKey = () => isDaily ? "daily:"+todaySeedStr() : (seededRun ? null : "mode:"+mode);
+/* 端末ごとの匿名プレイヤーID（同一ブラウザ=同一プレイヤーとしてベスト1行を維持） */
+function playerId(){
+  let id=null;
+  try{ id=localStorage.getItem("cube-challenge-pid"); }catch(_){}
+  if(!id){
+    id = (crypto && crypto.randomUUID) ? crypto.randomUUID()
+       : Math.random().toString(36).slice(2)+Date.now().toString(36);
+    try{ localStorage.setItem("cube-challenge-pid",id); }catch(_){}
+  }
+  return id;
+}
+async function rankCount(board, q){
+  const r=await rankFetch(`scores?select=id&board=eq.${encodeURIComponent(board)}${q||""}&limit=1`,
+    {headers:{Prefer:"count=exact"}});
+  return parseInt((r.headers.get("content-range")||"//0").split("/")[1],10)||0;
+}
+async function submitScore(){
+  if(!lastFinal) return;
+  const board=boardKey(); if(!board) return;
+  const name=((($("#rankName").value)||"").trim()||"no name").slice(0,12);
+  try{ localStorage.setItem("cube-challenge-name",name); }catch(_){}
+  $("#btnRankSubmit").disabled=true;
+  $("#rankResult").textContent=tr("そうしんちゅう…","Submitting…");
+  try{
+    // 同一プレイヤー(端末ID)はベストスコアで1行を上書き（RPC）。
+    // RPC未設定のサーバーでは旧方式のINSERTにフォールバック。
+    let stored=lastFinal.avg;
+    let r=await rankFetch("rpc/submit_score",{method:"POST",body:JSON.stringify({
+      p_pid:playerId(), p_name:name, p_board:board, p_score:lastFinal.avg })});
+    if(r.status===404){
+      r=await rankFetch("scores",{method:"POST",body:JSON.stringify({name,board,score:lastFinal.avg})});
+    }else if(r.ok){
+      try{ const v=await r.json(); if(typeof v==="number") stored=v; }catch(_){}
+    }
+    if(!r.ok) throw new Error("post "+r.status);
+    const higher=await rankCount(board,"&score=gt."+stored);
+    const total=await rankCount(board,"");
+    const top=await (await rankFetch(
+      `scores?select=name,score&board=eq.${encodeURIComponent(board)}&order=score.desc,created_at.asc&limit=10`)).json();
+    const esc=s=>String(s).replace(/[<>&]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]));
+    const rows=top.map((e,i)=>
+      `<div class="rrow${e.name===name&&Math.abs(e.score-stored)<0.005?" me":""}"><span>${i+1}. ${esc(e.name)}</span><span>${(+e.score).toFixed(2)}</span></div>`).join("");
+    const bestNote = stored>lastFinal.avg+0.004
+      ? `<div style="font-size:12px;color:#9a8090;">${tr(`じこベスト ${stored.toFixed(2)}点でとうろく中`,`Your best ${stored.toFixed(2)} stays on the board`)}</div>` : "";
+    $("#rankResult").innerHTML=
+      `<div class="big">🏅 ${tr(`${total}人中 ${higher+1}位！`,`Rank ${higher+1} of ${total}!`)}</div>${bestNote}${rows}`;
+    $("#rankEntry").classList.add("hidden");
+  }catch(_){
+    $("#rankResult").textContent=tr("送信に失敗しました…（通信環境を確認してね）","Submission failed… (check your connection)");
+    $("#btnRankSubmit").disabled=false;
+  }
+}
+$("#btnRankSubmit").addEventListener("click",submitScore);
+$("#rankName").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); e.stopPropagation(); submitScore(); } });
+
+/* ---- share card & SNS post ---- */
+const loadImg = src => new Promise(res=>{
+  if(!src) return res(null);
+  const im=new Image();
+  im.onload=()=>res(im); im.onerror=()=>res(null);
+  im.src=src;
+});
+function drawCover(g,im,x,y,w,h,r){
+  g.save(); g.beginPath();
+  if(g.roundRect) g.roundRect(x,y,w,h,r); else g.rect(x,y,w,h);
+  g.fillStyle="#fff"; g.fill(); g.clip();
+  if(im){
+    const s=Math.max(w/im.width, h/im.height);
+    const dw=im.width*s, dh=im.height*s;
+    g.drawImage(im, x+(w-dw)/2, y+(h-dh)/2, dw, dh);
+  }
+  g.restore();
+  g.strokeStyle="#ffd9e8"; g.lineWidth=3;
+  g.beginPath();
+  if(g.roundRect) g.roundRect(x,y,w,h,r); else g.rect(x,y,w,h);
+  g.stroke();
+}
+async function buildShareCard(){
+  const Wc=1200, Hc=675, M=48, F="'Segoe UI','Yu Gothic UI',sans-serif";
+  const c=document.createElement("canvas"); c.width=Wc; c.height=Hc;
+  const g=c.getContext("2d");
+  const gr=g.createLinearGradient(0,0,Wc,Hc);
+  gr.addColorStop(0,"#ffe9f2"); gr.addColorStop(.55,"#f3ecff"); gr.addColorStop(1,"#e8f4ff");
+  g.fillStyle=gr; g.fillRect(0,0,Wc,Hc);
+  g.textAlign="left";
+  g.fillStyle="#54455a"; g.font="800 44px "+F;
+  g.fillText(tr("🧊 立方体チャレンジ","🧊 Cube Challenge"), M, 78);
+  g.fillStyle="#8a6f80"; g.font="700 25px "+F;
+  g.fillText(MODES[mode].name+tr("　そうごうスコア","  ·  Total Score"), M, 118);
+  g.textAlign="right";
+  g.fillStyle="#54455a"; g.font="800 74px "+F;
+  g.fillText(lastFinal.avg.toFixed(2)+tr("点"," pts"), Wc-M, 88);
+  g.fillStyle=gradeColor(lastFinal.g); g.font="800 36px "+F;
+  g.fillText(tr("グレード ","Grade ")+lastFinal.g+" "+gradeEmoji(lastFinal.g), Wc-M, 132);
+  // 5x2 thumbnails
+  const imgs=await Promise.all(roundsInfo.map(r=>loadImg(r.shot)));
+  const gw=(Wc-2*M-4*14)/5, gh=138;
+  roundsInfo.forEach((info,i)=>{
+    const x=M+(i%5)*(gw+14), y=162+Math.floor(i/5)*(gh+44);
+    drawCover(g,imgs[i],x,y,gw,gh,10);
+    g.textAlign="center"; g.fillStyle=info.practice?"#b3a08a":"#8a6f80"; g.font="700 19px "+F;
+    g.fillText(info.practice?`R${i+1} 🌱`:`R${i+1}  ${info.score.toFixed(2)}`, x+gw/2, y+gh+28);
+  });
+  g.textAlign="center"; g.fillStyle="#54455a"; g.font="800 34px "+F;
+  g.fillText(tr(`称号：${lastFinal.ttl.emoji} ${lastFinal.ttl.name}`,`Title: ${lastFinal.ttl.emoji} ${lastFinal.ttl.name}`)+(lastFinal.isBest?"　🏆":""), Wc/2, Hc-80);
+  g.textAlign="left"; g.fillStyle="#e86f9e"; g.font="800 26px "+F;
+  g.fillText(tr("#立方体チャレンジ","#CubeChallenge"), M, Hc-26);
+  g.textAlign="right"; g.fillStyle="#8a6f80"; g.font="700 22px "+F;
+  const d=new Date();
+  if(isDaily) g.fillText(tr(`📅 デイリー ${d.getMonth()+1}/${d.getDate()}`,`📅 Daily ${d.getMonth()+1}/${d.getDate()}`), Wc-M, Hc-26);
+  return c.toDataURL("image/png");
+}
+function buildShareText(){
+  const base = PUBLIC_URL || (location.protocol.startsWith("http") ? location.origin+location.pathname : "");
+  const link = !base
+    ? ""
+    : base.includes("itch.io")
+    ? (isDaily ? tr(` きょうのチャレンジに挑戦→ ${base}`,` Try today's challenge → ${base}`)
+               : tr(` あそんでみて→ ${base}`,` Play it → ${base}`))
+    : tr(` おなじお題に挑戦→ `,` Try the same puzzles → `)+`${base}?seed=${encodeURIComponent(gameSeed)}&mode=${mode}`;
+  return tr(
+    `立方体チャレンジ（${MODES[mode].name}${isDaily?"・きょうのチャレンジ":""}）${lastFinal.avg.toFixed(2)}点・${lastFinal.g}${gradeEmoji(lastFinal.g)} 称号「${lastFinal.ttl.name}」！${link} #立方体チャレンジ`,
+    `Cube Challenge (${MODES[mode].name}${isDaily?" · Daily":""}) — ${lastFinal.avg.toFixed(2)} pts, grade ${lastFinal.g}${gradeEmoji(lastFinal.g)}, title "${lastFinal.ttl.name}"!${link} #CubeChallenge`);
+}
+let lastShare=null;
+async function shareResult(){
+  if(!lastFinal) return;
+  try{
+    const dataUrl=await buildShareCard();
+    const blob=await (await fetch(dataUrl)).blob();
+    lastShare={dataUrl, blob, text:buildShareText()};
+    $("#sharePrev").src=dataUrl;
+    // モバイルだけOSの共有シート（インスタ等に直接渡せる）ボタンを出す
+    let sheet=false;
+    try{
+      const f=new File([blob],"cube-challenge.png",{type:"image/png"});
+      sheet=/Android|iPhone|iPad/i.test(navigator.userAgent) && navigator.canShare && navigator.canShare({files:[f]});
+    }catch(_){}
+    $("#btnShareSheet").classList.toggle("hidden", !sheet);
+    $("#shareHint").textContent=tr(
+      "𝕏は画像を自動コピーしてから投稿画面をひらくよ（Ctrl+Vで貼りつけ）",
+      "For 𝕏: the image is auto-copied — press Ctrl+V in the compose window");
+    $("#sharePopup").classList.remove("hidden");
+  }catch(_){ toast(tr("シェア画像の作成に失敗しました…","Couldn't build the share image…")); }
+}
+async function copyShareImage(){
+  try{ await navigator.clipboard.write([new ClipboardItem({"image/png":lastShare.blob})]); return true; }
+  catch(_){ return false; }
+}
+function downloadShare(){
+  const a=document.createElement("a");
+  a.href=lastShare.dataUrl; a.download="cube-challenge.png"; a.click();
+}
+$("#btnShareX").addEventListener("click",async()=>{
+  if(!lastShare) return;
+  const copied=await copyShareImage();
+  if(!copied) downloadShare();
+  window.open("https://twitter.com/intent/tweet?text="+encodeURIComponent(lastShare.text),"_blank");
+  toast(copied ? tr("画像コピー済み！投稿画面で Ctrl+V で貼りつけてね📮","Image copied! Press Ctrl+V in the compose window 📮")
+               : tr("画像を保存しました！投稿に添付してね📮","Image saved! Attach it to your post 📮"));
+});
+$("#btnShareIg").addEventListener("click",()=>{
+  if(!lastShare) return;
+  downloadShare();
+  toast(tr("画像を保存しました！Instagramアプリから投稿してね📷","Saved! Post it from the Instagram app 📷"));
+});
+$("#btnShareSheet").addEventListener("click",async()=>{
+  if(!lastShare) return;
+  try{
+    const f=new File([lastShare.blob],"cube-challenge.png",{type:"image/png"});
+    await navigator.share({files:[f], text:lastShare.text});
+  }catch(_){}
+});
+$("#btnShareCopy").addEventListener("click",async()=>{
+  toast((await copyShareImage())
+    ? tr("画像をコピーしました📋","Image copied 📋")
+    : tr("コピーできませんでした…「ほぞん」を使ってね","Couldn't copy — use Save instead"));
+});
+$("#btnShareSave").addEventListener("click",()=>{
+  if(!lastShare) return;
+  downloadShare();
+  toast(tr("画像を保存しました💾","Image saved 💾"));
+});
+$("#btnShareClose").addEventListener("click",()=>$("#sharePopup").classList.add("hidden"));
+$("#sharePopup").addEventListener("click",e=>{ if(e.target.id==="sharePopup") $("#sharePopup").classList.add("hidden"); });
+
+function toMenu(){
+  stopTimer();
+  hideJudgeHint();
+  setState("menu");
+  round=null;
+  $("#finalOverlay").classList.add("hidden");
+  refreshMenuBest();
+  refreshDaily();
+  $("#menuOverlay").classList.remove("hidden");
+  render();
+}
+function refreshMenuBest(){
+  const b=loadBest();
+  const f=(id,k)=>{ $(id).textContent = b[k]!==undefined ? tr(`ベスト ${(+b[k]).toFixed(2)}点`,`Best ${(+b[k]).toFixed(2)}`) : ""; };
+  f("#bestNormal","normal"); f("#bestWire","wire"); f("#bestDouble","double");
+}
+
+/* ================= wiring ================= */
+document.querySelectorAll(".modeBtn[data-mode]").forEach(b=>
+  b.addEventListener("click",()=>startGame(b.dataset.mode)));
+$("#btnSubmit").addEventListener("click",()=>submit(false));
+$("#btnNext").addEventListener("click",next);
+$("#btnUndo").addEventListener("click",undo);
+$("#btnClear").addEventListener("click",clearAll);
+$("#btnMenu").addEventListener("click",toMenu);
+$("#btnRetry").addEventListener("click",()=>startGame(mode, seededRun?{seed:gameSeed,daily:isDaily}:{}));
+$("#btnShare").addEventListener("click",shareResult);
+$("#btnToMenu").addEventListener("click",toMenu);
+$("#finalSeed").addEventListener("click",async()=>{
+  const base = PUBLIC_URL || (location.protocol.startsWith("http") ? location.origin+location.pathname : "");
+  const link = !base ? gameSeed
+    : base.includes("itch.io") ? `${base} ${tr("シード","seed")}: ${gameSeed}`
+    : `${base}?seed=${encodeURIComponent(gameSeed)}&mode=${mode}`;
+  try{ await navigator.clipboard.writeText(link); toast(tr("チャレンジ用シードをコピーしました🔗","Challenge seed copied! 🔗")); }
+  catch(_){ toast(tr("コピーできませんでした… シード: ","Couldn't copy… seed: ")+gameSeed); }
+});
+
+/* ---- デイリーチャレンジ・シード入力・URLチャレンジ ---- */
+const DAILY_KEY="cube-challenge-daily-v1";
+function refreshDaily(){
+  let rec=null; try{ rec=JSON.parse(localStorage.getItem(DAILY_KEY)); }catch(_){}
+  $("#bestDailyLab").textContent = (rec && rec.date===todaySeedStr()) ? tr(`きょう ${(+rec.score).toFixed(2)}点`,`Today ${(+rec.score).toFixed(2)}`) : "";
+}
+/* 言語切替ボタン（表示は「切替先」の言語名） */
+$("#btnLang").textContent = JA ? "🌐 English" : "🌐 日本語";
+$("#btnLang").addEventListener("click",()=>{
+  try{ localStorage.setItem("cube-challenge-lang", JA?"en":"ja"); }catch(_){}
+  const q=new URLSearchParams(location.search);
+  q.delete("lang");
+  const qs=q.toString();
+  const url=location.pathname+(qs?"?"+qs:"");
+  if(location.pathname+location.search===url) location.reload();
+  else location.href=url;
+});
+
+$("#btnDaily").addEventListener("click",()=>startGame("normal",{seed:todaySeedStr(),daily:true}));
+$("#btnSeedPlay").addEventListener("click",()=>{
+  const s=prompt(tr("シードを入力してね（配信者とおなじお題に挑戦！）\n※ノーマルモードで開始します。URLの ?seed=◯◯&mode=◯◯ でモード指定もできます",
+                    "Enter a seed to play the same puzzles!\nStarts in Normal mode — use ?seed=…&mode=… in the URL for other modes"));
+  if(s && s.trim()) startGame("normal",{seed:s.trim()});
+});
+(function(){
+  const q=new URLSearchParams(location.search);
+  const s=q.get("seed");
+  if(!s) return;
+  const m=MODES[q.get("mode")] ? q.get("mode") : "normal";
+  const b=document.createElement("button");
+  b.className="modeBtn";
+  b.style.background="#ffe9f2"; b.style.borderColor="#ff9fc4";
+  const safe=s.replace(/[<>&"]/g,"");
+  b.innerHTML=`<span><span class="mn">${tr("🔥 チャレンジをうける","🔥 Accept the challenge")}</span><br><span class="md">${tr(`シード「${safe}」・${MODES[m].name}`,`Seed "${safe}" · ${MODES[m].name}`)}</span></span>`;
+  b.addEventListener("click",()=>startGame(m,{seed:s}));
+  $("#challengeSlot").appendChild(b);
+})();
+refreshDaily();
+$("#btnPen").addEventListener("click",()=>setTool("pen"));
+$("#btnEraser").addEventListener("click",()=>setTool("eraser"));
+
+/* audio toggles */
+function refreshAudioButtons(){
+  $("#btnSfx").textContent = Sound.prefs.sfx ? "🔔" : "🔕";
+  $("#btnSfx").classList.toggle("off", !Sound.prefs.sfx);
+  $("#btnBgm").classList.toggle("off", !Sound.prefs.bgm);
+}
+$("#btnSfx").addEventListener("click",e=>{ Sound.toggleSfx(); refreshAudioButtons(); e.currentTarget.blur(); });
+$("#btnBgm").addEventListener("click",e=>{ Sound.toggleBgm(); refreshAudioButtons(); e.currentTarget.blur(); });
+refreshAudioButtons();
+
+/* generic cute click for buttons (in addition to specific sounds) */
+document.addEventListener("click",e=>{
+  if(e.target.closest("button")) Sound.click();
+},true);
+
+/* start audio engine on user gestures (pen/touch grant activation at pointerup,
+   so keep retrying until the AudioContext is actually running) */
+function tryUnlockAudio(){
+  Sound.ensure();
+  if(Sound.prefs.bgm) Sound.bgmStart();
+  if(Sound.running()){
+    document.removeEventListener("pointerup",tryUnlockAudio,true);
+    document.removeEventListener("pointerdown",tryUnlockAudio,true);
+    document.removeEventListener("keydown",tryUnlockAudio,true);
+  }
+}
+document.addEventListener("pointerdown",tryUnlockAudio,true);
+document.addEventListener("pointerup",tryUnlockAudio,true);
+document.addEventListener("keydown",tryUnlockAudio,true);
+
+window.addEventListener("keydown",e=>{
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==="z"){
+    undo(); e.preventDefault();
+  }else if(e.key==="Enter"){
+    if(state==="draw"||state==="roundResult"){
+      if(e.repeat) return;      // 長押しリピートで次ラウンドを誤爆しない
+      e.preventDefault();       // フォーカス中のボタンへのclick発火を止める
+      state==="draw" ? submit(false) : next();
+    }
+  }else if(e.key.toLowerCase()==="e" && state==="draw"){
+    if(e.repeat || activeId!==null) return;
+    setTool(tool==="pen"?"eraser":"pen");
+  }
+});
+
+/* リサイズ時は幾何を平行移動して画面中央に寄せ直すだけ —
+   描きかけ・タイマー・お題はそのまま保つ（作り直すと不利/チートになる） */
+window.addEventListener("resize",()=>{
+  resizeCanvases();
+  if(round && (!Number.isFinite(round.cubes[0].P[0].x) || round.targets.length===0)){
+    // 非表示タブ(0x0)などで壊れた状態で生成されたラウンドは作り直す
+    if(W>50 && H>50) newRound();
+    return;
+  }
+  if(round){
+    const pts=[]; round.cubes.forEach(c=>pts.push(...c.P));
+    const xs=pts.map(p=>p.x), ys=pts.map(p=>p.y);
+    const dx=W/2-(Math.min(...xs)+Math.max(...xs))/2;
+    const dy=(70+(H-95))/2-(Math.min(...ys)+Math.max(...ys))/2;
+    if(dx||dy){
+      const seen=new Set();
+      const shift=p=>{ if(seen.has(p))return; seen.add(p); p.x+=dx; p.y+=dy; };
+      round.cubes.forEach(c=>c.P.forEach(shift));          // targets/allSegsのpa,pbは同じ参照
+      round.targets.forEach(t=>t.samples.forEach(shift));
+      strokes.forEach(s=>s.pts.forEach(shift));
+      if(cur) cur.pts.forEach(shift);
+      history.forEach(snap=>snap.forEach(s=>s.pts.forEach(shift)));
+      hoverPos=null;
+    }
+  }
+  rebuildInk(); render();
+});
+
+/* debug hook */
+window.__cube = {
+  get round(){ return round; },
+  get strokes(){ return strokes; },
+  get state(){ return state; },
+  get scores(){ return scores; },
+  get tool(){ return tool; },
+  get history(){ return history; },
+  forceTimeout(){ if(state==="draw" && !round.practice){ deadline=performance.now(); } },
+  gen(m,w,h){ return genRound(m,false,w||W,h||H); },
+  buildShareCard,
+  get roundsInfo(){ return roundsInfo; },
+  get seed(){ return gameSeed; },
+  start(m,o){ startGame(m,o); },
+};
+
+/* 英語UI（日本語ブラウザ以外／?lang=en）: 静的テキストを差し替え */
+if(!JA){
+  document.title="Cube Challenge";
+  document.documentElement.lang="en";
+  $("#practiceChip").textContent="🌱 Practice";
+  $("#btnMenu").textContent="🏠 Quit";
+  $("#btnPen").textContent="✏️ Pen";
+  $("#btnEraser").textContent="🧽 Eraser";
+  $("#btnUndo").textContent="↩️ Undo";
+  $("#btnClear").textContent="🗑️ Clear";
+  $("#btnSubmit").textContent="✨ Judge!";
+  $("#btnReplay").textContent="▶️ Replay";
+  $("#btnPopupClose").textContent="✕ Close";
+  $("#btnRetry").textContent="🔁 Play again";
+  $("#btnShare").textContent="📮 Share result";
+  $("#btnToMenu").textContent="🏠 Modes";
+  $("#menuOverlay h1").textContent="🧊 Cube Challenge";
+  $("#menuOverlay .sub").textContent="See one face, predict and draw the rest of the cube! Pen tablet & mouse friendly";
+  document.querySelector("#btnDaily .mn").textContent="📅 Daily Challenge";
+  document.querySelector('.modeBtn[data-mode="normal"] .mn').textContent="🧊 Normal";
+  document.querySelector('.modeBtn[data-mode="wire"] .mn').textContent="🩻 Wireframe";
+  document.querySelector('.modeBtn[data-mode="double"] .mn').textContent="🧊🧊 Double";
+  $("#btnSeedPlay").textContent="🔗 Enter a seed to play the same puzzles";
+  $("#menuOverlay .foot").innerHTML="<span style='opacity:.85'>made by <a href='https://x.com/daromeon' target='_blank' rel='noopener' style='color:#e86f9e;text-decoration:none;font-weight:800;'>@daromeon</a></span><span id='verLab' style='opacity:.6'></span>";
+  $("#finalOverlay .foot").textContent = RANK_ENABLED
+    ? "Scores are shared on the public leaderboard when you submit them"
+    : "Online ranking coming in a future update!";
+  $("#rankName").placeholder="name (up to 12 chars)";
+  $("#btnRankSubmit").textContent="🏆 Submit to ranking";
+  $("#btnShareX").textContent="Post to 𝕏";
+  $("#btnShareIg").textContent="📷 Save for Instagram";
+  $("#btnShareSheet").textContent="📱 Share via app";
+  $("#btnShareCopy").textContent="📋 Copy image";
+  $("#btnShareSave").textContent="💾 Save image";
+  $("#btnShareClose").textContent="✕ Close";
+}
+/* ランキング有効時は日本語の注記も差し替え */
+if(JA && RANK_ENABLED){
+  $("#finalOverlay .foot").textContent="とうろくすると、スコアはみんなのランキングに公開されます";
+}
+
+$("#verLab").textContent = "v" + GAME_VER;
+
+/* PWA: Service Worker登録（https配信時のみ。itch.io埋め込みでは無効化） */
+if("serviceWorker" in navigator
+   && (location.protocol==="https:" || location.hostname==="localhost")
+   && !location.hostname.includes("itch.zone")){
+  window.addEventListener("load",()=>{
+    navigator.serviceWorker.register("sw.js").catch(()=>{});
+  });
+}
+
+resizeCanvases();
+refreshMenuBest();
+render();
+</script>
+</body>
+</html>

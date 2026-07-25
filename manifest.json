@@ -1,0 +1,17 @@
+{
+  "name": "立方体チャレンジ - Cube Challenge",
+  "short_name": "立方体チャレンジ",
+  "description": "1つの面から立方体を予測して描くパース練習ゲーム",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#fff9f2",
+  "theme_color": "#ffd6e7",
+  "lang": "ja",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
