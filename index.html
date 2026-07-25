@@ -50,6 +50,8 @@
     box-shadow:0 2px 6px rgba(232,111,158,.12);white-space:nowrap;
   }
   .chip.warn{background:#fff8dc;border-color:#f5d98d;color:#9a7b1a;}
+  /* やめるは右上に完全固定（チップの折返しで動かないように） */
+  #btnMenu{position:fixed;top:12px;right:12px;z-index:6;pointer-events:auto;}
 
   #timerWrap{
     position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:6;
@@ -210,9 +212,7 @@
   .btnrow{display:flex;gap:10px;justify-content:center;}
 
   @media (max-width:560px){
-    #timerWrap{top:52px;}
-    #scoreFloat{top:52px;}
-    #hint{top:102px;font-size:12.5px;}
+    #hint{font-size:12.5px;}
     button{font-size:13px;padding:8px 12px;}
     .chip{font-size:12px;padding:4px 10px;}
   }
@@ -220,6 +220,7 @@
   /* PWA: iPhoneのノッチ・ホームバー等のセーフエリア対応 */
   @supports (padding: env(safe-area-inset-top)){
     #topbar{top:env(safe-area-inset-top);}
+    #btnMenu{top:calc(12px + env(safe-area-inset-top));right:calc(12px + env(safe-area-inset-right));}
     #timerWrap{top:calc(8px + env(safe-area-inset-top));}
     #scoreFloat{top:calc(12px + env(safe-area-inset-top));}
     #hint{top:calc(60px + env(safe-area-inset-top));}
@@ -237,6 +238,25 @@
   body:not([data-state="draw"]) #hint,
   body:not([data-state="draw"]) #timerWrap{display:none;}
   body[data-state="menu"] #topbar,body[data-state="final"] #topbar{display:none;}
+  body[data-state="menu"] #btnMenu,body[data-state="final"] #btnMenu{display:none;}
+
+  /* 縦画面レイアウト: タイマーは「やめる」の下、説明文は左寄せ2行まで */
+  @media (orientation: portrait){
+    #practiceChip{display:none;}   /* 練習中は説明文が伝えるので重複を省く */
+    #topbar>div{max-width:calc(100vw - 110px);}  /* 右側は固定ボタンだけなので左を広く */
+    #timerWrap{
+      left:auto;right:10px;transform:none;
+      top:calc(56px + env(safe-area-inset-top,0px));
+    }
+    #hint{
+      left:14px;transform:none;text-align:left;
+      top:calc(58px + env(safe-area-inset-top,0px));
+      max-width:calc(100vw - 92px);
+      white-space:normal;line-height:1.55;
+      border-radius:14px;
+    }
+    #scoreFloat{top:calc(54px + env(safe-area-inset-top,0px));}
+  }
 </style>
 </head>
 <body data-state="menu">
@@ -250,7 +270,6 @@
     <span id="practiceChip" class="chip warn hidden">🌱 れんしゅう</span>
   </div>
   <div>
-    <span id="avgChip" class="chip"></span>
     <button id="btnMenu" class="ghost small">🏠 やめる</button>
   </div>
 </div>
@@ -290,8 +309,10 @@
 <div id="nextBar"><button id="btnNext" class="primary">➡️ つぎへ</button></div>
 
 <div id="menuOverlay" class="overlay">
-  <div class="card" style="position:relative">
-    <button id="btnLang" class="small" style="position:absolute;top:16px;right:18px;">🌐 English</button>
+  <div class="card">
+    <div style="display:flex;justify-content:flex-end;margin:-8px -10px 2px 0;">
+      <button id="btnLang" class="small">🌐 English</button>
+    </div>
     <h1>🧊 立方体チャレンジ</h1>
     <p class="sub">1つの面から、立方体ののこりを予測してかこう！ペンタブ・液タブ・マウス対応</p>
     <div id="howtoBox">
@@ -377,7 +398,7 @@
    ============================================================ */
 const TIME_LIMIT = 30;   // 本番ラウンドの制限時間（秒）
 const ERASER_R   = 16;   // けしゴムの半径(px)
-const GAME_VER = "1.07";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
+const GAME_VER = "1.09";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
 // ネイティブアプリ（Capacitor/App Store版）で動いているか
 const CAP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 
@@ -570,6 +591,21 @@ const Sound = (() => {
     if(prev && !prev.paused) fadeOutEl(prev); // 250msフェードアウトしてから停止
     bgmStart();
   }
+  /* 非アクティブ時（ホーム画面へ切替・タブ切替等）はBGMを止め、戻ったら再開 */
+  let bgmWasPlaying=false;
+  function bgmPauseForHide(){
+    const cur=bgmEls[bgmScene];
+    bgmWasPlaying = prefs.bgm && ((cur && !cur.paused) || !!bgmTimer);
+    for(const k in bgmEls){ try{ cancelFade(bgmEls[k]); bgmEls[k].pause(); }catch(_){} }
+    synthStop();
+  }
+  function bgmResumeFromShow(){
+    if(prefs.bgm && bgmWasPlaying) bgmStart();
+  }
+  document.addEventListener("visibilitychange",()=>{
+    if(document.hidden) bgmPauseForHide(); else bgmResumeFromShow();
+  });
+  window.addEventListener("pagehide", bgmPauseForHide);
 
   return {
     prefs, ensure, bgmStart, bgmStop, setScene,
@@ -1304,10 +1340,6 @@ function updateHud(){
   $("#modeChip").textContent = MODES[mode].name;
   $("#roundChip").textContent = tr(`ラウンド ${roundIdx+1} / ${TOTAL_ROUNDS}`,`Round ${roundIdx+1} / ${TOTAL_ROUNDS}`);
   $("#practiceChip").classList.toggle("hidden", !round.practice);
-  const done=scores.filter(s=>s!==null);
-  $("#avgChip").textContent = done.length
-    ? tr(`平均 ${(done.reduce((a,b)=>a+b,0)/done.length).toFixed(1)}点`,`Avg ${(done.reduce((a,b)=>a+b,0)/done.length).toFixed(1)}`)
-    : tr("平均 —","Avg —");
   $("#hint").textContent = round.practice
     ? tr("うすいガイドをなぞって、パースのかんかくをつかもう🌱","Trace the faint guides to get a feel for perspective 🌱")
     : MODES[mode].hint;
