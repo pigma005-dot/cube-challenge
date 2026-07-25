@@ -52,6 +52,8 @@
   .chip.warn{background:#fff8dc;border-color:#f5d98d;color:#9a7b1a;}
   /* やめるは右上に完全固定（チップの折返しで動かないように） */
   #btnMenu{position:fixed;top:12px;right:12px;z-index:6;pointer-events:auto;}
+  /* 言語切替はメニュー画面の右上・枠の外に固定 */
+  #btnLang{position:fixed;top:12px;right:14px;z-index:12;}
 
   #timerWrap{
     position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:6;
@@ -150,9 +152,14 @@
     box-shadow:0 16px 60px rgba(180,90,140,.28);max-height:calc(100vh - 110px);overflow-y:auto;
   }
   .card h1{margin:0 0 4px;font-size:29px;letter-spacing:.02em;color:var(--plum-dark);}
-  .card .sub{color:#b39aa8;font-size:14px;margin:0 0 18px;font-weight:600;}
-  #howtoBox{margin:0 0 16px;text-align:center;}
-  #howtoBox img{max-width:100%;max-height:230px;display:inline-block;border-radius:18px;}
+  .card .sub{color:#b39aa8;font-size:14px;margin:0 0 12px;font-weight:600;}
+  #howtoBox{margin:0 0 12px;text-align:center;}
+  #howtoBox img{max-width:92%;max-height:175px;display:inline-block;border-radius:18px;}
+  @media (max-height:660px){
+    #howtoBox img{max-height:135px;}
+    .card{padding:18px 26px;}
+    .card h1{font-size:24px;}
+  }
   .modeBtn{
     display:flex;justify-content:space-between;align-items:center;width:100%;
     text-align:left;padding:14px 18px;margin-bottom:10px;border-radius:18px;
@@ -221,6 +228,7 @@
   @supports (padding: env(safe-area-inset-top)){
     #topbar{top:env(safe-area-inset-top);}
     #btnMenu{top:calc(12px + env(safe-area-inset-top));right:calc(12px + env(safe-area-inset-right));}
+    #btnLang{top:calc(12px + env(safe-area-inset-top));right:calc(14px + env(safe-area-inset-right));}
     #timerWrap{top:calc(8px + env(safe-area-inset-top));}
     #scoreFloat{top:calc(12px + env(safe-area-inset-top));}
     #hint{top:calc(60px + env(safe-area-inset-top));}
@@ -309,10 +317,8 @@
 <div id="nextBar"><button id="btnNext" class="primary">➡️ つぎへ</button></div>
 
 <div id="menuOverlay" class="overlay">
+  <button id="btnLang" class="small">🌐 English</button>
   <div class="card">
-    <div style="display:flex;justify-content:flex-end;margin:-8px -10px 2px 0;">
-      <button id="btnLang" class="small">🌐 English</button>
-    </div>
     <h1>🧊 立方体チャレンジ</h1>
     <p class="sub">1つの面から、立方体ののこりを予測してかこう！ペンタブ・液タブ・マウス対応</p>
     <div id="howtoBox">
@@ -398,7 +404,7 @@
    ============================================================ */
 const TIME_LIMIT = 30;   // 本番ラウンドの制限時間（秒）
 const ERASER_R   = 16;   // けしゴムの半径(px)
-const GAME_VER = "1.09";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
+const GAME_VER = "1.10";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
 // ネイティブアプリ（Capacitor/App Store版）で動いているか
 const CAP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 
