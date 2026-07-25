@@ -377,7 +377,7 @@
    ============================================================ */
 const TIME_LIMIT = 30;   // 本番ラウンドの制限時間（秒）
 const ERASER_R   = 16;   // けしゴムの半径(px)
-const GAME_VER = "1.06";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
+const GAME_VER = "1.07";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
 // ネイティブアプリ（Capacitor/App Store版）で動いているか
 const CAP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 
@@ -722,13 +722,38 @@ function makeCube(rot,K,D,tx,ty,W,H,fixedK){
 const randRot = () => ({ yaw: rndSign()*rnd(10,38)*DEG, pitch: rndSign()*rnd(7,26)*DEG });
 
 /* ================= round generation ================= */
+/* 手前のY字コーナー（3つの可視面が集まる頂点）の最小角[deg]。
+   3面見えていない構図ならInfinity（判定対象外）。
+   直角が鋭角に映る「視円錐の外」の不自然なお題を弾くために使う。 */
+function yCornerMinAngle(c){
+  let yv=-1;
+  for(let v=0;v<8 && yv<0;v++){
+    let cnt=0;
+    for(let fi=0;fi<6;fi++) if(c.vis[fi] && CUBE_FACES[fi].idx.includes(v)) cnt++;
+    if(cnt===3) yv=v;
+  }
+  if(yv<0) return Infinity;
+  const nbs=[];
+  for(const e of CUBE_EDGES){
+    if(e.a===yv) nbs.push(e.b);
+    else if(e.b===yv) nbs.push(e.a);
+  }
+  const p=c.P[yv];
+  const angs=nbs.map(nb=>Math.atan2(c.P[nb].y-p.y, c.P[nb].x-p.x)).sort((x,y)=>x-y);
+  const gaps=[angs[1]-angs[0], angs[2]-angs[1], 2*Math.PI-(angs[2]-angs[0])];
+  return Math.min(...gaps)*180/Math.PI;
+}
+
 /* retry until every cube has enough drawable edges (rarely, an almost
-   head-on cube ends up with zero visible non-shown edges → NaN scores) */
+   head-on cube ends up with zero visible non-shown edges → NaN scores)
+   + Y字コーナーが90°未満（不自然パース）のお題も再抽選 */
 function genRound(mode, practice, W, H){
   let r=null;
   for(let i=0;i<40;i++){
     r=buildRound(mode, practice, W, H);
-    if(r.cubes.every((c,ci)=>r.targets.filter(t=>t.cube===ci).length>=3)) break;
+    const ok=r.cubes.every((c,ci)=>
+      r.targets.filter(t=>t.cube===ci).length>=3 && yCornerMinAngle(c)>=90);
+    if(ok) break;
   }
   return r;
 }
