@@ -377,7 +377,7 @@
    ============================================================ */
 const TIME_LIMIT = 30;   // 本番ラウンドの制限時間（秒）
 const ERASER_R   = 16;   // けしゴムの半径(px)
-const GAME_VER = "1.04";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
+const GAME_VER = "1.05";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
 // ネイティブアプリ（Capacitor/App Store版）で動いているか
 const CAP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 
@@ -670,6 +670,24 @@ function makeCube(rot,K,D,tx,ty,W,H,fixedK){
     if(!dx && !dy) break;
     tx += dx*D/K;  ty -= dy*D/K;
   }
+  // 余白の偏りから answers の方向を推測されないよう、
+  // 「置ける範囲」の中の一様ランダムな位置に置き直す（1キューブのモードのみ）
+  if(!fixedK){
+    const xs=P.map(p=>p.x), ys=P.map(p=>p.y);
+    const l=Math.min(...xs), r=Math.max(...xs), t=Math.min(...ys), b=Math.max(...ys);
+    tx += rnd(mL-l, (W-mR)-r)*D/K;
+    ty -= rnd(mT-t, (H-mB)-b)*D/K;
+    for(let it=0; it<6; it++){   // 透視によるズレを再クランプ
+      P = projectVerts(R,K,D,tx,ty,W,H);
+      const xs2=P.map(p=>p.x), ys2=P.map(p=>p.y);
+      const l2=Math.min(...xs2), r2=Math.max(...xs2), t2=Math.min(...ys2), b2=Math.max(...ys2);
+      let dx=0, dy=0;
+      if(l2<mL) dx=mL-l2; else if(r2>W-mR) dx=W-mR-r2;
+      if(t2<mT) dy=mT-t2; else if(b2>H-mB) dy=H-mB-b2;
+      if(!dx && !dy) break;
+      tx += dx*D/K;  ty -= dy*D/K;
+    }
+  }
   const vis = CUBE_FACES.map(f=>{
     const n = mv(R,f.n);
     const cc = [n[0]+tx, n[1]+ty, n[2]+D];
@@ -738,7 +756,8 @@ function buildRound(mode, practice, W, H){
     cubes.push(makeCube(rotB,K,D2, ox2*D2/K, -oy2*D2/K, W,H,true));
   }else{
     const D = rnd(3.8,8);
-    const app = rnd(0.30,0.40)*minWH;
+    // 大きめの画面では少し小さく出題して余白の自由度を上げる（スマホは描きやすさ優先）
+    const app = (minWH>=560 ? rnd(0.26,0.34) : rnd(0.30,0.40))*minWH;
     const K = app*D/2;
     const ox = rnd(-0.10,0.10)*W, oy = rnd(-0.06,0.06)*H;
     cubes.push(makeCube(randRot(),K,D, ox*D/K, -oy*D/K, W,H,false));
