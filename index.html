@@ -377,7 +377,9 @@
    ============================================================ */
 const TIME_LIMIT = 30;   // 本番ラウンドの制限時間（秒）
 const ERASER_R   = 16;   // けしゴムの半径(px)
-const GAME_VER = "1.03";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
+const GAME_VER = "1.04";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
+// ネイティブアプリ（Capacitor/App Store版）で動いているか
+const CAP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 
 // ===== BGM（画面ごとに切り替え・ループ再生）=====
 // mp3はこのファイルと同じフォルダに置く。ファイルが無い/空文字の画面は内蔵オルゴール曲になる。
@@ -1262,6 +1264,8 @@ function updateHud(){
 }
 
 function newRound(){
+  // ビューポートサイズが変わっていたら（または初期化前なら）先に補正する
+  if(W!==window.innerWidth || H!==window.innerHeight) resizeCanvases();
   // ラウンドごとに決定論的なシードを張る（同じシード＝同じお題）
   rng = mulberry32(hashSeed(`${gameSeed}#${mode}#${roundIdx}`));
   round = genRound(mode, roundIdx<PRACTICE_ROUNDS, W, H);
@@ -1639,13 +1643,18 @@ async function shareResult(){
     const blob=await (await fetch(dataUrl)).blob();
     lastShare={dataUrl, blob, text:buildShareText()};
     $("#sharePrev").src=dataUrl;
-    // モバイルだけOSの共有シート（インスタ等に直接渡せる）ボタンを出す
-    let sheet=false;
-    try{
-      const f=new File([blob],"cube-challenge.png",{type:"image/png"});
-      sheet=/Android|iPhone|iPad/i.test(navigator.userAgent) && navigator.canShare && navigator.canShare({files:[f]});
-    }catch(_){}
+    // モバイル/ネイティブアプリはOSの共有シート（インスタ等に直接渡せる）ボタンを出す
+    let sheet=CAP;
+    if(!sheet){
+      try{
+        const f=new File([blob],"cube-challenge.png",{type:"image/png"});
+        sheet=/Android|iPhone|iPad/i.test(navigator.userAgent) && navigator.canShare && navigator.canShare({files:[f]});
+      }catch(_){}
+    }
     $("#btnShareSheet").classList.toggle("hidden", !sheet);
+    // ネイティブアプリでは共有シートに一本化（コピー/保存はWKWebViewで不安定なため）
+    for(const id of ["btnShareX","btnShareIg","btnShareCopy","btnShareSave"])
+      $("#"+id).classList.toggle("hidden", CAP);
     $("#shareHint").textContent=tr(
       "𝕏は画像を自動コピーしてから投稿画面をひらくよ（Ctrl+Vで貼りつけ）",
       "For 𝕏: the image is auto-copied — press Ctrl+V in the compose window");
@@ -1675,6 +1684,16 @@ $("#btnShareIg").addEventListener("click",()=>{
 });
 $("#btnShareSheet").addEventListener("click",async()=>{
   if(!lastShare) return;
+  if(CAP){
+    // App Store版: Capacitorプラグインでネイティブ共有（画像+テキスト）
+    try{
+      const {Filesystem, Share}=window.Capacitor.Plugins;
+      const b64=lastShare.dataUrl.split(",")[1];
+      const f=await Filesystem.writeFile({path:"cube-challenge.png", data:b64, directory:"CACHE"});
+      await Share.share({text:lastShare.text, files:[f.uri]});
+    }catch(_){}
+    return;
+  }
   try{
     const f=new File([lastShare.blob],"cube-challenge.png",{type:"image/png"});
     await navigator.share({files:[f], text:lastShare.text});
@@ -1854,6 +1873,7 @@ window.__cube = {
   get history(){ return history; },
   forceTimeout(){ if(state==="draw" && !round.practice){ deadline=performance.now(); } },
   gen(m,w,h){ return genRound(m,false,w||W,h||H); },
+  renderNow(){ drawScene(); },
   buildShareCard,
   get roundsInfo(){ return roundsInfo; },
   get seed(){ return gameSeed; },
