@@ -129,13 +129,14 @@
   #scoreFloat{
     position:fixed;top:12px;left:50%;transform:translateX(-50%);
     z-index:6;text-align:center;pointer-events:none;white-space:nowrap;
+    max-width:96vw;   /* 一言(#rpNote)が長い時に画面外へ切れないように */
     text-shadow:0 1px 0 #fff,0 0 8px #fff,0 0 16px rgba(255,255,255,.9);
   }
   #rpScore{font-size:40px;font-weight:800;line-height:1.1;color:var(--plum-dark);display:inline-block;animation:pop .45s cubic-bezier(.34,1.8,.64,1);}
   @keyframes pop{from{transform:scale(.3);}to{transform:scale(1);}}
   #rpScore small{font-size:17px;font-weight:700;margin-left:2px;}
   #rpGrade{display:inline-block;font-size:30px;font-weight:800;border-radius:12px;padding:1px 13px;margin-right:10px;vertical-align:middle;color:#463a4d;text-shadow:none;}
-  #rpNote{font-size:13px;font-weight:800;color:#7a6ab8;margin-top:2px;}
+  #rpNote{font-size:13px;font-weight:800;color:#7a6ab8;margin-top:2px;white-space:normal;line-height:1.35;}
   #nextBar{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:5;}
   body:not([data-state="roundResult"]) #scoreFloat,
   body:not([data-state="roundResult"]) #nextBar{display:none;}
@@ -233,6 +234,7 @@
     background:var(--card);border:3px solid var(--pink);border-radius:22px;
     padding:16px;max-width:520px;width:100%;text-align:center;
     box-shadow:0 16px 60px rgba(0,0,0,.35);
+    max-height:calc(100vh - 24px);overflow-y:auto;  /* 横持ちスマホでボタンが画面外に出ないように */
   }
   #sharePrev{width:100%;border-radius:12px;border:2px solid #ffd9e8;display:block;}
   #shareHint{font-size:13px;font-weight:700;color:#8a6f80;margin:10px 0 10px;}
@@ -243,7 +245,7 @@
   #shotBig,#shotAnim{max-width:94vw;max-height:74vh;border-radius:14px;background:#fff9f2;box-shadow:0 10px 50px rgba(0,0,0,.4);}
   #popupBtns{display:flex;gap:10px;}
   #shotCap{color:#fff;font-weight:800;font-size:16px;text-shadow:0 1px 4px rgba(0,0,0,.5);}
-  #toast{position:fixed;bottom:76px;left:50%;transform:translateX(-50%);background:#54455a;color:#fff;font-weight:700;font-size:14px;padding:10px 20px;border-radius:999px;z-index:70;box-shadow:0 4px 16px rgba(0,0,0,.3);white-space:nowrap;max-width:94vw;}
+  #toast{position:fixed;bottom:76px;left:50%;transform:translateX(-50%);background:#54455a;color:#fff;font-weight:700;font-size:14px;padding:10px 20px;border-radius:22px;z-index:70;box-shadow:0 4px 16px rgba(0,0,0,.3);white-space:normal;text-align:center;line-height:1.4;width:max-content;max-width:94vw;}
   .btnrow{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
 
   @media (max-width:560px){
@@ -308,6 +310,15 @@
     #finalGrid{max-width:330px;gap:4px;margin-top:7px;margin-bottom:7px;}
     #finalGrid img{max-height:40px;}
     .shotLab{font-size:9px;}
+  }
+  /* 上の高さ系クエリは同じ詳細度の後勝ちで (max-width:560px) の縮小を打ち消してしまう
+     （幅も高さも小さい端末ほど文字が大きくなる逆転）。狭い端末の文字サイズをここで再指定する。
+     ただし高さ640px以下では直上の詰めを優先させるため min-height:641px を付ける。 */
+  @media (max-width:560px) and (min-height:641px){
+    #finalScore{font-size:46px;}
+    #finalGrade{font-size:38px;padding:2px 14px;}
+    #finalTitleLine{font-size:22px;margin:8px 0 2px;}
+    #finalBadges span{font-size:13.5px;padding:2px 10px;}
   }
 
   /* 縦画面レイアウト: タイマーは「やめる」の下、説明文は左寄せ2行まで */
@@ -467,7 +478,7 @@
    ============================================================ */
 const TIME_LIMIT = 30;   // 本番ラウンドの制限時間（秒）
 const ERASER_R   = 16;   // けしゴムの半径(px)
-const GAME_VER = "1.20";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
+const GAME_VER = "1.21";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
 // ネイティブアプリ（Capacitor/App Store版）で動いているか
 const CAP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 
@@ -948,7 +959,10 @@ function buildRound(mode, practice, W, H, tilted){
   let shared = null;
 
   if(mode==="double"){
-    const stacked = W < H;              // 縦画面は上下、横画面は左右（画面の向きにのみ依存）
+    /* 上下配置か左右配置かもシードから決める。以前は画面の向き(W<H)で決めていたが、
+       ワールド座標のtx/tyが変わると透視投影の可視面まで変わるため、
+       縦画面と横画面で「同じシードなのに別のお題」になっていた。 */
+    const stacked = rng() < 0.5;
     const D1 = rnd(6.5,9.5);
     const D2 = D1*rnd(0.85,1.2);
     shared = rng()<0.5;
@@ -1392,14 +1406,14 @@ function clearAll(){
   Sound.clearAll();
   rebuildInk(); render();
 }
-function setTool(t){
+function setTool(t, silent){
   if(tool===t) return;
   tool=t;
   cv.classList.toggle("pen", t==="pen");
   cv.classList.toggle("eraser", t==="eraser");
   $("#btnPen").classList.toggle("active", t==="pen");
   $("#btnEraser").classList.toggle("active", t==="eraser");
-  t==="pen" ? Sound.pencil() : Sound.eraser();
+  if(!silent) t==="pen" ? Sound.pencil() : Sound.eraser();
   render();
 }
 /* insert points so consecutive stroke points are ≤6px apart —
@@ -1632,6 +1646,7 @@ function newRound(){
   roundStart = performance.now();
   strokes=[]; cur=null; activeId=null; history=[]; erasing=false; hoverPos=null;
   eraseUses=0;
+  setTool("pen", true);   // 消しゴムのまま白紙ラウンドが始まって描けない事故を防ぐ
   hideJudgeHint();
   rebuildInk();
   setState("draw");
@@ -1796,8 +1811,8 @@ function showFinal(){
   if(R.filter(r=>r.farInk>=0.8).length>=half) add("guide",SPECIAL_TITLES);
   // 早撃ち: 10秒以内に描き上げてそれなりの点を出した回が3回以上
   if(R.filter(r=>r.secLeft!=null && TIME_LIMIT-r.secLeft<=10 && r.score>=55).length>=3) add("quick",SPECIAL_TITLES);
-  // ギリギリ職人: 残り2秒未満で判定した回が半分以上
-  if(R.filter(r=>r.secLeft!=null && r.secLeft<2).length>=half) add("clutch",SPECIAL_TITLES);
+  // ギリギリ職人: 残り2秒未満で「自分で」判定した回が半分以上（時間切れの自動判定は職人技ではない）
+  if(R.filter(r=>r.secLeft!=null && !r.timedOut && r.secLeft<2).length>=half) add("clutch",SPECIAL_TITLES);
   // 消しゴムの魔術師: よく消して、それでいて点も出している
   if(R.filter(r=>r.erased>=3).length>=half && avg>=40) add("eraser",SPECIAL_TITLES);
   // 無の境地: 本番で一本も描かなかった
@@ -1835,8 +1850,9 @@ function showFinal(){
 }
 
 /* ---- round snapshot popup & replay ---- */
-let curShotIdx=-1, replayRaf=null;
+let curShotIdx=-1, replayRaf=null, replayGen=0;
 function stopReplay(){
+  replayGen++;   // img.onload待ちの再生開始も含めて無効化する（2連打で二重ループにならないように）
   if(replayRaf){ cancelAnimationFrame(replayRaf); replayRaf=null; }
   $("#shotAnim").classList.add("hidden");
   $("#shotBig").classList.remove("hidden");
@@ -1859,8 +1875,10 @@ function startReplay(i){
     toast(tr("この回にはリプレイできる線がないよ","No strokes to replay in this round")); return;
   }
   stopReplay();
+  const gen=replayGen;
   const img=new Image();
   img.onload=()=>{
+    if(gen!==replayGen) return;   // このリプレイは既に停止/差し替え済み
     const c=$("#shotAnim");
     c.width=img.width; c.height=img.height;
     $("#shotBig").classList.add("hidden"); c.classList.remove("hidden");
@@ -1873,6 +1891,7 @@ function startReplay(i){
     const durPlay=clamp((t1-t0)/2, 800, 6000); // 2倍速・0.8〜6秒におさめる
     const start=performance.now();
     (function frame(){
+      if(gen!==replayGen) return;   // 停止済みループの孤児化を防ぐ
       const prog=Math.min(1,(performance.now()-start)/durPlay);
       const tNow=t0+(t1-t0)*prog;
       g.clearRect(0,0,c.width,c.height);
@@ -1989,11 +2008,15 @@ const isNgName = s => {
   const t = toHira(String(s).normalize("NFKC").toLowerCase())
     .replace(/[^0-9a-zぁ-ゟ一-鿿]/g,"");   // 記号・空白・区切りを除去
   if(!t) return false;
-  if(NG_SAFE.some(re=>re.test(t))) return false;
-  return NG_WORDS.some(w=>t.includes(toHira(w.normalize("NFKC").toLowerCase())));
+  /* 安全語は「名前全体を免罪」せず、その部分だけ取り除いた残りを検査する。
+     （旧実装は「こけし死ね」のように安全語を添えるだけでNG語が素通りだった） */
+  let rest=t;
+  for(const re of NG_SAFE) rest=rest.replace(new RegExp(re.source,"g"),"");
+  return NG_WORDS.some(w=>rest.includes(toHira(w.normalize("NFKC").toLowerCase())));
 };
 
 async function submitScore(){
+  if($("#btnRankSubmit").disabled) return;  // 送信中のEnter連打・多重呼び出しを無視
   if(!lastFinal) return;
   const board=boardKey(); if(!board) return;
   const name=((($("#rankName").value)||"").trim()||randomPainterName()).slice(0,12);
@@ -2275,6 +2298,10 @@ function refreshDaily(){
   b.disabled = left===0;
   b.style.opacity = left===0 ? .55 : 1;
 }
+/* メニューを開いたまま日付をまたぐと「きょうは終了」のまま固まるので、
+   タブ復帰・ページ復帰のたびに残り回数を引き直す */
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden) refreshDaily(); });
+window.addEventListener("pageshow",()=>refreshDaily());
 /* 言語切替ボタン（表示は「切替先」の言語名） */
 $("#btnLang").textContent = JA ? "🌐 English" : "🌐 日本語";
 $("#btnLang").addEventListener("click",()=>{
@@ -2413,9 +2440,11 @@ window.addEventListener("resize",()=>{
     if(s!==1 || ax!==0 || ay!==0){
       const seen=new Set();
       const xf=p=>{ if(seen.has(p))return; seen.add(p); p.x=p.x*s+ax; p.y=p.y*s+ay; };
-      round.cubes.forEach(c=>{ c.P.forEach(xf); c.tol*=s; });   // targets/allSegsのpa,pbは同じ参照
+      round.cubes.forEach(c=>{ c.P.forEach(xf); c.tol*=s; });   // targetsのpa,pbはc.Pと同じ参照
       round.targets.forEach(t2=>{ t2.samples.forEach(xf); t2.tol*=s; });
-      round.allSegs.forEach(g=>{ g.tol*=s; });
+      // allSegsのpa,pbはEXT延長した独立コピーなので、座標も必ず変換する
+      // （忘れると採点が移動前の位置と照合され、正確な絵が大減点になる）
+      round.allSegs.forEach(g=>{ xf(g.pa); xf(g.pb); g.tol*=s; });
       strokes.forEach(st=>st.pts.forEach(xf));
       if(cur) cur.pts.forEach(xf);
       history.forEach(snap=>snap.forEach(st=>st.pts.forEach(xf)));
