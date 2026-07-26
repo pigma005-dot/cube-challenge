@@ -134,7 +134,7 @@
   #rpScore{font-size:40px;font-weight:800;line-height:1.1;color:var(--plum-dark);display:inline-block;animation:pop .45s cubic-bezier(.34,1.8,.64,1);}
   @keyframes pop{from{transform:scale(.3);}to{transform:scale(1);}}
   #rpScore small{font-size:17px;font-weight:700;margin-left:2px;}
-  #rpGrade{display:inline-block;font-size:15px;font-weight:800;border-radius:10px;padding:2px 11px;margin-left:8px;vertical-align:middle;color:#463a4d;text-shadow:none;}
+  #rpGrade{display:inline-block;font-size:30px;font-weight:800;border-radius:12px;padding:1px 13px;margin-right:10px;vertical-align:middle;color:#463a4d;text-shadow:none;}
   #rpNote{font-size:13px;font-weight:800;color:#7a6ab8;margin-top:2px;}
   #nextBar{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:5;}
   body:not([data-state="roundResult"]) #scoreFloat,
@@ -160,6 +160,17 @@
     .card{padding:18px 26px;}
     .card h1{font-size:24px;}
   }
+  /* 低い窓でもメニューにスクロールバーが出ないよう更に詰める */
+  @media (max-height:580px){
+    #howtoBox img{max-height:96px;}
+    #howtoBox{margin:0 0 8px;}
+    .card{padding:14px 24px;}
+    .card h1{font-size:21px;}
+    .card .sub{font-size:12.5px;margin:0 0 8px;}
+    .modeBtn{padding:9px 16px;margin-bottom:7px;}
+    .overlay{padding:10px 10px 62px;}
+    .card{max-height:calc(100vh - 76px);}
+  }
   .modeBtn{
     display:flex;justify-content:space-between;align-items:center;width:100%;
     text-align:left;padding:14px 18px;margin-bottom:10px;border-radius:18px;
@@ -177,7 +188,9 @@
   /* final */
   #finalScore{font-size:64px;font-weight:800;line-height:1;color:var(--plum-dark);display:inline-block;animation:pop .5s cubic-bezier(.34,1.8,.64,1);}
   #finalScore small{font-size:24px;}
-  #finalGrade{display:inline-block;font-size:26px;font-weight:800;border-radius:14px;padding:2px 16px;margin-left:12px;color:#463a4d;vertical-align:middle;}
+  /* グレードは点数の左側に大きく（絵文字なし） */
+  #finalHead{display:flex;align-items:center;justify-content:center;gap:14px;margin:6px 0 0;}
+  #finalGrade{font-size:52px;font-weight:800;line-height:1;border-radius:18px;padding:4px 20px;color:#463a4d;}
   #finalBest{font-size:14px;font-weight:800;color:#e09a20;margin:8px 0 2px;min-height:20px;}
   /* final: online ranking */
   #rankBox{margin:2px 0 14px;}
@@ -188,13 +201,28 @@
     outline:none;background:#fff;user-select:text;-webkit-user-select:text;
   }
   #rankName:focus{border-color:var(--pink-strong);}
+  #rankName::placeholder{color:#b9a8b4;font-weight:600;}
   #rankResult{font-size:13px;font-weight:700;color:var(--plum);margin-top:10px;}
   #rankResult .big{font-size:16px;color:#7a6ab8;margin-bottom:6px;}
   #rankResult .rrow{display:flex;justify-content:space-between;max-width:280px;margin:2px auto;padding:3px 12px;border-radius:8px;background:#fff3f8;}
   #rankResult .rrow.me{background:var(--lav);}
 
   /* final: 5x2 round-snapshot grid */
-  #finalGrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:16px 0 18px;}
+  /* 称号（インラインstyleにするとメディアクエリが効かなくなるのでCSSで持つ） */
+  #finalTitleLine{font-size:27px;font-weight:800;color:#7a6ab8;margin:12px 0 4px;}
+
+  /* 追加でもらえる称号（複数つく場合は折り返す） */
+  #finalBadges{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:4px 0 0;}
+  #finalBadges span{font-size:15px;font-weight:800;color:#5c4a63;background:#f4efff;
+    border:2px solid #cbb8ff;border-radius:999px;padding:3px 12px;white-space:nowrap;}
+  #finalBadges:empty{display:none;}
+  #collectLine{font-size:12px;font-weight:700;color:#a892b4;margin:5px 0 0;}
+  #collectLine:empty{display:none;}
+
+  /* minmax(0,1fr) にしないとラベルの最小幅で列が縮まず、カードから溢れる。
+     横に広いカードでサムネが巨大化して縦に溢れるのを防ぐため幅上限も付ける。 */
+  #finalGrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:16px 0 18px;
+    max-width:470px;margin-left:auto;margin-right:auto;}
   .shotCell{cursor:pointer;background:#fff;border:2px solid #ffd9e8;border-radius:10px;padding:3px 3px 1px;transition:transform .12s;}
   .shotCell:hover{transform:scale(1.07);}
   .shotCell img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:7px;display:block;background:#fff9f2;}
@@ -216,12 +244,24 @@
   #popupBtns{display:flex;gap:10px;}
   #shotCap{color:#fff;font-weight:800;font-size:16px;text-shadow:0 1px 4px rgba(0,0,0,.5);}
   #toast{position:fixed;bottom:76px;left:50%;transform:translateX(-50%);background:#54455a;color:#fff;font-weight:700;font-size:14px;padding:10px 20px;border-radius:999px;z-index:70;box-shadow:0 4px 16px rgba(0,0,0,.3);white-space:nowrap;max-width:94vw;}
-  .btnrow{display:flex;gap:10px;justify-content:center;}
+  .btnrow{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
 
   @media (max-width:560px){
     #hint{font-size:12.5px;}
     button{font-size:13px;padding:8px 12px;}
     .chip{font-size:12px;padding:4px 10px;}
+    /* スマホでも5列2行を保つため、ラベルは2行に折り返して列幅に収める */
+    #finalGrid{gap:5px;}
+    .shotCell{padding:2px 2px 1px;}
+    .shotLab{font-size:9.5px;white-space:normal;line-height:1.2;}
+    #rankName{width:160px;}
+    /* 称号バッジが2段になっても収まるよう縦を詰める */
+    #finalScore{font-size:46px;}
+    #finalGrade{font-size:38px;padding:2px 14px;}
+    #finalHead{gap:10px;}
+    #rpGrade{font-size:24px;margin-right:8px;}
+    #finalTitleLine{font-size:22px;margin:8px 0 2px;}
+    #finalBadges span{font-size:13.5px;padding:2px 10px;}
   }
 
   /* PWA: iPhoneのノッチ・ホームバー等のセーフエリア対応 */
@@ -247,6 +287,28 @@
   body:not([data-state="draw"]) #timerWrap{display:none;}
   body[data-state="menu"] #topbar,body[data-state="final"] #topbar{display:none;}
   body[data-state="menu"] #btnMenu,body[data-state="final"] #btnMenu{display:none;}
+
+  /* 低い窓（itchの720pxを含む）で結果画面が縦に溢れないよう詰める。
+     ※ #finalGrid などの定義より後ろに置く必要がある（同じ詳細度は後勝ち） */
+  @media (max-height:780px){
+    #finalOverlay .card{padding:20px 28px;}
+    #finalScore{font-size:50px;}
+    #finalGrade{font-size:42px;padding:3px 16px;}
+    #finalTitleLine{font-size:24px;margin:8px 0 2px;}
+    #finalGrid{max-width:400px;margin-top:10px;margin-bottom:10px;}
+    #finalGrid img{max-height:54px;}
+    #finalBadges span{font-size:14px;}
+    #rankResult .rrow{padding:2px 12px;}
+  }
+  @media (max-height:640px){
+    #finalOverlay .card{padding:14px 22px;}
+    #finalScore{font-size:40px;}
+    #finalGrade{font-size:34px;padding:2px 13px;}
+    #finalTitleLine{font-size:19px;margin:5px 0 1px;}
+    #finalGrid{max-width:330px;gap:4px;margin-top:7px;margin-bottom:7px;}
+    #finalGrid img{max-height:40px;}
+    .shotLab{font-size:9px;}
+  }
 
   /* 縦画面レイアウト: タイマーは「やめる」の下、説明文は左寄せ2行まで */
   @media (orientation: portrait){
@@ -311,7 +373,7 @@
 </div>
 
 <div id="scoreFloat">
-  <div><span id="rpScore"></span><span id="rpGrade"></span></div>
+  <div><span id="rpGrade"></span><span id="rpScore"></span></div>
   <div id="rpNote"></div>
 </div>
 <div id="nextBar"><button id="btnNext" class="primary">➡️ つぎへ</button></div>
@@ -349,15 +411,16 @@
 <div id="finalOverlay" class="overlay hidden">
   <div class="card" style="text-align:center">
     <div id="finalMode" style="font-size:14px;font-weight:800;color:#b39aa8;"></div>
-    <div style="margin:4px 0 0"><span id="finalScore"></span></div>
-    <div style="margin:4px 0 0"><span id="finalGrade"></span></div>
-    <div id="finalTitleLine" style="font-size:27px;font-weight:800;color:#7a6ab8;margin:12px 0 4px;"></div>
+    <div id="finalHead"><span id="finalGrade"></span><span id="finalScore"></span></div>
+    <div id="finalTitleLine"></div>
+    <div id="finalBadges"></div>
+    <div id="collectLine"></div>
     <div id="finalBest"></div>
     <div id="finalSeed" style="display:none;font-size:12px;font-weight:700;color:#9a8090;cursor:pointer;margin:2px 0 0;"></div>
     <div id="finalGrid"></div>
     <div id="rankBox" class="hidden">
       <div id="rankEntry">
-        <input id="rankName" maxlength="12" placeholder="なまえ（12もじまで）">
+        <input id="rankName" maxlength="12" placeholder="名前">
         <button id="btnRankSubmit" class="primary">🏆 ランキングにとうろく</button>
       </div>
       <div id="rankResult"></div>
@@ -404,7 +467,7 @@
    ============================================================ */
 const TIME_LIMIT = 30;   // 本番ラウンドの制限時間（秒）
 const ERASER_R   = 16;   // けしゴムの半径(px)
-const GAME_VER = "1.10";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
+const GAME_VER = "1.20";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
 // ネイティブアプリ（Capacitor/App Store版）で動いているか
 const CAP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 
@@ -420,6 +483,13 @@ const BGM_VOL = 0.32;   // mp3 BGMの音量（0〜1）
 // ===== オンラインランキング（Supabase）=====
 // 同フォルダの「ランキング設定.md」の手順どおりに無料プロジェクトを作り、
 // URLとanonキーを貼ると有効化される。空のままならランキングは非表示。
+// アプリ内からプライバシーポリシーと通報先へ到達できるようにする（App Store 5.1.1(i) / 1.2 対応）
+const PRIVACY_URL = "https://pigma005-dot.github.io/cube-challenge/privacy.html";
+const CONTACT_URL = "https://x.com/daromeon";
+const _fl = (a,b) => `<br><span style="opacity:.9"><a href="${PRIVACY_URL}" target="_blank" rel="noopener" style="color:#9a8090;">${a}</a>　・　<a href="${CONTACT_URL}" target="_blank" rel="noopener" style="color:#9a8090;">${b}</a></span>`;
+const FOOT_LINKS_JA = _fl("プライバシー","不適切な名前を報告");
+const FOOT_LINKS_EN = _fl("Privacy","Report a name");
+
 // 公開後のゲームページURL（例 "https://xxxx.itch.io/cube-challenge"）。
 // 設定するとシェア文のリンクがこのURLになる。itch.ioの場合はシードを文字で案内する形式になる。
 const PUBLIC_URL = "https://daromeon.itch.io/cube";
@@ -557,11 +627,44 @@ const Sound = (() => {
     for(const o of bgmNodes){ try{ o.onended=null; o.stop(); }catch(_){} }
     bgmNodes=[];
   }
+  /* iPhoneでは HTMLAudioElement.volume が無効（音量はハード側のみ）なので、
+     AudioContextが動いていればGainNode経由に切り替えて音量とフェードを制御する。
+     Web Audioが使えない/まだ動いていない場合は従来の el.volume にフォールバック。 */
+  function attachGain(el){
+    if(el._gain) return el._gain;
+    if(!ensure() || ac.state!=="running" || !ac.createMediaElementSource) return null;
+    try{
+      const src=ac.createMediaElementSource(el);
+      const g=ac.createGain(); g.gain.value=BGM_VOL;
+      src.connect(g); g.connect(ac.destination);
+      el.volume=1;                       // 音量はGainNodeで管理する
+      el._gain=g;
+    }catch(_){ el._gain=null; }
+    return el._gain||null;
+  }
+  function setVol(el,v,ramp){
+    const g=el._gain;
+    if(g){
+      try{
+        const n=ac.currentTime;
+        g.gain.cancelScheduledValues(n);
+        g.gain.setValueAtTime(g.gain.value,n);
+        if(ramp) g.gain.linearRampToValueAtTime(v,n+ramp); else g.gain.setValueAtTime(v,n);
+        return;
+      }catch(_){}
+    }
+    el.volume=v;
+  }
   function cancelFade(el){
-    if(el && el._fadeIv){ clearInterval(el._fadeIv); el._fadeIv=null; el.volume=BGM_VOL; }
+    if(el && el._fadeIv){ clearTimeout(el._fadeIv); clearInterval(el._fadeIv); el._fadeIv=null; setVol(el,BGM_VOL,0); }
   }
   function fadeOutEl(el){
     cancelFade(el);
+    if(el._gain){
+      setVol(el,0,0.25);
+      el._fadeIv=setTimeout(()=>{ el._fadeIv=null; el.pause(); setVol(el,BGM_VOL,0); },260);
+      return;
+    }
     const v0=el.volume; let t=0;
     el._fadeIv=setInterval(()=>{
       t+=50; el.volume=Math.max(0, v0*(1-t/250));
@@ -573,8 +676,10 @@ const Sound = (() => {
     const el=getBgmEl(bgmScene);
     if(el && !el._broken){
       synthStop();               // フォールバック曲が鳴っていたら止める
+      ensure();                  // AudioContextを起こしてからGainNode経由に切り替える
+      attachGain(el);
       cancelFade(el);            // フェードアウト中に戻ってきた場合の競合を防ぐ
-      el.volume=BGM_VOL;
+      setVol(el,BGM_VOL,0);
       el.play().catch(()=>{});
       return;
     }
@@ -597,21 +702,27 @@ const Sound = (() => {
     if(prev && !prev.paused) fadeOutEl(prev); // 250msフェードアウトしてから停止
     bgmStart();
   }
-  /* 非アクティブ時（ホーム画面へ切替・タブ切替等）はBGMを止め、戻ったら再開 */
+  /* 非アクティブ時（ホーム画面へ切替・タブ切替等）はBGMを止め、戻ったら再開。
+     iOSでは1回の離脱で pagehide と visibilitychange の両方が飛ぶため、
+     2回目の呼び出しで復帰フラグを消さないようにする（消すと戻っても無音になる）。 */
   let bgmWasPlaying=false;
   function bgmPauseForHide(){
     const cur=bgmEls[bgmScene];
-    bgmWasPlaying = prefs.bgm && ((cur && !cur.paused) || !!bgmTimer);
+    if(prefs.bgm && ((cur && !cur.paused) || !!bgmTimer)) bgmWasPlaying=true;
     for(const k in bgmEls){ try{ cancelFade(bgmEls[k]); bgmEls[k].pause(); }catch(_){} }
     synthStop();
   }
   function bgmResumeFromShow(){
-    if(prefs.bgm && bgmWasPlaying) bgmStart();
+    if(!bgmWasPlaying) return;
+    bgmWasPlaying=false;
+    if(prefs.bgm) bgmStart();
   }
   document.addEventListener("visibilitychange",()=>{
     if(document.hidden) bgmPauseForHide(); else bgmResumeFromShow();
   });
   window.addEventListener("pagehide", bgmPauseForHide);
+  // iOSのPWAでは復帰時に visibilitychange が来ないことがあるため pageshow も見る
+  window.addEventListener("pageshow", bgmResumeFromShow);
 
   return {
     prefs, ensure, bgmStart, bgmStop, setScene,
@@ -619,7 +730,9 @@ const Sound = (() => {
       return { scene:bgmScene, synth:!!bgmTimer,
         els:Object.keys(bgmEls).map(k=>({k, src:bgmEls[k].src.split("/").pop(),
           paused:bgmEls[k].paused, broken:!!bgmEls[k]._broken,
-          err:bgmEls[k].error?bgmEls[k].error.code:0, ready:bgmEls[k].readyState})) };
+          err:bgmEls[k].error?bgmEls[k].error.code:0, ready:bgmEls[k].readyState,
+          routed:!!bgmEls[k]._gain,
+          vol:bgmEls[k]._gain?+bgmEls[k]._gain.gain.value.toFixed(3):bgmEls[k].volume})) };
     },
     running(){ return !!(ac && ac.state==="running"); },
     toggleSfx(){ prefs.sfx=!prefs.sfx; savePrefs(); if(prefs.sfx) this.click(); return prefs.sfx; },
@@ -687,55 +800,16 @@ const mv = (m,v)=>[
   m[2][0]*v[0]+m[2][1]*v[1]+m[2][2]*v[2],
 ];
 
-function projectVerts(R,K,D,tx,ty,W,H){
-  return CUBE_V.map(v=>{
+/* 立方体の「形」は (rot, D, tx, ty) だけで決まる正規化投影（画面サイズに無関係）。
+   これに一様スケールと平行移動を掛けて画面に置くので、角度・面の見え方は
+   端末が違っても完全に同一になる＝同じシードなら必ず同じお題になる。 */
+function shapeOf(rot, D, tx, ty){
+  const R = rotMat(rot.yaw, rot.pitch);
+  const Q = CUBE_V.map(v=>{
     const q = mv(R,v);
     const Z = q[2]+D;
-    return { x: W/2 + K*(q[0]+tx)/Z, y: H/2 - K*(q[1]+ty)/Z };
+    return { x:(q[0]+tx)/Z, y:-(q[1]+ty)/Z };
   });
-}
-
-function makeCube(rot,K,D,tx,ty,W,H,fixedK){
-  const R = rotMat(rot.yaw, rot.pitch);
-  // 横画面はツールバーが右側の縦列、縦画面は下（折返しあり）なので空ける
-  const landscape = W>=H;
-  const mL=24, mR=landscape?195:24, mT=70, mB=landscape?40:175;
-  let P;
-  for(let it=0; it<14; it++){
-    P = projectVerts(R,K,D,tx,ty,W,H);
-    const xs=P.map(p=>p.x), ys=P.map(p=>p.y);
-    const l=Math.min(...xs), r=Math.max(...xs), t=Math.min(...ys), b=Math.max(...ys);
-    if(!fixedK && (r-l > W-mL-mR || b-t > H-mT-mB)){ K*=0.88; continue; }
-    let dx=0, dy=0;
-    if(l<mL) dx=mL-l; else if(r>W-mR) dx=W-mR-r;
-    if(t<mT) dy=mT-t; else if(b>H-mB) dy=H-mB-b;
-    if(!dx && !dy) break;
-    tx += dx*D/K;  ty -= dy*D/K;
-  }
-  // 余白の偏りから答えの方向を推測されにくくしつつ、極端な端寄せは避ける:
-  // 中央を基準に、置ける余裕の±55%の範囲で「中央にピークを持つ分布」で散らす
-  if(!fixedK){
-    const xs=P.map(p=>p.x), ys=P.map(p=>p.y);
-    const l=Math.min(...xs), r=Math.max(...xs), t=Math.min(...ys), b=Math.max(...ys);
-    const cxT=(mL+(W-mR))/2, cyT=(mT+(H-mB))/2;          // 安全域の中心
-    const halfSlackX=Math.max(0,((W-mR-mL)-(r-l))/2);
-    const halfSlackY=Math.max(0,((H-mB-mT)-(b-t))/2);
-    const off=()=>(rng()+rng()-1);                        // -1..1（中央ピークの三角分布）
-    const dx=(cxT-(l+r)/2) + off()*halfSlackX*0.55;
-    const dy=(cyT-(t+b)/2) + off()*halfSlackY*0.55;
-    tx += dx*D/K;
-    ty -= dy*D/K;
-    for(let it=0; it<6; it++){   // 透視によるズレを再クランプ
-      P = projectVerts(R,K,D,tx,ty,W,H);
-      const xs2=P.map(p=>p.x), ys2=P.map(p=>p.y);
-      const l2=Math.min(...xs2), r2=Math.max(...xs2), t2=Math.min(...ys2), b2=Math.max(...ys2);
-      let dx=0, dy=0;
-      if(l2<mL) dx=mL-l2; else if(r2>W-mR) dx=W-mR-r2;
-      if(t2<mT) dy=mT-t2; else if(b2>H-mB) dy=H-mB-b2;
-      if(!dx && !dy) break;
-      tx += dx*D/K;  ty -= dy*D/K;
-    }
-  }
   const vis = CUBE_FACES.map(f=>{
     const n = mv(R,f.n);
     const cc = [n[0]+tx, n[1]+ty, n[2]+D];
@@ -755,15 +829,82 @@ function makeCube(rot,K,D,tx,ty,W,H,fixedK){
     inShown: e.faces.includes(shown),
     visible: vis[e.faces[0]] || vis[e.faces[1]],
   }));
-  const xs=P.map(p=>p.x), ys=P.map(p=>p.y);
-  const bw=Math.max(...xs)-Math.min(...xs), bh=Math.max(...ys)-Math.min(...ys);
-  const tol = clamp(0.06*Math.max(bw,bh), 10, 26);
-  return { P, vis, shown, edges, tol, rot };
+  return { Q, vis, shown, edges, rot };
+}
+
+/* 正規化された形を画面に当てはめる。一様スケール＋画像平面の平行移動だけなので
+   角度は保存される（＝お題の中身は変わらない）。複数キューブは同じスケール・
+   同じ移動量で置くため相対配置も保たれる。 */
+function layoutCubes(shapes, appFrac, W, H){
+  // 横画面はツールバーが右側の縦列、縦画面は下（折返しあり）なので空ける
+  const landscape = W>=H;
+  const mL=24, mR=landscape?195:24, mT=70, mB=landscape?40:175;
+  const availW=Math.max(60, W-mL-mR), availH=Math.max(60, H-mT-mB);
+  const all=shapes.reduce((a,s)=>a.concat(s.Q),[]);
+  const xs=all.map(p=>p.x), ys=all.map(p=>p.y);
+  const ql=Math.min(...xs), qr=Math.max(...xs), qt=Math.min(...ys), qb=Math.max(...ys);
+  const qw=Math.max(qr-ql,1e-6), qh=Math.max(qb-qt,1e-6);
+  // 見かけの大きさを指定しつつ、安全域に必ず収まるよう上限を掛ける
+  let K=appFrac*Math.min(W,H)/Math.max(qw,qh);
+  K=Math.min(K, availW/qw*0.98, availH/qh*0.98);
+  // 余白の偏りから答えの方向を推測されにくくしつつ、極端な端寄せは避ける:
+  // 安全域の中心から、置ける余裕の±55%の範囲で「中央にピークを持つ分布」で散らす
+  const off=()=>(rng()+rng()-1);                       // -1..1（中央ピークの三角分布）
+  const cxT=(mL+(W-mR))/2, cyT=(mT+(H-mB))/2;
+  const slackX=Math.max(0,(availW-qw*K)/2), slackY=Math.max(0,(availH-qh*K)/2);
+  let ax=cxT-((ql+qr)/2)*K + off()*slackX*0.55;
+  let ay=cyT-((qt+qb)/2)*K + off()*slackY*0.55;
+  // 安全域からはみ出さないよう最終クランプ（平行移動なので形は不変）
+  const l=ql*K+ax, r=qr*K+ax, t=qt*K+ay, b=qb*K+ay;
+  if(l<mL) ax+=mL-l; else if(r>W-mR) ax+=W-mR-r;
+  if(t<mT) ay+=mT-t; else if(b>H-mB) ay+=H-mB-b;
+  return shapes.map(s=>{
+    const P=s.Q.map(p=>({x:p.x*K+ax, y:p.y*K+ay}));
+    const pxs=P.map(p=>p.x), pys=P.map(p=>p.y);
+    const bw=Math.max(...pxs)-Math.min(...pxs), bh=Math.max(...pys)-Math.min(...pys);
+    return { P, vis:s.vis, shown:s.shown, edges:s.edges, rot:s.rot,
+             tol: clamp(0.06*Math.max(bw,bh), 10, 26) };
+  });
 }
 
 const randRot = () => ({ yaw: rndSign()*rnd(10,38)*DEG, pitch: rndSign()*rnd(7,26)*DEG });
+/* アオリ（見上げ）／フカン（見下ろし）: 上面または下面がヒントになる強めのピッチ。
+   45°を超えると上下面が「最もカメラを向いた面」になる。急すぎると読みにくいので60°まで。 */
+const randRotTilted = () => ({ yaw: rndSign()*rnd(10,32)*DEG, pitch: rndSign()*rnd(47,60)*DEG });
+const TILTED_RATE = 0.20;
 
 /* ================= round generation ================= */
+/* 立方体の平行な辺を3方向にグループ分けしたもの（読みやすさ判定に使う） */
+const PARALLEL_GROUPS=[
+  [[0,1],[3,2],[4,5],[7,6]],
+  [[0,3],[1,2],[4,7],[5,6]],
+  [[0,4],[1,5],[2,6],[3,7]],
+];
+/* 計算上は正しくても人の目が「立方体」として読めない構図を弾く。
+   ・MIN_FACE: 見えている面が極端に薄い（ほぼ真横）と奥行きの手がかりが消える
+   ・MIN_EDGE: 平行な辺の長さ差が大きすぎる＝辺が視線方向を向き、
+     手前の辺が潰れて「奥の辺の方が長い」ように見える（透視としては正しいが直感に反する）
+   どちらも比率なので画面サイズに依存しない＝同じシードなら全端末で同じ判定になる。 */
+const MIN_FACE_RATIO=0.10, MIN_EDGE_RATIO=0.40;
+function readableView(c){
+  const faceArea=fi=>{
+    const ix=CUBE_FACES[fi].idx; let s=0;
+    for(let i=0;i<4;i++){ const a=c.P[ix[i]], b=c.P[ix[(i+1)%4]]; s+=a.x*b.y-b.x*a.y; }
+    return Math.abs(s)/2;
+  };
+  const shownA=faceArea(c.shown);
+  if(!(shownA>0)) return false;
+  for(let fi=0;fi<6;fi++){
+    if(fi===c.shown || !c.vis[fi]) continue;
+    if(faceArea(fi)/shownA < MIN_FACE_RATIO) return false;
+  }
+  for(const g of PARALLEL_GROUPS){
+    const ls=g.map(([a,b])=>Math.hypot(c.P[a].x-c.P[b].x, c.P[a].y-c.P[b].y));
+    if(Math.min(...ls)/Math.max(...ls) < MIN_EDGE_RATIO) return false;
+  }
+  return true;
+}
+
 /* 手前のY字コーナー（3つの可視面が集まる頂点）の最小角[deg]。
    3面見えていない構図ならInfinity（判定対象外）。
    直角が鋭角に映る「視円錐の外」の不自然なお題を弾くために使う。 */
@@ -790,25 +931,25 @@ function yCornerMinAngle(c){
    head-on cube ends up with zero visible non-shown edges → NaN scores)
    + Y字コーナーが90°未満（不自然パース）のお題も再抽選 */
 function genRound(mode, practice, W, H){
+  // アオリ／フカンにするかは再抽選をまたいで固定する（確率を正確に20%に保つため）
+  const tilted = mode!=="double" && rng()<TILTED_RATE;
   let r=null;
   for(let i=0;i<40;i++){
-    r=buildRound(mode, practice, W, H);
+    r=buildRound(mode, practice, W, H, tilted);
     const ok=r.cubes.every((c,ci)=>
-      r.targets.filter(t=>t.cube===ci).length>=3 && yCornerMinAngle(c)>=90);
+      r.targets.filter(t=>t.cube===ci).length>=3 && yCornerMinAngle(c)>=90 && readableView(c));
     if(ok) break;
   }
   return r;
 }
-function buildRound(mode, practice, W, H){
+function buildRound(mode, practice, W, H, tilted){
   const minWH = Math.min(W,H);
   const cubes = [];
   let shared = null;
 
   if(mode==="double"){
-    const horizontal = W >= H;
+    const stacked = W < H;              // 縦画面は上下、横画面は左右（画面の向きにのみ依存）
     const D1 = rnd(6.5,9.5);
-    const app = rnd(0.19,0.24)*minWH;
-    const K = app*D1/2;
     const D2 = D1*rnd(0.85,1.2);
     shared = rng()<0.5;
     const rotA = randRot();
@@ -817,23 +958,18 @@ function buildRound(mode, practice, W, H){
       do { rotB = randRot(); }
       while(Math.abs(rotA.yaw-rotB.yaw)+Math.abs(rotA.pitch-rotB.pitch) < 20*DEG);
     }
-    let ox1,oy1,ox2,oy2;
-    if(horizontal){
-      ox1=-rnd(0.18,0.25)*W; ox2=rnd(0.18,0.25)*W;
-      oy1=rnd(-0.05,0.05)*H; oy2=rnd(-0.05,0.05)*H;
-    }else{
-      oy1=-rnd(0.16,0.22)*H; oy2=rnd(0.16,0.22)*H;
-      ox1=rnd(-0.05,0.05)*W; ox2=rnd(-0.05,0.05)*W;
-    }
-    cubes.push(makeCube(rotA,K,D1, ox1*D1/K, -oy1*D1/K, W,H,true));
-    cubes.push(makeCube(rotB,K,D2, ox2*D2/K, -oy2*D2/K, W,H,true));
+    // 離れ具合も世界座標で決める（ピクセル依存をなくす）
+    const sep=rnd(1.5,2.0), j1=rnd(-0.25,0.25), j2=rnd(-0.25,0.25);
+    const a = stacked ? {tx:j1, ty: sep} : {tx:-sep, ty:j1};
+    const b = stacked ? {tx:j2, ty:-sep} : {tx: sep, ty:j2};
+    cubes.push(...layoutCubes(
+      [shapeOf(rotA,D1,a.tx,a.ty), shapeOf(rotB,D2,b.tx,b.ty)], rnd(0.60,0.72), W, H));
   }else{
     const D = rnd(3.8,8);
+    const tx = rnd(-1.5,1.5), ty = rnd(-0.9,0.9);
     // 大きめの画面では少し小さく出題して余白の自由度を上げる（スマホは描きやすさ優先）
-    const app = (minWH>=560 ? rnd(0.26,0.34) : rnd(0.30,0.40))*minWH;
-    const K = app*D/2;
-    const ox = rnd(-0.10,0.10)*W, oy = rnd(-0.06,0.06)*H;
-    cubes.push(makeCube(randRot(),K,D, ox*D/K, -oy*D/K, W,H,false));
+    const appFrac = (minWH>=560 ? rnd(0.26,0.34) : rnd(0.30,0.40));
+    cubes.push(...layoutCubes([shapeOf(tilted?randRotTilted():randRot(),D,tx,ty)], appFrac, W, H));
   }
 
   const targets = [];
@@ -849,8 +985,15 @@ function buildRound(mode, practice, W, H){
       targets.push({cube:ci, pa, pb, hidden:!e.visible, tol:c.tol, samples, score:0});
     });
   });
+  /* 的中率の判定に使う線。消失点をとる「アタリ線」は正しい技法なので罰しないよう、
+     各辺を自分の長さの2.5倍だけ両側へ延長した線分として保持する。 */
+  const EXT=1.0;
   const allSegs = [];
-  cubes.forEach(c=>c.edges.forEach(e=>allSegs.push({pa:c.P[e.a], pb:c.P[e.b], tol:c.tol})));
+  cubes.forEach(c=>c.edges.forEach(e=>{
+    const pa=c.P[e.a], pb=c.P[e.b];
+    const dx=(pb.x-pa.x)*EXT, dy=(pb.y-pa.y)*EXT;
+    allSegs.push({pa:{x:pa.x-dx, y:pa.y-dy}, pb:{x:pb.x+dx, y:pb.y+dy}, tol:c.tol});
+  }));
 
   return { mode, practice, cubes, targets, allSegs, shared, result:null };
 }
@@ -888,15 +1031,97 @@ function resampleStrokes(strokes, step){
   }
   return pts;
 }
+/* 「立方体の辺から外れたところに引かれた線の量」÷「立方体の全辺の長さ」。
+   面積を塗りつぶして再現率だけ稼ぐのを防ぐための指標。
+   量ではなく“外れ具合”で測るので、次のような正しい描き方は一切減点されない:
+   ・ハリガネのように隠れ線まで全部描く
+   ・消失点をとるためのアタリ線を遠くまで伸ばす（立方体の周辺の外は集計対象外）
+   ・下描きしてから線を重ねてなぞる（辺の上なら何周描いてもよい）
+   逆に塗りつぶしは辺から外れた線が大量に出るため、超えた分だけ比例して減点する。 */
+const WASTE_ALLOW = 0.6;
+function inkBoxes(round){
+  return round.cubes.map(c=>{
+    const xs=c.P.map(p=>p.x), ys=c.P.map(p=>p.y), m=1.5*c.tol;
+    return {l:Math.min(...xs)-m, r:Math.max(...xs)+m, t:Math.min(...ys)-m, b:Math.max(...ys)+m};
+  });
+}
+/* ゲームを無視して絵や文字を描いた人を判定する。
+   立方体の辺はすべて直線なので、閉じた輪郭（顔・丸）や曲線、
+   小さな線がたくさん並ぶ（文字）といった特徴で見分けられる。
+   「下手な立方体」を誤判定しないよう、直線だけで描かれたものは対象外。 */
+function doodleKind(round, strokes, cov, prec, needLen){
+  let n=0, total=0, loops=0, curvy=0, circles=0;
+  const lens=[], cs=[];
+  for(const s of strokes){
+    const p=s.pts; if(p.length<2) continue;
+    let L=0;
+    for(let i=1;i<p.length;i++) L+=Math.hypot(p[i].x-p[i-1].x, p[i].y-p[i-1].y);
+    if(L<8) continue;
+    const chord=Math.hypot(p[p.length-1].x-p[0].x, p[p.length-1].y-p[0].y);
+    n++; total+=L; lens.push(L);
+    if(chord/L < 0.55) curvy++;                       // 直線なら1に近い
+    if(L>40 && chord < 0.25*L){
+      loops++;                                        // 始点と終点が近い＝閉じた形
+      // 重心からの距離がほぼ一定なら「丸」とみなす
+      const cx=p.reduce((a,q)=>a+q.x,0)/p.length, cy=p.reduce((a,q)=>a+q.y,0)/p.length;
+      const rs=p.map(q=>Math.hypot(q.x-cx,q.y-cy));
+      if(Math.max(...rs)/Math.max(1,Math.min(...rs)) < 1.7) circles++;
+    }
+    cs.push({x:(p[0].x+p[p.length-1].x)/2, y:(p[0].y+p[p.length-1].y)/2});
+  }
+  if(n<3 || total<60) return null;
+  if(cov>=0.20 || prec>=0.45) return null;            // 立方体を描こうとしている人は対象外
+  lens.sort((a,b)=>a-b);
+  const medLen=lens[Math.floor(lens.length/2)];
+  const xs=cs.map(p=>p.x), ys=cs.map(p=>p.y);
+  const spanX=Math.max(...xs)-Math.min(...xs), spanY=Math.max(...ys)-Math.min(...ys);
+  const span=Math.max(spanX,spanY,1);
+  /* 下手なだけの人を落書き扱いしないよう、積極的な証拠だけで判定する。
+     「本数が多い」は根拠にしない（辺ごとに1本ずつ描くと8〜10本になるため）。 */
+  const artish = loops>=2 || curvy/n>=0.7;            // 閉じた形が2つ以上／ほぼ曲線
+  const lineUp = spanX>spanY*2.2 || spanY>spanX*2.2;  // 横一列／縦一列に並んでいる
+  const textish = n>=6 && medLen<0.35*span && lineUp;
+  if(circles>=2 && circles/n>=0.6) return "circle";   // 丸ばっかり描く人
+  if(textish && loops<2) return "text";
+  if(artish) return "art";
+  return null;
+}
+const DOODLE_TITLES={
+  art   :{ja:"自由すぎる画家",       en:"Free-Spirited Painter", emoji:"🎨"},
+  text  :{ja:"伝えたいことがある人", en:"Someone With a Message", emoji:"✍️"},
+  circle:{ja:"まるしか描かない人",   en:"Circles Only",           emoji:"⭕"},
+  any   :{ja:"らくがき王",           en:"King of Doodles",        emoji:"🖍️"},
+};
+/* かくし称号（条件を満たすと結果画面のバッジに追加される） */
+const SPECIAL_TITLES={
+  oneStroke:{ja:"一筆書きの達人",   en:"One-Stroke Master",         emoji:"✒️"},
+  mirror   :{ja:"鏡の国の住人",     en:"Through the Looking-Glass", emoji:"🪞"},
+  guide    :{ja:"補助線の魔術師",   en:"Master of Guide Lines",     emoji:"📐"},
+  quick    :{ja:"早撃ち",           en:"Quick Draw",                emoji:"⚡"},
+  clutch   :{ja:"ギリギリ職人",     en:"Last-Second Artisan",       emoji:"⏱️"},
+  eraser   :{ja:"消しゴムの魔術師", en:"Eraser Wizard",             emoji:"🧽"},
+  zen      :{ja:"無の境地",         en:"State of Nothingness",      emoji:"🧘"},
+  night    :{ja:"夜ふかし絵師",     en:"Midnight Sketcher",         emoji:"🌙"},
+  collector:{ja:"称号コレクター",   en:"Title Collector",           emoji:"🎭"},
+};
+/* 集めた種類を数える対象（コレクター自身は除く） */
+const COLLECTIBLES=["art","text","circle","any","oneStroke","mirror","guide","quick","clutch","eraser","zen","night"];
+const COLLECT_KEY="cube-challenge-titles";
+const doodleNote = k => k==="art"  ? tr("🎨 いい絵だね！…でも今回は立方体だよ","🎨 Nice art! …but the task was a cube")
+                     : k==="text" ? tr("✍️ 読めたよ！…でも今回は立方体だよ","✍️ Message received! …but the task was a cube")
+                     :              tr("🖍️ 自由だね〜！…でも今回は立方体だよ","🖍️ Very free! …but the task was a cube");
+
 function scoreRound(round, strokes){
   let sp = resampleStrokes(strokes, 4);
+  let step = 4;                       // spの点間隔[px]（外れた線の長さを出すのに使う）
   if(sp.length>3500){
     const k=Math.ceil(sp.length/3500);
     sp = sp.filter((_,i)=>i%k===0);
+    step = 4*k;
   }
   if(sp.length===0){
     round.targets.forEach(t=>t.score=0);
-    return {score:0, cov:0, prec:0};
+    return {score:0, cov:0, prec:0, eff:1, inkRatio:0, doodle:null, mirrored:false};
   }
   let covSum=0;
   for(const t of round.targets){
@@ -914,22 +1139,65 @@ function scoreRound(round, strokes){
     covSum += t.score;
   }
   const cov = round.targets.length ? covSum/round.targets.length : 0;
-  let pSum=0;
+  /* 的中率は「立方体の周辺に引かれた線」だけで評価する。
+     消失点をとるために遠くまで伸ばしたアタリ線は、加点も減点もしない。 */
+  const boxes=inkBoxes(round);
+  const inBox=p=>boxes.some(b=>p.x>=b.l&&p.x<=b.r&&p.y>=b.t&&p.y<=b.b);
+  let pSum=0, pN=0, waste=0, farN=0;
   for(const p of sp){
+    if(!inBox(p)){ farN++; continue; }   // 立方体から離れた線＝補助線として別に数える
     let best=Infinity, tol=20;
     for(const g of round.allSegs){
       const d=distToSeg(p.x,p.y,g.pa.x,g.pa.y,g.pb.x,g.pb.y);
       if(d<best){ best=d; tol=g.tol; }
     }
-    pSum += falloff(best, tol);
+    const hit=falloff(best, tol);
+    pSum += hit; pN++; waste += 1-hit;      // 辺から外れているぶんを積算
   }
-  const prec = pSum/sp.length;
-  const score = Math.round(100*Math.pow(cov,1.2)*(0.45+0.55*prec)*100)/100;
-  return {score, cov, prec};
+  const prec = pN ? pSum/pN : 0;
+  const needLen = round.targets.reduce((a,t)=>a+Math.hypot(t.pb.x-t.pa.x, t.pb.y-t.pa.y), 0);
+  /* 基準は「立方体の全12辺の長さ」。ハリガネのように隠れ線まで全部描くのは
+     正しい描き方なので、辺の上に乗っている線は何本でも減点にならない。 */
+  const fullLen = round.cubes.reduce((a,c)=>a+c.edges.reduce(
+    (s,e)=>s+Math.hypot(c.P[e.b].x-c.P[e.a].x, c.P[e.b].y-c.P[e.a].y), 0), 0);
+  const inkRatio = fullLen>0 ? waste*step/fullLen : 0;   // 外れた線の長さの比
+  const eff = inkRatio>WASTE_ALLOW ? WASTE_ALLOW/inkRatio : 1;
+  const score = Math.round(100*Math.pow(cov,1.2)*(0.45+0.55*prec)*eff*100)/100;
+  const doodle = doodleKind(round, strokes, cov, prec, needLen);
+  /* 左右反転して描いてしまった人の検出（鏡の国の住人）。
+     線を鏡像にして採点し直し、そちらの方が明らかに合っていれば反転ミスと判断する。
+     ちゃんと描けている回は計算をスキップする。 */
+  let mirrored=false;
+  if(cov<0.5 && round.targets.length){
+    /* 反転の軸は「ヒント面の左右の中心」。立方体全体のbbox中心だと奥行きの分だけ
+       ずれてしまい判定できない。ダブルではキューブごとの軸を使う。 */
+    const axes=round.cubes.map(c=>{
+      const xs=CUBE_FACES[c.shown].idx.map(i=>c.P[i].x);
+      return Math.min(...xs)+Math.max(...xs);   // 2*中心
+    });
+    let msum=0;
+    for(const t of round.targets){
+      const axis2=axes[t.cube];
+      let q=0;
+      for(const s of t.samples){
+        let best=Infinity;
+        for(const p of sp){
+          const dx=(axis2-p.x)-s.x, dy=p.y-s.y;
+          const d2=dx*dx+dy*dy;
+          if(d2<best) best=d2;
+        }
+        q += falloff(Math.sqrt(best), t.tol);
+      }
+      msum += q/t.samples.length;
+    }
+    const mcov=msum/round.targets.length;
+    mirrored = mcov>0.5 && mcov>cov+0.25;
+  }
+  return {score, cov, prec, eff, inkRatio, doodle, mirrored,
+          farInk: fullLen>0 ? farN*step/fullLen : 0};   // 補助線の量（全辺長に対する比）
 }
 const gradeOf = s => s>=88?"S":s>=72?"A":s>=55?"B":s>=35?"C":"D";
 const gradeColor = g => ({S:"#f5b73d",A:"#4fbf7f",B:"#6f9df0",C:"#f0a24f",D:"#ef6e8a"})[g];
-const gradeEmoji = g => ({S:"🌟",A:"💮",B:"😊",C:"🙂",D:"💪"})[g];
 const TITLES=[
   [99.2,"チート疑い","Are you Cheating?","🧀"],
   [97,"立方体の神","Cube God","👑"],
@@ -1070,6 +1338,7 @@ let strokes=[], cur=null, activeId=null, lastPenAt=-1e9;
 let tool="pen";              // "pen" | "eraser"
 let hoverPos=null;           // eraser indicator
 let erasing=false, eraseChanged=false, erasePrev=null;
+let eraseUses=0;   // このラウンドで消しゴムを使った回数（かくし称号の判定用）
 let history=[];
 
 const mid=(a,b)=>({x:(a.x+b.x)/2, y:(a.y+b.y)/2});
@@ -1193,7 +1462,7 @@ cv.addEventListener("pointerdown", e=>{
   if(tool==="eraser"){
     pushHistory();
     densifyStrokes();
-    erasing=true; eraseChanged=false; erasePrev=p; hoverPos=p;
+    erasing=true; eraseChanged=false; erasePrev=p; hoverPos=p; eraseUses++;
     if(applyErase(p,p)){ eraseChanged=true; rebuildInk(); }
     render();
   }else{
@@ -1331,7 +1600,10 @@ const TOTAL_ROUNDS=10, PRACTICE_ROUNDS=2;
 let state="menu", mode="normal", roundIdx=0, round=null, scores=[];
 let roundsInfo=[];   // {shot,baseShot,shotScale,strokes,score,practice,timedOut} per round
 let lastFinal=null;  // {avg,g,isBest,ttl}
-let gameSeed="", seededRun=false, isDaily=false, roundStart=0;
+let gameSeed="", seededRun=false, isDaily=false, roundStart=0, resultAt=0;
+/* デイリーは開始時の日付を保持する。プレイ中に日付が変わっても、記録・ランキングの
+   送信先・シェア画像の日付が翌日にズレないようにするため。 */
+let dailyDate="";
 
 const BEST_KEY="cube-challenge-best-v1";
 const loadBest=()=>{ try{ return JSON.parse(localStorage.getItem(BEST_KEY))||{}; }catch(_){ return {}; } };
@@ -1359,6 +1631,7 @@ function newRound(){
   round = genRound(mode, roundIdx<PRACTICE_ROUNDS, W, H);
   roundStart = performance.now();
   strokes=[]; cur=null; activeId=null; history=[]; erasing=false; hoverPos=null;
+  eraseUses=0;
   hideJudgeHint();
   rebuildInk();
   setState("draw");
@@ -1373,6 +1646,7 @@ function startGame(m, opts){
   gameSeed = opts.seed || randomSeed();
   seededRun = !!opts.seed;
   isDaily = !!opts.daily;
+  dailyDate = isDaily ? (opts.seed||todaySeedStr()) : "";
   $("#menuOverlay").classList.add("hidden");
   $("#finalOverlay").classList.add("hidden");
   Sound.start();
@@ -1381,6 +1655,9 @@ function startGame(m, opts){
 
 function submit(auto){
   if(state!=="draw") return;
+  // 縦画面では「つぎへ」と「はんてい！」がほぼ同じ位置に出るため、
+  // ラウンド開始直後の誤タップ（ダブルタップの2打目）で0点にならないよう無視する
+  if(!auto && performance.now()-roundStart < 450) return;
   stopTimer();
   hideJudgeHint();
   if(!auto){ try{ localStorage.setItem(JUDGE_KEY, judgedTimes()+1); }catch(_){} }
@@ -1389,16 +1666,23 @@ function submit(auto){
   }
   erasing=false;
   const res = scoreRound(round, strokes);
+  // ペンを一度も離さずに描き切った人（かくし称号「一筆書きの達人」）
+  const oneStroke = strokes.length===1 && res.score>=60;
   round.result=res;
   scores.push(round.practice ? null : res.score);
   setState("roundResult");
+  resultAt=performance.now();
   const g=gradeOf(res.score);
   $("#rpScore").innerHTML = `${res.score.toFixed(2)}<small>${tr("点","pts")}</small>`;
   const sc=$("#rpScore"); sc.style.animation="none"; void sc.offsetWidth; sc.style.animation="";
-  $("#rpGrade").textContent=`${g} ${gradeEmoji(g)}`;
+  $("#rpGrade").textContent=g;
   $("#rpGrade").style.background=gradeColor(g);
   const notes=[];
   if(auto) notes.push(tr("⏰ じかんぎれ！","⏰ Time's up!"));
+  if(res.doodle) notes.push(doodleNote(res.doodle));
+  else if(res.mirrored) notes.push(tr("🪞 左右がぎゃくさまだよ！","🪞 That's the mirror image!"));
+  else if(res.eff<0.95) notes.push(tr("✏️ 辺からはずれた線が多いです","✏️ Too many lines off the edges"));
+  if(oneStroke) notes.push(tr("✒️ 一筆書き！","✒️ One stroke!"));
   if(round.mode==="double") notes.push(tr(`消失点は「${round.shared?"共通":"別々"}」でした！`,`Vanishing points were ${round.shared?"shared":"different"}!`));
   if(round.practice) notes.push(tr("🌱 れんしゅう（採点対象外）","🌱 Practice (not scored)"));
   $("#rpNote").textContent = notes.join("　");
@@ -1425,7 +1709,11 @@ function submit(auto){
   roundsInfo.push({
     shot, baseShot, shotScale,
     strokes: strokes.map(s=>({pts:s.pts.map(p=>({x:p.x,y:p.y,w:p.w,t:p.t||0}))})),
-    score:res.score, practice:round.practice, timedOut:!!auto,
+    score:res.score, practice:round.practice, timedOut:!!auto, doodle:res.doodle||null,
+    oneStroke, mirrored:!!res.mirrored,
+    farInk:res.farInk||0, erased:eraseUses, strokeCount:strokes.length,
+    // 残り時間（本番のみ）。早撃ち／ギリギリ職人の判定に使う
+    secLeft: round.practice ? null : Math.max(0,(deadline-performance.now())/1000),
   });
   if(!round.practice && g==="S") fx.burst(70);
   render();
@@ -1433,6 +1721,8 @@ function submit(auto){
 
 function next(){
   if(state!=="roundResult") return;
+  // 「はんてい！」の誤ダブルタップで答え合わせを飛ばさないようにする
+  if(performance.now()-resultAt < 450) return;
   roundIdx++;
   if(roundIdx>=TOTAL_ROUNDS){ showFinal(); } else { newRound(); }
 }
@@ -1444,7 +1734,7 @@ function showFinal(){
   const g=gradeOf(avg);
   $("#finalMode").textContent = MODES[mode].name + (isDaily?tr("・きょうのチャレンジ"," · Daily Challenge"):"");
   $("#finalScore").innerHTML=`${avg.toFixed(2)}<small>${tr("点","pts")}</small>`;
-  $("#finalGrade").textContent=`${g} ${gradeEmoji(g)}`;
+  $("#finalGrade").textContent=g;
   $("#finalGrade").style.background=gradeColor(g);
   const grid=$("#finalGrid"); grid.innerHTML="";
   roundsInfo.forEach((info,i)=>{
@@ -1462,15 +1752,20 @@ function showFinal(){
   });
   const best=loadBest();
   let isBest=false;
+  $("#btnRetry").style.opacity=1;   // デイリーで薄くした状態を持ち越さない
   if(isDaily){
-    let rec=null; try{ rec=JSON.parse(localStorage.getItem(DAILY_KEY)); }catch(_){}
-    if(!rec || rec.date!==todaySeedStr() || avg>rec.score){
+    const rec=dailyRec(dailyDate);   // 開始時の日付で読む（日付またぎで記録を壊さない）
+    const left=Math.max(0, DAILY_MAX-rec.tries);
+    const leftMsg=left>0 ? tr(`（のこり${left}回）`,` (${left} left)`) : tr("（きょうは終了）"," (done for today)");
+    if(rec.score===null || avg>rec.score){
       isBest=true;
-      try{ localStorage.setItem(DAILY_KEY, JSON.stringify({date:todaySeedStr(), score:avg})); }catch(_){}
-      $("#finalBest").textContent=tr("🏆 きょうのベストこうしん！","🏆 New daily best!");
+      rec.score=avg; saveDailyRec(rec);
+      $("#finalBest").textContent=tr("🏆 きょうのベストこうしん！","🏆 New daily best!")+leftMsg;
     }else{
-      $("#finalBest").textContent=tr(`きょうのベスト：${(+rec.score).toFixed(2)}点`,`Today's best: ${(+rec.score).toFixed(2)}`);
+      $("#finalBest").textContent=tr(`きょうのベスト：${(+rec.score).toFixed(2)}点`,`Today's best: ${(+rec.score).toFixed(2)}`)+leftMsg;
     }
+    // 押せなくはせず薄く見せる（押すと「また明日ね！」と理由が出る方が親切）
+    $("#btnRetry").style.opacity = left===0 ? .55 : 1;
   }else if(seededRun){
     $("#finalBest").textContent = best[mode]!==undefined
       ? tr(`自己ベスト：${(+best[mode]).toFixed(2)}点（シード戦は記録対象外）`,`Personal best: ${(+best[mode]).toFixed(2)} (seed runs aren't recorded)`)
@@ -1483,8 +1778,47 @@ function showFinal(){
   }
   const ttl=titleOf(avg);
   $("#finalTitleLine").textContent=`${ttl.emoji} ${ttl.name}`;
+  /* 追加称号（条件を満たしたものを全部バッジで並べる。増やす時はここにpushする） */
+  const specials=[];
+  const add=(k,src)=>{ const s=src[k]; if(s) specials.push({key:k, name: JA?s.ja:s.en, emoji:s.emoji}); };
+  const R=roundsInfo.filter(r=>!r.practice);          // 本番ラウンドだけ
+  const half=Math.max(1, Math.ceil(R.length/2));
+  const doods=R.filter(r=>r.doodle).map(r=>r.doodle);
+  if(doods.length>=half){
+    const cnt=k=>doods.filter(d=>d===k).length;
+    const top=["art","text","circle"].reduce((a,k)=>cnt(k)>cnt(a)?k:a,"art");
+    // 1種類に偏っていればその称号、絵も文字も丸も混ざっていれば「らくがき王」
+    add(cnt(top)>=doods.length*0.7 ? top : "any", DOODLE_TITLES);
+  }
+  if(R.some(r=>r.oneStroke)) add("oneStroke",SPECIAL_TITLES);
+  if(R.filter(r=>r.mirrored).length>=2) add("mirror",SPECIAL_TITLES);
+  // 補助線をたくさん使う人（立方体の外に全辺長と同じくらい線を引いている）
+  if(R.filter(r=>r.farInk>=0.8).length>=half) add("guide",SPECIAL_TITLES);
+  // 早撃ち: 10秒以内に描き上げてそれなりの点を出した回が3回以上
+  if(R.filter(r=>r.secLeft!=null && TIME_LIMIT-r.secLeft<=10 && r.score>=55).length>=3) add("quick",SPECIAL_TITLES);
+  // ギリギリ職人: 残り2秒未満で判定した回が半分以上
+  if(R.filter(r=>r.secLeft!=null && r.secLeft<2).length>=half) add("clutch",SPECIAL_TITLES);
+  // 消しゴムの魔術師: よく消して、それでいて点も出している
+  if(R.filter(r=>r.erased>=3).length>=half && avg>=40) add("eraser",SPECIAL_TITLES);
+  // 無の境地: 本番で一本も描かなかった
+  if(R.length && R.every(r=>r.strokeCount===0)) add("zen",SPECIAL_TITLES);
+  // 夜ふかし絵師: 深夜2〜5時
+  const hh=new Date().getHours(); if(hh>=2 && hh<5) add("night",SPECIAL_TITLES);
+  /* 集めた称号の種類を記録し、4種類以上で「称号コレクター」を贈る */
+  let owned=[]; try{ const v=JSON.parse(localStorage.getItem(COLLECT_KEY)); if(Array.isArray(v)) owned=v; }catch(_){}
+  specials.forEach(s=>{ if(COLLECTIBLES.includes(s.key) && !owned.includes(s.key)) owned.push(s.key); });
+  owned=owned.filter(k=>COLLECTIBLES.includes(k));
+  try{ localStorage.setItem(COLLECT_KEY, JSON.stringify(owned)); }catch(_){}
+  if(owned.length>=4) add("collector",SPECIAL_TITLES);
+  const bx=$("#finalBadges"); bx.innerHTML="";
+  specials.slice(0,4).forEach(s=>{ const el=document.createElement("span");   // 4つまで表示
+    el.textContent=`${s.emoji} ${s.name}`; bx.appendChild(el); });
+  // 集めた数を見せて「他にもあるのか」と探させる（中身は明かさない）
+  $("#collectLine").textContent = owned.length
+    ? tr(`🎭 称号コレクション ${owned.length} / ${COLLECTIBLES.length}`,
+         `🎭 Titles collected ${owned.length} / ${COLLECTIBLES.length}`) : "";
   $("#finalSeed").textContent=tr(`🔗 シード ${gameSeed}（クリックでコピー）`,`🔗 Seed ${gameSeed} (click to copy)`);
-  lastFinal={avg, g, isBest, ttl};
+  lastFinal={avg, g, isBest, ttl, specials};
   // ランキング欄（設定済みかつ対象ボードがある時だけ表示）
   const rb = RANK_ENABLED ? boardKey() : null;
   $("#rankBox").classList.toggle("hidden", !rb);
@@ -1493,7 +1827,7 @@ function showFinal(){
     $("#btnRankSubmit").disabled=false;
     $("#rankResult").textContent="";
     let nm=""; try{ nm=localStorage.getItem("cube-challenge-name")||""; }catch(_){}
-    $("#rankName").value = nm || "no name";
+    $("#rankName").value = nm;    // 空ならプレースホルダ（未記入でランダム名）が見える
   }
   Sound.fanfare(isBest);
   if(g==="S" || isBest){ fx.burst(150); setTimeout(()=>fx.burst(110),450); }
@@ -1598,7 +1932,7 @@ async function rankFetch(path, opts){
   }finally{ clearTimeout(timer); }
 }
 /* ランキングの集計単位: 通常プレイ=モード別 / デイリー=その日 / シード戦=対象外 */
-const boardKey = () => isDaily ? "daily:"+todaySeedStr() : (seededRun ? null : "mode:"+mode);
+const boardKey = () => isDaily ? "daily:"+(dailyDate||todaySeedStr()) : (seededRun ? null : "mode:"+mode);
 /* 端末ごとの匿名プレイヤーID（同一ブラウザ=同一プレイヤーとしてベスト1行を維持） */
 function playerId(){
   let id=null;
@@ -1615,10 +1949,59 @@ async function rankCount(board, q){
     {headers:{Prefer:"count=exact"}});
   return parseInt((r.headers.get("content-range")||"//0").split("/")[1],10)||0;
 }
+/* 名前を書かなかった人には、画家の名前をパロディにしたランダム名を進呈する。
+   前置き×画家×後置きの組み合わせで数千通り。DB側の上限に合わせて12文字以内に収める。 */
+const PAINTER_STEMS=["ピカソ","ゴッホ","モネ","マネ","ダリ","ミロ","ムンク","クリムト","セザンヌ",
+  "ルノワール","ゴーギャン","マティス","シャガール","フェルメール","レンブラント","ラファエロ",
+  "ミケランジェロ","ターナー","クールベ","スーラ","ロートレック","エッシャー","ボッシュ","ブリューゲル",
+  "ホクサイ","写楽","雪舟","若冲","光琳","大観","蕪村","歌麿","広重","国芳","応挙","鉄斎","ゴヤ","エル・グレコ"];
+const NAME_PRE=["","","","","","ニセ","自称","元","明日の","令和の","未来の","本日の","深夜の","負けない"];
+const NAME_SUF=["","","","二世","三世","Jr.","風","もどき","見習い","先生","くん","ちゃん","さん",
+  "太郎","次郎","ぽい","たぶん","部長","参上","の弟子","の孫","未満","級","気分","目指す","かもしれない"];
+const PAINTER_EN=["Picassoish","Van Gogh Jr","Monet-ish","Dali 2nd","Miro-like","Munch Jr",
+  "Klimtish","Cezanne-y","Renoirish","Matissey","Chagalish","Vermeerio","Turnerish","Seurat Jr",
+  "Escherish","Hokusai Jr","Goyaish","Boschy","Manet-ish","Rubensy"];
+const _pick = a => a[Math.floor(Math.random()*a.length)];
+function randomPainterName(){
+  if(!JA){
+    for(let i=0;i<30;i++){ const n=_pick(PAINTER_EN); if(n.length<=12) return n; }
+    return "Painter";
+  }
+  for(let i=0;i<50;i++){
+    const n=_pick(NAME_PRE)+_pick(PAINTER_STEMS)+_pick(NAME_SUF);
+    if(n.length>=1 && n.length<=12) return n;
+  }
+  return _pick(PAINTER_STEMS).slice(0,12);
+}
+
+/* ランキングは誰にでも見える場所なので、明らかに不適切な名前は登録させない */
+const NG_WORDS=["fuck","shit","bitch","cunt","nigg","fag","whore","rape","asshole","dick",
+  "死ね","殺す","しね","ころす","ちんこ","ちんちん","まんこ","うんこ","セックス","レイプ","キチガイ","きちがい",
+  "unko","chinko","manko","korosu"];
+/* 全角・カタカナ・記号ちがいの抜け道を塞ぎつつ、普通の名前を巻き込まない。
+   Nishitani / Yoshitaka / Grape / Dickens などは先に安全リストで通す。
+   取りこぼしは結果画面の「不適切な名前を報告」から作者が消す運用で補う。 */
+const NG_SAFE=[/nishit/,/yoshit/,/toshit/,/ashit/,/kishit/,/hashit/,/mashit/,
+  /grape/,/drape/,/dicken/,/dickin/,/dicky/,/bunko/,/funko/,
+  /ころすけ/,/こけし/,/しねま/,/しねこん/,/おいしね/];
+const toHira = s => s.replace(/[ァ-ヶ]/g, c=>String.fromCharCode(c.charCodeAt(0)-0x60));
+const isNgName = s => {
+  const t = toHira(String(s).normalize("NFKC").toLowerCase())
+    .replace(/[^0-9a-zぁ-ゟ一-鿿]/g,"");   // 記号・空白・区切りを除去
+  if(!t) return false;
+  if(NG_SAFE.some(re=>re.test(t))) return false;
+  return NG_WORDS.some(w=>t.includes(toHira(w.normalize("NFKC").toLowerCase())));
+};
+
 async function submitScore(){
   if(!lastFinal) return;
   const board=boardKey(); if(!board) return;
-  const name=((($("#rankName").value)||"").trim()||"no name").slice(0,12);
+  const name=((($("#rankName").value)||"").trim()||randomPainterName()).slice(0,12);
+  $("#rankName").value=name;      // 自動生成された名前を本人にも見せる
+  if(isNgName(name)){
+    toast(tr("その名前は登録できません…べつの名前にしてね","That name can't be used — please pick another"));
+    return;
+  }
   try{ localStorage.setItem("cube-challenge-name",name); }catch(_){}
   $("#btnRankSubmit").disabled=true;
   $("#rankResult").textContent=tr("そうしんちゅう…","Submitting…");
@@ -1692,7 +2075,7 @@ async function buildShareCard(){
   g.fillStyle="#54455a"; g.font="800 74px "+F;
   g.fillText(lastFinal.avg.toFixed(2)+tr("点"," pts"), Wc-M, 88);
   g.fillStyle=gradeColor(lastFinal.g); g.font="800 36px "+F;
-  g.fillText(tr("グレード ","Grade ")+lastFinal.g+" "+gradeEmoji(lastFinal.g), Wc-M, 132);
+  g.fillText(tr("グレード ","Grade ")+lastFinal.g, Wc-M, 132);
   // 5x2 thumbnails
   const imgs=await Promise.all(roundsInfo.map(r=>loadImg(r.shot)));
   const gw=(Wc-2*M-4*14)/5, gh=138;
@@ -1703,12 +2086,26 @@ async function buildShareCard(){
     g.fillText(info.practice?`R${i+1} 🌱`:`R${i+1}  ${info.score.toFixed(2)}`, x+gw/2, y+gh+28);
   });
   g.textAlign="center"; g.fillStyle="#54455a"; g.font="800 34px "+F;
-  g.fillText(tr(`称号：${lastFinal.ttl.emoji} ${lastFinal.ttl.name}`,`Title: ${lastFinal.ttl.emoji} ${lastFinal.ttl.name}`)+(lastFinal.isBest?"　🏆":""), Wc/2, Hc-80);
+  const sp=(lastFinal.specials||[]);
+  g.fillText(tr(`称号：${lastFinal.ttl.emoji} ${lastFinal.ttl.name}`,`Title: ${lastFinal.ttl.emoji} ${lastFinal.ttl.name}`)+(lastFinal.isBest?"　🏆":""),
+    Wc/2, sp.length?Hc-100:Hc-80);
+  if(sp.length){
+    const shown=sp.slice(0,3);
+    let txt=shown.map(s=>`${s.emoji} ${s.name}`).join("　＋　")
+      + (sp.length>3 ? tr(`　ほか${sp.length-3}`,`  +${sp.length-3}`) : "");
+    g.fillStyle="#7a6ab8";
+    let fs=22;                                  // 幅に収まるまで縮める
+    for(; fs>12; fs--){ g.font="800 "+fs+"px "+F; if(g.measureText(txt).width<=Wc-2*M) break; }
+    g.fillText(txt, Wc/2, Hc-62);
+  }
   g.textAlign="left"; g.fillStyle="#e86f9e"; g.font="800 26px "+F;
   g.fillText(tr("#立方体チャレンジ","#CubeChallenge"), M, Hc-26);
   g.textAlign="right"; g.fillStyle="#8a6f80"; g.font="700 22px "+F;
-  const d=new Date();
-  if(isDaily) g.fillText(tr(`📅 デイリー ${d.getMonth()+1}/${d.getDate()}`,`📅 Daily ${d.getMonth()+1}/${d.getDate()}`), Wc-M, Hc-26);
+  if(isDaily){
+    const dm=(dailyDate||"").match(/(\d+)-(\d+)-(\d+)$/);   // 開始時の日付を刻む
+    const lbl=dm?`${+dm[2]}/${+dm[3]}`:"";
+    g.fillText(tr(`📅 デイリー ${lbl}`,`📅 Daily ${lbl}`), Wc-M, Hc-26);
+  }
   return c.toDataURL("image/png");
 }
 function buildShareText(){
@@ -1719,9 +2116,12 @@ function buildShareText(){
     ? (isDaily ? tr(` きょうのチャレンジに挑戦→ ${base}`,` Try today's challenge → ${base}`)
                : tr(` あそんでみて→ ${base}`,` Play it → ${base}`))
     : tr(` おなじお題に挑戦→ `,` Try the same puzzles → `)+`${base}?seed=${encodeURIComponent(gameSeed)}&mode=${mode}`;
+  const sp2=(lastFinal.specials||[]).slice(0,2);   // 投稿文は2つまで
+  const spTxt=sp2.map(s=>`＋「${s.name}」`).join("");
+  const spEn =sp2.map(s=>` + "${s.name}"`).join("");
   return tr(
-    `立方体チャレンジ（${MODES[mode].name}${isDaily?"・きょうのチャレンジ":""}）${lastFinal.avg.toFixed(2)}点・${lastFinal.g}${gradeEmoji(lastFinal.g)} 称号「${lastFinal.ttl.name}」！${link} #立方体チャレンジ`,
-    `Cube Challenge (${MODES[mode].name}${isDaily?" · Daily":""}) — ${lastFinal.avg.toFixed(2)} pts, grade ${lastFinal.g}${gradeEmoji(lastFinal.g)}, title "${lastFinal.ttl.name}"!${link} #CubeChallenge`);
+    `立方体チャレンジ（${MODES[mode].name}${isDaily?"・きょうのチャレンジ":""}）${lastFinal.avg.toFixed(2)}点・グレード${lastFinal.g} 称号「${lastFinal.ttl.name}」${spTxt}！${link} #立方体チャレンジ`,
+    `Cube Challenge (${MODES[mode].name}${isDaily?" · Daily":""}) — ${lastFinal.avg.toFixed(2)} pts, grade ${lastFinal.g}, title "${lastFinal.ttl.name}"${spEn}!${link} #CubeChallenge`);
 }
 let lastShare=null;
 async function shareResult(){
@@ -1825,7 +2225,10 @@ $("#btnNext").addEventListener("click",next);
 $("#btnUndo").addEventListener("click",undo);
 $("#btnClear").addEventListener("click",clearAll);
 $("#btnMenu").addEventListener("click",toMenu);
-$("#btnRetry").addEventListener("click",()=>startGame(mode, seededRun?{seed:gameSeed,daily:isDaily}:{}));
+$("#btnRetry").addEventListener("click",()=>{
+  if(isDaily){ startDaily(); return; }          // デイリーは回数制限を通す
+  startGame(mode, seededRun?{seed:gameSeed}:{});
+});
 $("#btnShare").addEventListener("click",shareResult);
 $("#btnToMenu").addEventListener("click",toMenu);
 $("#finalSeed").addEventListener("click",async()=>{
@@ -1839,9 +2242,38 @@ $("#finalSeed").addEventListener("click",async()=>{
 
 /* ---- デイリーチャレンジ・シード入力・URLチャレンジ ---- */
 const DAILY_KEY="cube-challenge-daily-v1";
+/* きょうのチャレンジは1日3回まで（挑戦を始めた時点で1回消費する）。
+   端末内の記録なので厳密な制限ではないが、粘り勝ちを防ぐ目安として機能する。 */
+const DAILY_MAX=3;
+function dailyRec(date){
+  const d=date||todaySeedStr();
+  let r=null; try{ r=JSON.parse(localStorage.getItem(DAILY_KEY)); }catch(_){}
+  if(!r || r.date!==d) r={date:d, score:null, tries:0};
+  if(typeof r.tries!=="number" || !(r.tries>=0)) r.tries=0;
+  if(typeof r.score!=="number") r.score=null;
+  return r;
+}
+function saveDailyRec(r){ try{ localStorage.setItem(DAILY_KEY, JSON.stringify(r)); }catch(_){} }
+function dailyLeft(){ return Math.max(0, DAILY_MAX-dailyRec().tries); }
+function startDaily(){
+  const r=dailyRec();
+  if(r.tries>=DAILY_MAX){
+    toast(tr(`きょうの挑戦は${DAILY_MAX}回までです。また明日ね！`,`${DAILY_MAX} tries per day — see you tomorrow!`));
+    refreshDaily();
+    return;
+  }
+  r.tries++; saveDailyRec(r);
+  startGame("normal",{seed:todaySeedStr(),daily:true});
+}
 function refreshDaily(){
-  let rec=null; try{ rec=JSON.parse(localStorage.getItem(DAILY_KEY)); }catch(_){}
-  $("#bestDailyLab").textContent = (rec && rec.date===todaySeedStr()) ? tr(`きょう ${(+rec.score).toFixed(2)}点`,`Today ${(+rec.score).toFixed(2)}`) : "";
+  const rec=dailyRec(), left=Math.max(0, DAILY_MAX-rec.tries);
+  const best = rec.score!==null ? tr(`きょう ${(+rec.score).toFixed(2)}点 / `,`Today ${(+rec.score).toFixed(2)} · `) : "";
+  $("#bestDailyLab").textContent = best + (left>0
+    ? tr(`のこり${left}回`,`${left} left`)
+    : tr("きょうは終了","done for today"));
+  const b=$("#btnDaily");
+  b.disabled = left===0;
+  b.style.opacity = left===0 ? .55 : 1;
 }
 /* 言語切替ボタン（表示は「切替先」の言語名） */
 $("#btnLang").textContent = JA ? "🌐 English" : "🌐 日本語";
@@ -1855,7 +2287,7 @@ $("#btnLang").addEventListener("click",()=>{
   else location.href=url;
 });
 
-$("#btnDaily").addEventListener("click",()=>startGame("normal",{seed:todaySeedStr(),daily:true}));
+$("#btnDaily").addEventListener("click",startDaily);
 $("#btnSeedPlay").addEventListener("click",()=>{
   const s=prompt(tr("シードを入力してね（配信者とおなじお題に挑戦！）\n※ノーマルモードで開始します。URLの ?seed=◯◯&mode=◯◯ でモード指定もできます",
                     "Enter a seed to play the same puzzles!\nStarts in Normal mode — use ?seed=…&mode=… in the URL for other modes"));
@@ -1874,6 +2306,36 @@ $("#btnSeedPlay").addEventListener("click",()=>{
   b.addEventListener("click",()=>startGame(m,{seed:s}));
   $("#challengeSlot").appendChild(b);
 })();
+
+/* ---- かくしモード解放：コナミコマンド／タイトル7連打（スマホ用） ---- */
+const WIRE_KEY="cube-challenge-wire";
+const wireUnlocked = () => { try{ return localStorage.getItem(WIRE_KEY)==="1"; }catch(_){ return false; } };
+function unlockWire(quiet){
+  const b=document.querySelector('.modeBtn[data-mode="wire"]');
+  if(!b || b.style.display!=="none") return;      // すでに解放済みなら何もしない
+  b.style.display="";
+  refreshMenuBest();
+  if(quiet) return;
+  try{ localStorage.setItem(WIRE_KEY,"1"); }catch(_){}
+  toast(tr("🎮 かくしモード「ハリガネ」を解放！","🎮 Hidden mode “Wireframe” unlocked!"));
+  Sound.fanfare(true); fx.burst(90);
+}
+if(wireUnlocked()) unlockWire(true);
+const KONAMI=["arrowup","arrowup","arrowdown","arrowdown","arrowleft","arrowright","arrowleft","arrowright","b","a"];
+let konamiIdx=0;
+window.addEventListener("keydown",e=>{
+  const k=(e.key||"").toLowerCase();
+  konamiIdx = (k===KONAMI[konamiIdx]) ? konamiIdx+1 : (k===KONAMI[0] ? 1 : 0);
+  if(konamiIdx===KONAMI.length){ konamiIdx=0; unlockWire(false); }
+});
+let titleTaps=0, titleTapAt=0;
+$("#menuOverlay h1").addEventListener("click",()=>{
+  const now=performance.now();
+  titleTaps = (now-titleTapAt<900) ? titleTaps+1 : 1;
+  titleTapAt=now;
+  if(titleTaps>=7){ titleTaps=0; unlockWire(false); }
+});
+
 refreshDaily();
 $("#btnPen").addEventListener("click",()=>setTool("pen"));
 $("#btnEraser").addEventListener("click",()=>setTool("eraser"));
@@ -1923,8 +2385,8 @@ window.addEventListener("keydown",e=>{
   }
 });
 
-/* リサイズ時は幾何を平行移動して画面中央に寄せ直すだけ —
-   描きかけ・タイマー・お題はそのまま保つ（作り直すと不利/チートになる） */
+/* リサイズ・画面回転時はお題を作り直さず、一様スケール＋平行移動で安全域に収め直す。
+   （作り直すと不利／チートになるため。相似変換なので採点条件は変わらない） */
 window.addEventListener("resize",()=>{
   resizeCanvases();
   if(round && (!Number.isFinite(round.cubes[0].P[0].x) || round.targets.length===0)){
@@ -1933,18 +2395,30 @@ window.addEventListener("resize",()=>{
     return;
   }
   if(round){
+    const landscape = W>=H;
+    const mL=24, mR=landscape?195:24, mT=70, mB=landscape?40:175;
+    const availW=Math.max(60,W-mL-mR), availH=Math.max(60,H-mT-mB);
     const pts=[]; round.cubes.forEach(c=>pts.push(...c.P));
     const xs=pts.map(p=>p.x), ys=pts.map(p=>p.y);
-    const dx=W/2-(Math.min(...xs)+Math.max(...xs))/2;
-    const dy=(70+(H-95))/2-(Math.min(...ys)+Math.max(...ys))/2;
-    if(dx||dy){
+    const l=Math.min(...xs), r=Math.max(...xs), t=Math.min(...ys), b=Math.max(...ys);
+    const bw=Math.max(r-l,1e-6), bh=Math.max(b-t,1e-6);
+    // 収まらないときだけ縮小（勝手に拡大はしない）
+    const s=Math.min(1, availW/bw*0.98, availH/bh*0.98);
+    const cx0=(l+r)/2, cy0=(t+b)/2;
+    let ax=(mL+(W-mR))/2 - cx0*s, ay=(mT+(H-mB))/2 - cy0*s;
+    // 相似変換後に安全域からはみ出していれば平行移動で戻す
+    const nl=l*s+ax, nr=r*s+ax, nt=t*s+ay, nb=b*s+ay;
+    if(nl<mL) ax+=mL-nl; else if(nr>W-mR) ax+=W-mR-nr;
+    if(nt<mT) ay+=mT-nt; else if(nb>H-mB) ay+=H-mB-nb;
+    if(s!==1 || ax!==0 || ay!==0){
       const seen=new Set();
-      const shift=p=>{ if(seen.has(p))return; seen.add(p); p.x+=dx; p.y+=dy; };
-      round.cubes.forEach(c=>c.P.forEach(shift));          // targets/allSegsのpa,pbは同じ参照
-      round.targets.forEach(t=>t.samples.forEach(shift));
-      strokes.forEach(s=>s.pts.forEach(shift));
-      if(cur) cur.pts.forEach(shift);
-      history.forEach(snap=>snap.forEach(s=>s.pts.forEach(shift)));
+      const xf=p=>{ if(seen.has(p))return; seen.add(p); p.x=p.x*s+ax; p.y=p.y*s+ay; };
+      round.cubes.forEach(c=>{ c.P.forEach(xf); c.tol*=s; });   // targets/allSegsのpa,pbは同じ参照
+      round.targets.forEach(t2=>{ t2.samples.forEach(xf); t2.tol*=s; });
+      round.allSegs.forEach(g=>{ g.tol*=s; });
+      strokes.forEach(st=>st.pts.forEach(xf));
+      if(cur) cur.pts.forEach(xf);
+      history.forEach(snap=>snap.forEach(st=>st.pts.forEach(xf)));
       hoverPos=null;
     }
   }
@@ -1960,7 +2434,11 @@ window.__cube = {
   get tool(){ return tool; },
   get history(){ return history; },
   forceTimeout(){ if(state==="draw" && !round.practice){ deadline=performance.now(); } },
+  nudgeTimer(sec){ if(state==="draw") deadline=performance.now()+sec*1000; },   // 検証用
   gen(m,w,h){ return genRound(m,false,w||W,h||H); },
+  randomName(){ return randomPainterName(); },
+  isNg(s){ return isNgName(s); },
+  dailyLeft(){ return dailyLeft(); },
   renderNow(){ drawScene(); },
   buildShareCard,
   get roundsInfo(){ return roundsInfo; },
@@ -1989,13 +2467,14 @@ if(!JA){
   document.querySelector("#btnDaily .mn").textContent="📅 Daily Challenge";
   document.querySelector('.modeBtn[data-mode="normal"] .mn').textContent="🧊 Normal";
   document.querySelector('.modeBtn[data-mode="wire"] .mn').textContent="🩻 Wireframe";
+  document.querySelector('.modeBtn[data-mode="wire"] .md').textContent="Draw all 8 edges — including the ones hidden behind the cube";
   document.querySelector('.modeBtn[data-mode="double"] .mn').textContent="🧊🧊 Double";
   $("#btnSeedPlay").textContent="🔗 Enter a seed to play the same puzzles";
   $("#menuOverlay .foot").innerHTML="<span style='opacity:.85'>made by <a href='https://x.com/daromeon' target='_blank' rel='noopener' style='color:#e86f9e;text-decoration:none;font-weight:800;'>@daromeon</a></span><span id='verLab' style='opacity:.6'></span>";
-  $("#finalOverlay .foot").textContent = RANK_ENABLED
+  $("#finalOverlay .foot").innerHTML = (RANK_ENABLED
     ? "Scores are shared on the public leaderboard when you submit them"
-    : "Online ranking coming in a future update!";
-  $("#rankName").placeholder="name (up to 12 chars)";
+    : "Online ranking coming in a future update!") + FOOT_LINKS_EN;
+  $("#rankName").placeholder="Name";
   $("#btnRankSubmit").textContent="🏆 Submit to ranking";
   $("#btnShareX").textContent="Post to 𝕏";
   $("#btnShareIg").textContent="📷 Save for Instagram";
@@ -2005,8 +2484,10 @@ if(!JA){
   $("#btnShareClose").textContent="✕ Close";
 }
 /* ランキング有効時は日本語の注記も差し替え */
-if(JA && RANK_ENABLED){
-  $("#finalOverlay .foot").textContent="とうろくすると、スコアはみんなのランキングに公開されます";
+if(JA){
+  $("#finalOverlay .foot").innerHTML =
+    (RANK_ENABLED ? "とうろくすると、スコアはみんなのランキングに公開されます"
+                  : "オンラインランキングは今後のアップデートで追加予定！") + FOOT_LINKS_JA;
 }
 
 $("#verLab").textContent = "v" + GAME_VER;
