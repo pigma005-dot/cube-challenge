@@ -478,7 +478,7 @@
    ============================================================ */
 const TIME_LIMIT = 30;   // 本番ラウンドの制限時間（秒）
 const ERASER_R   = 16;   // けしゴムの半径(px)
-const GAME_VER = "1.21";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
+const GAME_VER = "1.22";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
 // ネイティブアプリ（Capacitor/App Store版）で動いているか
 const CAP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 
@@ -980,7 +980,10 @@ function buildRound(mode, practice, W, H, tilted){
       [shapeOf(rotA,D1,a.tx,a.ty), shapeOf(rotB,D2,b.tx,b.ty)], rnd(0.60,0.72), W, H));
   }else{
     const D = rnd(3.8,8);
-    const tx = rnd(-1.5,1.5), ty = rnd(-0.9,0.9);
+    /* 配置オフセットは小さく保つ（v1.22）。消失点は回転だけで決まり、tx/tyを大きくすると
+       立方体だけが3消失点の三角形の外へ滑っていき、「近い辺のほうが短く見える」
+       感覚に反するお題になる。±0.35/±0.25なら重心が三角形の外に出る率は実測0%。 */
+    const tx = rnd(-0.35,0.35), ty = rnd(-0.25,0.25);
     // 大きめの画面では少し小さく出題して余白の自由度を上げる（スマホは描きやすさ優先）
     const appFrac = (minWH>=560 ? rnd(0.26,0.34) : rnd(0.30,0.40));
     cubes.push(...layoutCubes([shapeOf(tilted?randRotTilted():randRot(),D,tx,ty)], appFrac, W, H));
