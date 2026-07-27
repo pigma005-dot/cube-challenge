@@ -479,6 +479,7 @@
 const TIME_LIMIT = 30;   // 本番ラウンドの制限時間（秒）
 const ERASER_R   = 16;   // けしゴムの半径(px)
 const GAME_VER = "1.22";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
+                           // ※アップロード時にまとめて上げる運用。ローカル改修では触らない
 // ネイティブアプリ（Capacitor/App Store版）で動いているか
 const CAP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 
@@ -755,6 +756,14 @@ const Sound = (() => {
     clearAll(){ tone({f:950,f2:180,dur:0.3,type:"sine",vol:0.2}); tone({f:640,f2:140,t:0.05,dur:0.3,type:"sine",vol:0.12}); },
     start(){ tone({f:660,dur:0.1,vol:0.18}); tone({f:880,t:0.1,dur:0.16,vol:0.18}); },
     tick(){ tone({f:1180,dur:0.04,type:"triangle",vol:0.1}); },
+    /* 残り4秒からのカウントダウン警告。秒が減るほど高く・強く・音を重ねる */
+    countdown(s){
+      const k=5-Math.max(1,Math.min(4,s));          // 1(残り4秒)〜4(残り1秒)
+      const f=720+k*95;
+      tone({f, dur:0.11, type:"triangle", vol:0.13+k*0.02});
+      tone({f:f*2, t:0.05, dur:0.07, type:"sine", vol:0.06+k*0.012});
+      if(s<=2) tone({f:f*1.5, t:0.16, dur:0.09, type:"triangle", vol:0.09});
+    },
     timeup(){ tone({f:660,dur:0.16,vol:0.2}); tone({f:494,t:0.18,dur:0.3,vol:0.2}); },
     score(grade){
       const seq={
@@ -1109,7 +1118,7 @@ const DOODLE_TITLES={
   circle:{ja:"まるしか描かない人",   en:"Circles Only",           emoji:"⭕"},
   any   :{ja:"らくがき王",           en:"King of Doodles",        emoji:"🖍️"},
 };
-/* かくし称号（条件を満たすと結果画面のバッジに追加される） */
+/* かくしバッジ（条件を満たすと結果画面に追加される。スコアの「称号」とは別物） */
 const SPECIAL_TITLES={
   oneStroke:{ja:"一筆書きの達人",   en:"One-Stroke Master",         emoji:"✒️"},
   mirror   :{ja:"鏡の国の住人",     en:"Through the Looking-Glass", emoji:"🪞"},
@@ -1119,14 +1128,33 @@ const SPECIAL_TITLES={
   eraser   :{ja:"消しゴムの魔術師", en:"Eraser Wizard",             emoji:"🧽"},
   zen      :{ja:"無の境地",         en:"State of Nothingness",      emoji:"🧘"},
   night    :{ja:"夜ふかし絵師",     en:"Midnight Sketcher",         emoji:"🌙"},
-  collector:{ja:"称号コレクター",   en:"Title Collector",           emoji:"🎭"},
+  /* 「左手」と書くと左利きの人に合わないので、ペンを持っていない側＝もう片方の手と呼ぶ */
+  undoKey  :{ja:"もう片方の手がはやい人", en:"Quick Off-Hand",      emoji:"⌨️"},
+  observer :{ja:"よく見る人",       en:"The Observer",              emoji:"👁️"},
+  steep    :{ja:"アオリに強い人",   en:"Steep-Angle Specialist",    emoji:"⛰️"},
+  clear    :{ja:"いちからやり直す人", en:"Clean Slate",             emoji:"🗑️"},
+  collector:{ja:"バッジコレクター", en:"Badge Collector",           emoji:"🎭"},
 };
 /* 集めた種類を数える対象（コレクター自身は除く） */
-const COLLECTIBLES=["art","text","circle","any","oneStroke","mirror","guide","quick","clutch","eraser","zen","night"];
+const COLLECTIBLES=["art","text","circle","any","oneStroke","mirror","guide","quick","clutch",
+  "eraser","zen","night","undoKey","observer","steep","clear"];   // 16種
 const COLLECT_KEY="cube-challenge-titles";
-const doodleNote = k => k==="art"  ? tr("🎨 いい絵だね！…でも今回は立方体だよ","🎨 Nice art! …but the task was a cube")
-                     : k==="text" ? tr("✍️ 読めたよ！…でも今回は立方体だよ","✍️ Message received! …but the task was a cube")
-                     :              tr("🖍️ 自由だね〜！…でも今回は立方体だよ","🖍️ Very free! …but the task was a cube");
+/* 落書き判定の一言。iは言い回しを回すための番号（同じ文が続くとうっとおしいため） */
+const DOODLE_NOTES={
+  art:   [tr("🎨 いい絵だね！…でも今回は立方体だよ","🎨 Nice art! …but the task was a cube"),
+          tr("🎨 うまい。ただしお題は立方体","🎨 Skilled — but the task is a cube"),
+          tr("🎨 才能の使いどころがちがう","🎨 Talent, aimed elsewhere")],
+  text:  [tr("✍️ 読めたよ！…でも今回は立方体だよ","✍️ Message received! …but the task was a cube"),
+          tr("✍️ 言いたいことは伝わった","✍️ Message understood"),
+          tr("✍️ 手紙はうれしいけど立方体を","✍️ Sweet note — now the cube")],
+  circle:[tr("⭕ まるいね！…でも今回は立方体だよ","⭕ Very round! …but the task was a cube"),
+          tr("⭕ かどが一つもない","⭕ Not a single corner"),
+          tr("⭕ 立方体には角があるよ","⭕ Cubes do have corners")],
+  any:   [tr("🖍️ 自由だね〜！…でも今回は立方体だよ","🖍️ Very free! …but the task was a cube"),
+          tr("🖍️ のびのび描いてるね","🖍️ Drawing freely, I see"),
+          tr("🖍️ お題はいちおう立方体です","🖍️ The task is, technically, a cube")],
+};
+const doodleNote = (k,i) => { const a=DOODLE_NOTES[k]||DOODLE_NOTES.any; return a[(i||0)%a.length]; };
 
 function scoreRound(round, strokes){
   let sp = resampleStrokes(strokes, 4);
@@ -1356,6 +1384,8 @@ let tool="pen";              // "pen" | "eraser"
 let hoverPos=null;           // eraser indicator
 let erasing=false, eraseChanged=false, erasePrev=null;
 let eraseUses=0;   // このラウンドで消しゴムを使った回数（かくし称号の判定用）
+let undoKeyUses=0, undoBtnUses=0;   // Ctrl+Z とボタンでの取り消し回数（同上）
+let clearUses=0;                    // このラウンドで「ぜんぶけす」を使った回数（同上）
 let history=[];
 
 const mid=(a,b)=>({x:(a.x+b.x)/2, y:(a.y+b.y)/2});
@@ -1396,9 +1426,12 @@ function pushHistory(){
   history.push(strokes.map(s=>({pts:s.pts})));
   if(history.length>60) history.shift();
 }
-function undo(){
+/* byKey=true はキーボード(Ctrl+Z)から。ボタンとキーの使い分けを数えて称号に使う。
+   実際に戻せたときだけ数える（履歴が空の空振りは数えない） */
+function undo(byKey){
   if(state!=="draw" || !history.length || activeId!==null) return;
   strokes=history.pop();
+  if(byKey) undoKeyUses++; else undoBtnUses++;
   Sound.undo();
   rebuildInk(); render();
 }
@@ -1406,6 +1439,7 @@ function clearAll(){
   if(state!=="draw" || !strokes.length || activeId!==null) return;
   pushHistory();
   strokes=[];
+  clearUses++;                 // 実際に消せたときだけ数える
   Sound.clearAll();
   rebuildInk(); render();
 }
@@ -1598,7 +1632,8 @@ function startTimer(){
     }else{
       updateTimerUI(t);
       const s=Math.ceil(t);
-      if(s<=5 && s!==lastTickSec){ lastTickSec=s; Sound.tick(); }
+      // 残り5秒で軽く予告 → 残り4秒からは警告音でせかす
+      if(s<=5 && s!==lastTickSec){ lastTickSec=s; s>=5 ? Sound.tick() : Sound.countdown(s); }
     }
   },100);
 }
@@ -1618,6 +1653,9 @@ let state="menu", mode="normal", roundIdx=0, round=null, scores=[];
 let roundsInfo=[];   // {shot,baseShot,shotScale,strokes,score,practice,timedOut} per round
 let lastFinal=null;  // {avg,g,isBest,ttl}
 let gameSeed="", seededRun=false, isDaily=false, roundStart=0, resultAt=0;
+let encouraged=false;   // 「あきらめないで！」を出したか（1ランに1回まで）
+/* 抽象的でくり返すとうるさい一言は、1ランに1回だけ出す。ここにキーを入れて管理する */
+let noteOnce=new Set();
 /* デイリーは開始時の日付を保持する。プレイ中に日付が変わっても、記録・ランキングの
    送信先・シェア画像の日付が翌日にズレないようにするため。 */
 let dailyDate="";
@@ -1648,7 +1686,7 @@ function newRound(){
   round = genRound(mode, roundIdx<PRACTICE_ROUNDS, W, H);
   roundStart = performance.now();
   strokes=[]; cur=null; activeId=null; history=[]; erasing=false; hoverPos=null;
-  eraseUses=0;
+  eraseUses=0; undoKeyUses=0; undoBtnUses=0; clearUses=0;
   setTool("pen", true);   // 消しゴムのまま白紙ラウンドが始まって描けない事故を防ぐ
   hideJudgeHint();
   rebuildInk();
@@ -1660,7 +1698,7 @@ function newRound(){
 
 function startGame(m, opts){
   opts=opts||{};
-  mode=m; roundIdx=0; scores=[]; roundsInfo=[];
+  mode=m; roundIdx=0; scores=[]; roundsInfo=[]; encouraged=false; noteOnce=new Set();
   gameSeed = opts.seed || randomSeed();
   seededRun = !!opts.seed;
   isDaily = !!opts.daily;
@@ -1669,6 +1707,108 @@ function startGame(m, opts){
   $("#finalOverlay").classList.add("hidden");
   Sound.start();
   newRound();
+}
+
+/* 「前半は真面目に描いていたのに急に投げやりになった人」を見つける。
+   下手な人を巻き込まないよう、点数ではなく“手数と時間”で判定する。
+   （難しい回を粘って時間切れになった人は対象にしない） */
+function gaveUpNow(res, elapsedSec, auto){
+  if(encouraged || round.practice) return false;
+  const R=roundsInfo.filter(r=>!r.practice);
+  // もともとちゃんと描いていた回が2回以上あることが前提
+  if(R.filter(r=>r.strokeCount>=3 && r.score>=45).length<2) return false;
+  const needed=Math.max(1, round.targets.length);
+  const tooFewLines = strokes.length <= Math.max(1, Math.floor(needed/2));
+  if(!(tooFewLines && res.cov<0.35)) return false;
+  const bailedFast = !auto && elapsedSec<=12;      // 早々に判定を押して投げた
+  const satOut     = auto && strokes.length<=1;    // ほぼ描かずに時間切れ
+  return bailedFast || satOut;
+}
+
+/* ラウンドの一言。上から優先で最大3つ。数値から言えることだけを言う。 */
+function roundNotes(res, auto, oneStroke, giveUp){
+  const n=[];
+  const push=s=>{ if(s && n.length<3 && !n.includes(s)) n.push(s); };
+  // 1ランに1回しか出さない一言（抽象的でくり返すとうるさいもの）
+  const pushOnce=(key,s)=>{ if(noteOnce.has(key)||n.length>=3) return; noteOnce.add(key); push(s); };
+  /* 同じ判定でも言い回しを変える。roundIdx基準なので同じシードなら同じ順に出る。
+     くり返しのうっとおしさはここで吸収する */
+  const v=arr=>arr[roundIdx % arr.length];
+  /* 静かな回。本番の半分は「特異なことをした回」以外なにも出さない。
+     ずっと喋られると重いので、褒め・診断・埋め言葉はここで止める。
+     どちらの回が静かになるかはシードで決まる（同じお題なら同じ挙動） */
+  let sh=0; for(let i=0;i<gameSeed.length;i++) sh=(sh*31+gameSeed.charCodeAt(i))|0;
+  const quiet = !round.practice && ((roundIdx + (sh>>>0)) % 2 === 0);
+  const pushLoud=s=>{ if(!quiet) push(s); };
+  const R=roundsInfo.filter(r=>!r.practice);       // まだ今回はpushされていない＝前回まで
+  const prev=R.length?R[R.length-1]:null;
+  if(auto) push(v([tr("⏰ じかんぎれ！","⏰ Time's up!"),
+                   tr("⏰ タイムアップ！","⏰ Out of time!"),
+                   tr("⏰ ここまで！","⏰ Pens down!")]));
+  if(round.practice) push(v([tr("🌱 れんしゅう（採点対象外）","🌱 Practice (not scored)"),
+                             tr("🌱 れんしゅう中。点はつかないよ","🌱 Practice — no score here")]));
+  if(giveUp) push(tr("🍀 あきらめないで！1本からでいいよ","🍀 Don't give up — one edge is enough!"));
+  if(res.doodle) push(doodleNote(res.doodle, roundIdx));
+  else if(res.mirrored) push(v([tr("🪞 左右がぎゃくさまだよ！","🪞 That's the mirror image!"),
+                                tr("🪞 鏡にうつってる！","🪞 You drew it flipped!")]));
+  if(oneStroke) push(v([tr("✒️ 一筆書き！","✒️ One stroke!"),
+                        tr("✒️ ペンを離さずに！","✒️ Never lifted the pen!")]));
+  // キーボードショートカットに気づいて使っている人をほめる（1ランに1回）
+  if(undoKeyUses>0) pushOnce("undokey", tr("⌨️ Ctrl+Z つかえてる！","⌨️ Nice — Ctrl+Z!"));
+  /* 何を直せば伸びるかの診断。「描き落とし」と「位置ずれ」は
+     引いた線の総長で見分ける（本数だと一筆書きの人を誤診する） */
+  if(!res.doodle){
+    const needLen=round.targets.reduce((a,t)=>a+Math.hypot(t.pb.x-t.pa.x,t.pb.y-t.pa.y),0);
+    let drawnLen=0;
+    for(const s of strokes){ const p=s.pts;
+      for(let i=1;i<p.length;i++) drawnLen+=Math.hypot(p[i].x-p[i-1].x,p[i].y-p[i-1].y); }
+    const drewEnough = needLen>0 && drawnLen>=needLen*0.7;
+    if(res.cov<0.60 && !drewEnough)     pushLoud(v([tr("🧩 かけていない辺があるよ","🧩 Some edges are still missing"),
+                                                 tr("🧩 まだ描いてない辺がある","🧩 There are edges left undrawn"),
+                                                 tr("🧩 辺が足りてないかも","🧩 Looks like a few edges short")]));
+    // 「位置がずれてる」は抽象的なので、気づかせる1回だけにする
+    else if(res.cov<0.75 && drewEnough && !quiet) pushOnce("offset", tr("📏 ぜんぶ描けてる！あとは位置","📏 All there — just off position"));
+    else if(res.eff<0.95)               pushLoud(v([tr("✏️ 辺からはずれた線が多いです","✏️ Too many lines off the edges"),
+                                                 tr("✏️ よけいな線がおおいかも","✏️ A lot of stray lines"),
+                                                 tr("✏️ 線をへらすと伸びるよ","✏️ Fewer lines would score better")]));
+  }
+  // 伸びをほめる（本番だけ）
+  if(!round.practice){
+    if(prev){
+      const d=res.score-prev.score;
+      if(d>=8) pushLoud(tr(`📈 まえより +${d.toFixed(2)}点！`,`📈 +${d.toFixed(2)} vs last round!`));
+    }
+    /* Sの連続は「回数」を出す。同じ文をくり返すとうるさいので、
+       毎回ちがう情報になるようにして3連続からにする */
+    if(gradeOf(res.score)==="S"){
+      let st=1;
+      for(let i=R.length-1;i>=0;i--){ if(gradeOf(R[i].score)==="S") st++; else break; }
+      if(st>=3) pushLoud(tr(`🔥 S ${st}れんぞく！`,`🔥 ${st} S grades in a row!`));
+    }
+    if(R.length>=2 && res.score>Math.max(...R.map(r=>r.score)))
+      pushLoud(v([tr("🌟 いまのがベストラウンド！","🌟 Your best round yet!"),
+              tr("🌟 このランで一番！","🌟 Best of this run!"),
+              tr("🌟 自己最高の回","🌟 A personal best round")]));
+  }
+  // 出題のたね明かし
+  if(round.mode==="double") push(tr(`消失点は「${round.shared?"共通":"別々"}」でした！`,`Vanishing points were ${round.shared?"shared":"different"}!`));
+  if(Math.abs(round.cubes[0].rot.pitch)>=45*DEG)
+    push(v([tr("⛰️ アオリ／フカンの回でした","⛰️ That was a worm's/bird's-eye one"),
+            tr("⛰️ 上下のパースが強い回","⛰️ Strong vertical perspective"),
+            tr("⛰️ むずかしい角度の回でした","⛰️ A tricky angle, that one")]));
+  /* 何も該当しなかった「静かでない回」だけ、グレード別の一言で埋める。
+     静かな回はここも通さないので、本当に無言のラウンドができる */
+  if(!n.length && !round.practice && !quiet){
+    const vv={
+      S:[tr("✨ ほぼぴったり！","✨ Almost exact!"), tr("✨ ずれが見えない","✨ Can't see the gap"), tr("✨ みごと","✨ Beautiful")],
+      A:[tr("👏 いいかんじ！","👏 Nicely done!"), tr("👏 かなり近い","👏 Very close"), tr("👏 つかめてる","👏 You've got it")],
+      B:[tr("🧊 かたちになってきた","🧊 It's taking shape"), tr("🧊 立方体に見える","🧊 Reads as a cube"), tr("🧊 あと一歩","🧊 One step away")],
+      C:[tr("🌱 つぎはもうすこし","🌱 A little closer next time"), tr("🌱 おしい","🌱 So close"), tr("🌱 かたちは見えてる","🌱 The shape is there")],
+      D:[tr("🌱 ゆっくりでいいよ","🌱 Take your time"), tr("🌱 つぎの1回で","🌱 Next one's yours"), tr("🌱 まだ8回ある","🌱 Plenty of rounds left")],
+    }[gradeOf(res.score)];
+    push(vv[roundIdx % vv.length]);
+  }
+  return n;
 }
 
 function submit(auto){
@@ -1695,15 +1835,9 @@ function submit(auto){
   const sc=$("#rpScore"); sc.style.animation="none"; void sc.offsetWidth; sc.style.animation="";
   $("#rpGrade").textContent=g;
   $("#rpGrade").style.background=gradeColor(g);
-  const notes=[];
-  if(auto) notes.push(tr("⏰ じかんぎれ！","⏰ Time's up!"));
-  if(res.doodle) notes.push(doodleNote(res.doodle));
-  else if(res.mirrored) notes.push(tr("🪞 左右がぎゃくさまだよ！","🪞 That's the mirror image!"));
-  else if(res.eff<0.95) notes.push(tr("✏️ 辺からはずれた線が多いです","✏️ Too many lines off the edges"));
-  if(oneStroke) notes.push(tr("✒️ 一筆書き！","✒️ One stroke!"));
-  if(round.mode==="double") notes.push(tr(`消失点は「${round.shared?"共通":"別々"}」でした！`,`Vanishing points were ${round.shared?"shared":"different"}!`));
-  if(round.practice) notes.push(tr("🌱 れんしゅう（採点対象外）","🌱 Practice (not scored)"));
-  $("#rpNote").textContent = notes.join("　");
+  const giveUp = gaveUpNow(res, (performance.now()-roundStart)/1000, auto);
+  if(giveUp) encouraged=true;            // 1ラン1回だけ。しつこく言わない
+  $("#rpNote").textContent = roundNotes(res, auto, oneStroke, giveUp).join("　");
   $("#btnNext").textContent = roundIdx===TOTAL_ROUNDS-1 ? tr("🏁 けっかをみる","🏁 See results") : tr("➡️ つぎへ","➡️ Next");
   if(auto) Sound.timeup(); else Sound.score(g);
   // 答え合わせスナップショット（最終画面グリッド＆シェア用）と
@@ -1730,6 +1864,10 @@ function submit(auto){
     score:res.score, practice:round.practice, timedOut:!!auto, doodle:res.doodle||null,
     oneStroke, mirrored:!!res.mirrored,
     farInk:res.farInk||0, erased:eraseUses, strokeCount:strokes.length,
+    undoKey:undoKeyUses, undoBtn:undoBtnUses, cleared:clearUses,
+    // アオリ／フカンの回か、最初の線を引くまでに何秒かけたか（バッジの判定用）
+    tilted: Math.abs(round.cubes[0].rot.pitch)>=45*DEG,
+    firstAt: strokes.length ? (strokes[0].pts[0].t||0)/1000 : null,
     // 残り時間（本番のみ）。早撃ち／ギリギリ職人の判定に使う
     secLeft: round.practice ? null : Math.max(0,(deadline-performance.now())/1000),
   });
@@ -1796,7 +1934,7 @@ function showFinal(){
   }
   const ttl=titleOf(avg);
   $("#finalTitleLine").textContent=`${ttl.emoji} ${ttl.name}`;
-  /* 追加称号（条件を満たしたものを全部バッジで並べる。増やす時はここにpushする） */
+  /* かくしバッジ（条件を満たしたものを並べる。増やす時はここにpushする） */
   const specials=[];
   const add=(k,src)=>{ const s=src[k]; if(s) specials.push({key:k, name: JA?s.ja:s.en, emoji:s.emoji}); };
   const R=roundsInfo.filter(r=>!r.practice);          // 本番ラウンドだけ
@@ -1820,9 +1958,21 @@ function showFinal(){
   if(R.filter(r=>r.erased>=3).length>=half && avg>=40) add("eraser",SPECIAL_TITLES);
   // 無の境地: 本番で一本も描かなかった
   if(R.length && R.every(r=>r.strokeCount===0)) add("zen",SPECIAL_TITLES);
+  /* 左手がはやい人: ボタンではなくCtrl+Zで戻している人。3回以上のラウンドで使い、
+     かつボタンよりキーボードのほうが多いこと（たまたま1回押した人は対象外） */
+  const uKey=R.reduce((a,r)=>a+(r.undoKey||0),0), uBtn=R.reduce((a,r)=>a+(r.undoBtn||0),0);
+  if(R.filter(r=>(r.undoKey||0)>0).length>=3 && uKey>uBtn) add("undoKey",SPECIAL_TITLES);
+  // よく見る人: 描き出すまでじっくり見ている（平均8秒以上）のに点も出している
+  const firsts=R.map(r=>r.firstAt).filter(v=>v!=null);
+  if(firsts.length>=half && firsts.reduce((a,b)=>a+b,0)/firsts.length>=8 && avg>=40) add("observer",SPECIAL_TITLES);
+  // アオリに強い人: アオリ／フカンの回を1つも落としていない
+  const st=R.filter(r=>r.tilted);
+  if(st.length && Math.min(...st.map(r=>r.score))>=Math.max(65,avg)) add("steep",SPECIAL_TITLES);
+  // いちからやり直す人: 「ぜんぶけす」を半分以上の回で使い、それでも点を出している
+  if(R.filter(r=>(r.cleared||0)>0).length>=half && avg>=40) add("clear",SPECIAL_TITLES);
   // 夜ふかし絵師: 深夜2〜5時
   const hh=new Date().getHours(); if(hh>=2 && hh<5) add("night",SPECIAL_TITLES);
-  /* 集めた称号の種類を記録し、4種類以上で「称号コレクター」を贈る */
+  /* 集めたバッジの種類を記録し、4種類以上で「バッジコレクター」を贈る */
   let owned=[]; try{ const v=JSON.parse(localStorage.getItem(COLLECT_KEY)); if(Array.isArray(v)) owned=v; }catch(_){}
   specials.forEach(s=>{ if(COLLECTIBLES.includes(s.key) && !owned.includes(s.key)) owned.push(s.key); });
   owned=owned.filter(k=>COLLECTIBLES.includes(k));
@@ -1833,8 +1983,8 @@ function showFinal(){
     el.textContent=`${s.emoji} ${s.name}`; bx.appendChild(el); });
   // 集めた数を見せて「他にもあるのか」と探させる（中身は明かさない）
   $("#collectLine").textContent = owned.length
-    ? tr(`🎭 称号コレクション ${owned.length} / ${COLLECTIBLES.length}`,
-         `🎭 Titles collected ${owned.length} / ${COLLECTIBLES.length}`) : "";
+    ? tr(`🎭 バッジコレクション ${owned.length} / ${COLLECTIBLES.length}`,
+         `🎭 Badges collected ${owned.length} / ${COLLECTIBLES.length}`) : "";
   $("#finalSeed").textContent=tr(`🔗 シード ${gameSeed}（クリックでコピー）`,`🔗 Seed ${gameSeed} (click to copy)`);
   lastFinal={avg, g, isBest, ttl, specials};
   // ランキング欄（設定済みかつ対象ボードがある時だけ表示）
@@ -2248,7 +2398,7 @@ document.querySelectorAll(".modeBtn[data-mode]").forEach(b=>
   b.addEventListener("click",()=>startGame(b.dataset.mode)));
 $("#btnSubmit").addEventListener("click",()=>submit(false));
 $("#btnNext").addEventListener("click",next);
-$("#btnUndo").addEventListener("click",undo);
+$("#btnUndo").addEventListener("click",()=>undo(false));   // 引数なしで渡すとEventが真になるので包む
 $("#btnClear").addEventListener("click",clearAll);
 $("#btnMenu").addEventListener("click",toMenu);
 $("#btnRetry").addEventListener("click",()=>{
@@ -2402,7 +2552,7 @@ document.addEventListener("keydown",tryUnlockAudio,true);
 
 window.addEventListener("keydown",e=>{
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==="z"){
-    undo(); e.preventDefault();
+    undo(true); e.preventDefault();
   }else if(e.key==="Enter"){
     if(state==="draw"||state==="roundResult"){
       if(e.repeat) return;      // 長押しリピートで次ラウンドを誤爆しない
