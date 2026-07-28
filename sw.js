@@ -1,6 +1,6 @@
 /* 立方体チャレンジ Service Worker
    キャッシュ名はリリースごとに GAME_VER と合わせて更新すること */
-const CACHE = "cube-challenge-v1.23";
+const CACHE = "cube-challenge-v1.24";
 const ASSETS = [
   "./",
   "./index.html",

@@ -178,6 +178,7 @@
     #howtoBox img{max-height:135px;}
     .card{padding:18px 26px;}
     .card h1{font-size:24px;}
+    #twistSelLab{display:none;}   /* 低い画面ではセレクト枠のラベルを省く（ボタンで意味は伝わる） */
   }
   /* 低い窓でもメニューにスクロールバーが出ないよう更に詰める */
   @media (max-height:580px){
@@ -203,6 +204,17 @@
   .modeBtn .best{font-size:12px;color:#7a6ab8;font-weight:800;white-space:nowrap;margin-left:12px;}
   .foot{font-size:12px;color:#947d8b;margin-top:12px;line-height:1.7;font-weight:600;}
   #menuOverlay .foot{display:flex;justify-content:space-between;align-items:center;}
+
+  /* かくしメニュー: 変化球セレクト（コナミコマンド／タイトル7連打で解放）。
+     解放時だけメニューが伸びるので、itchの720px枠でも溢れないよう詰めてある */
+  #twistSelBox{margin:0 0 4px;padding:5px 10px 4px;border-radius:16px;
+    background:#fdf3ff;border:2px solid #e3c8f0;}
+  #twistSelLab{font-size:11px;font-weight:800;color:#a37ab8;margin-bottom:3px;}
+  #twistSelRow{display:flex;flex-wrap:wrap;gap:5px;}
+  .twistSelBtn{flex:1 1 auto;min-width:0;padding:4px 8px;border-radius:12px;
+    font-size:12.5px;font-weight:800;color:var(--plum-dark);
+    background:#fff;border:2px solid #e3c8f0;white-space:nowrap;}
+  .twistSelBtn:hover{transform:translateY(-1px);}
 
   /* final */
   #finalScore{font-size:64px;font-weight:800;line-height:1;color:var(--plum-dark);display:inline-block;animation:pop .5s cubic-bezier(.34,1.8,.64,1);}
@@ -242,7 +254,7 @@
 
   /* minmax(0,1fr) にしないとラベルの最小幅で列が縮まず、カードから溢れる。
      横に広いカードでサムネが巨大化して縦に溢れるのを防ぐため幅上限も付ける。 */
-  #finalGrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:16px 0 18px;
+  #finalGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:16px 0 18px;
     max-width:470px;margin-left:auto;margin-right:auto;}
   .shotCell{cursor:pointer;background:#fff;border:2px solid #ffd9e8;border-radius:10px;padding:3px 3px 1px;transition:transform .12s;}
   .shotCell:hover{transform:scale(1.07);}
@@ -434,6 +446,16 @@
       <span><span class="mn">🧊🧊 ダブル</span></span>
       <span class="best" id="bestDouble"></span>
     </button>
+    <div id="twistSelBox" style="display:none">
+      <div id="twistSelLab">🎮 変化球セレクト（きろくはつかないよ）</div>
+      <div id="twistSelRow">
+        <button class="twistSelBtn" data-twist="ta">⊞ よつわり</button>
+        <button class="twistSelBtn" data-twist="dice">⚀ サイコロ</button>
+        <button class="twistSelBtn" data-twist="notch">🍫 かじられ</button>
+        <button class="twistSelBtn" data-twist="wire">🩻 ハリガネ</button>
+        <button class="twistSelBtn" data-twist="maru">⭕ まんまる</button>
+      </div>
+    </div>
     <button id="btnSeedPlay" style="display:none;width:100%;background:#f2fbff;border-color:#bfe3ff;font-size:13.5px;">🔗 シードを入力して同じお題であそぶ</button>
     <div class="foot"><span style="opacity:.85">つくったひと：<a href="https://x.com/daromeon" target="_blank" rel="noopener" style="color:#e86f9e;text-decoration:none;font-weight:800;">@daromeon</a></span><span id="verLab" style="opacity:.6"></span></div>
   </div>
@@ -480,6 +502,16 @@
   </div>
 </div>
 
+<div id="twistIntro" class="overlay hidden">
+  <div class="card" style="max-width:340px;text-align:center;">
+    <h1 id="twistTitle" style="font-size:22px;line-height:1.3;"></h1>
+    <canvas id="twistCv" width="260" height="190" style="max-width:100%;display:block;margin:6px auto;"></canvas>
+    <p id="twistName" style="font-weight:800;color:#7a6ab8;margin:4px 0 4px;font-size:17px;"></p>
+    <p id="twistDesc" style="font-size:13px;color:#8a6f80;margin:0 0 12px;font-weight:700;line-height:1.5;"></p>
+    <button id="btnTwistGo" class="primary"></button>
+  </div>
+</div>
+
 <div id="shotPopup" class="hidden">
   <img id="shotBig" alt="">
   <canvas id="shotAnim" class="hidden"></canvas>
@@ -498,7 +530,7 @@
    ============================================================ */
 const TIME_LIMIT = 30;   // 本番ラウンドの制限時間（秒）
 const ERASER_R   = 16;   // けしゴムの半径(px)
-const GAME_VER = "1.23";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
+const GAME_VER = "1.24";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
                            // ※アップロード時にまとめて上げる運用。ローカル改修では触らない
 // ネイティブアプリ（Capacitor/App Store版）で動いているか
 const CAP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
@@ -826,6 +858,243 @@ const CUBE_EDGES = (() => {
   return Object.values(m);
 })();
 
+/* 辺の通し番号と、各辺の3D中点。デイリーの変化球「よつわり」で、
+   面の十字（辺の中点どうしを結ぶ線）を作るのに使う。
+   中点は shapeOf で頂点の後ろ（c.P の 8番以降）に投影される */
+const EDGE_IDX={};
+CUBE_EDGES.forEach((e,i)=>{ EDGE_IDX[e.a+"_"+e.b]=i; });
+const TWIST_EXTRA3D=CUBE_EDGES.map(e=>[
+  (CUBE_V[e.a][0]+CUBE_V[e.b][0])/2,
+  (CUBE_V[e.a][1]+CUBE_V[e.b][1])/2,
+  (CUBE_V[e.a][2]+CUBE_V[e.b][2])/2 ]);
+
+/* 変化球「サイコロ」用: 各面の中心に置いた3D円（サイコロの1の目）。
+   1面あたりDICE_N点で近似し、投影後はポリラインとして扱う（透視でつぶれて楕円になる）。
+   c.P 上の位置: 頂点8 + 辺中点12 のあと、20 + fi*DICE_N + k */
+const DICE_N=20, DICE_R=0.45;
+const DICE_EXTRA3D=TWIST_EXTRA3D.concat((()=>{
+  const pts=[];
+  for(let fi=0;fi<6;fi++){
+    const n=CUBE_FACES[fi].n;
+    let u,v;                                  // 面内の直交軸
+    if(n[2]){ u=[1,0,0]; v=[0,1,0]; }
+    else if(n[0]){ u=[0,1,0]; v=[0,0,1]; }
+    else { u=[1,0,0]; v=[0,0,1]; }
+    for(let k=0;k<DICE_N;k++){
+      const a=2*Math.PI*k/DICE_N, c1=Math.cos(a)*DICE_R, s1=Math.sin(a)*DICE_R;
+      pts.push([ n[0]+u[0]*c1+v[0]*s1, n[1]+u[1]*c1+v[1]*s1, n[2]+u[2]*c1+v[2]*s1 ]);
+    }
+  }
+  return pts;
+})());
+
+/* 変化球「かじられ」用: 前角の小箱（2×2×2の1個ぶん）を取り除いた立方体。
+   よつわりの十字がそのまま実際の辺になる。必要な追加点は
+   辺の中点12（8..19）＋面の中心6（20..25: +x,-x,+y,-y,+z,-z の順）＋立方体の中心（26） */
+const NOTCH_EXTRA3D=TWIST_EXTRA3D.concat(
+  [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1],[0,0,0]]);
+/* かじられ立方体のパーツを組み立てる（buildRoundとお手本描画で共用）。
+   yv=3可視面が集まる前角。かじるのは常に前角（へこみが必ず全部見える）。
+   返り値: hint=Ｌ字面の輪郭(閉)、targets=描かせる線分、null=2面ビューで成立しない */
+function notchParts(P, vis, edges, shown){
+  let yv=-1;
+  for(let v=0;v<8&&yv<0;v++){
+    let n=0; for(let fi=0;fi<6;fi++) if(vis[fi]&&CUBE_FACES[fi].idx.includes(v)) n++;
+    if(n===3) yv=v;
+  }
+  if(yv<0) return null;
+  const V=CUBE_V[yv];
+  const VIDX={}; CUBE_V.forEach((v,i)=>VIDX[v.join(",")]=i);
+  const nb=axis=>{ const w=V.slice(); w[axis]=-w[axis]; return VIDX[w.join(",")]; };
+  const nx=nb(0), ny=nb(1), nz=nb(2);
+  const MID=(a,b)=>P[8+EDGE_IDX[Math.min(a,b)+"_"+Math.max(a,b)]];
+  const Mx=MID(yv,nx), My=MID(yv,ny), Mz=MID(yv,nz);   // 前角の3辺の中点
+  const Fx=P[V[0]>0?20:21], Fy=P[V[1]>0?22:23], Fz=P[V[2]>0?24:25];
+  const C=P[26];
+  // へこみの9辺
+  const notch=[[C,Fx],[C,Fy],[C,Fz],[Fx,Mz],[Fx,My],[Fy,Mz],[Fy,Mx],[Fz,My],[Fz,Mx]];
+  // ヒント面（Ｌ字）: 面の法線軸で場合分けして、切られた角を M→面中心→M で置き換える
+  const a=CUBE_FACES[shown].n.findIndex(v=>v!==0);
+  const F=[Fx,Fy,Fz][a], Ms=[[My,Mz],[Mx,Mz],[Mx,My]][a];  // 面内の2中点
+  const idx=CUBE_FACES[shown].idx, k=idx.indexOf(yv);
+  const q=i=>P[idx[(k+i)%4]];
+  // 進行方向の次の頂点側にある中点を先に通る
+  const near=(pt,vi)=>Math.hypot(pt.x-(P[vi].x+P[yv].x)/2, pt.y-(P[vi].y+P[yv].y)/2);
+  const m1=near(Ms[0],idx[(k+1)%4])<near(Ms[1],idx[(k+1)%4])?Ms[0]:Ms[1];
+  const m2=m1===Ms[0]?Ms[1]:Ms[0];
+  const hint=[m1, q(1), q(2), q(3), m2, F, m1];
+  // ターゲット: 前角に触れない可視辺（フル）＋ 短くなった前角の辺（shown面のもの以外）＋
+  //             へこみの辺（shown面の面内にあるもの以外）
+  const targets=[];
+  for(const e of edges){
+    if(!e.visible || e.inShown) continue;
+    if(e.a===yv||e.b===yv){
+      const other=e.a===yv?e.b:e.a;
+      targets.push([P[other], MID(yv,other)]);        // 短縮された前角の辺
+    }else targets.push([P[e.a],P[e.b]]);
+  }
+  for(const [pa,pb] of notch){
+    // shown面の面内の2辺（F と両M を結ぶもの）はヒントの一部なので除外
+    if((pa===F||pb===F) && (pa===m1||pb===m1||pa===m2||pb===m2)) continue;
+    targets.push([pa,pb]);
+  }
+  return {yv, hint, targets, notch};
+}
+
+/* 月末スペシャル「りったい十字」: 水平の十字5個＋縦に1個の6連立方体。
+   縦の1個は「上面が見える構図なら上、そうでなければ下」に付ける（よく見える側）。
+   形は格子座標で固定（各立方体は±1、中心間隔2）なので、表面の面・折り目・頂点は
+   起動時に一度だけ機械的に洗い出せる。 */
+const CROSS_ARMS=[[0,0,0],[2,0,0],[-2,0,0],[0,0,2],[0,0,-2]];
+const CROSS_AXU=[[1,2],[0,2],[0,1]];   // 各軸に直交する残り2軸
+function buildCrossGeom(topSide){
+  const cubes=CROSS_ARMS.concat([[0,topSide,0]]);
+  const key=v=>v.join(",");
+  const occ=new Set(cubes.map(key));
+  const faces=[];               // 表面の面（隣とくっついた面は表面ではない）
+  for(const o of cubes) for(let a=0;a<3;a++) for(const s of [-1,1]){
+    const nb=o.slice(); nb[a]+=2*s;
+    if(occ.has(key(nb))) continue;
+    faces.push({axis:a, c:o[a]+s, s, o});
+  }
+  /* 面の4辺を集め、「向きの違う面が2枚接する辺」だけを折り目＝描く辺にする。
+     底のように同じ向きの面が並ぶ継ぎ目は折り目ではない（実物でも線は見えない） */
+  const em=new Map();
+  for(const f of faces){
+    const [u,v]=CROSS_AXU[f.axis];
+    const cor=[[-1,-1],[1,-1],[1,1],[-1,1]].map(([du,dv])=>{
+      const p=[0,0,0]; p[f.axis]=f.c; p[u]=f.o[u]+du; p[v]=f.o[v]+dv; return p; });
+    for(let i=0;i<4;i++){
+      const a2=cor[i], b2=cor[(i+1)%4];
+      const k=[key(a2),key(b2)].sort().join("|");
+      if(!em.has(k)) em.set(k,{a:a2,b:b2,fs:[]});
+      em.get(k).fs.push(f);
+    }
+  }
+  const edges=[];
+  for(const e of em.values()) if(e.fs[0].axis!==e.fs[1].axis) edges.push({a:e.a,b:e.b});
+  /* 頂点は座標順にソートして c.P への並びを固定する（端末間の決定論を守る） */
+  const vm=new Map();
+  for(const e of edges) for(const p of [e.a,e.b]) vm.set(key(p),p);
+  const verts=[...vm.values()].sort((p,q)=>(p[0]-q[0])||(p[1]-q[1])||(p[2]-q[2]));
+  const vidx={};
+  verts.forEach((p,i)=>vidx[key(p)]=20+i);   // 8頂点＋中点12の後ろに載る
+  return {cubes, faces, edges, verts, vidx, extra:TWIST_EXTRA3D.concat(verts)};
+}
+const CROSS_GEOM={up:buildCrossGeom(2), down:buildCrossGeom(-2)};
+
+/* 折り目の可視判定と出題の組み立て。
+   投影は「回転→(q+t)/(Z+D)」のピンホールなので、目の位置をローカル座標へ
+   逆変換すれば（回転行列は直交＝転置が逆行列）、遮蔽テストは軸平行な面と
+   レイの交差だけで厳密にできる。画面ピクセルを一切使わずに判定するので、
+   どの端末でも同じ辺が同じ区間だけ見える＝決定論を守る。 */
+function crossParts(P, G, rot, D, tx, ty){
+  const R=rotMat(rot.yaw, rot.pitch);
+  const E=[ -R[0][0]*tx-R[1][0]*ty-R[2][0]*D,
+            -R[0][1]*tx-R[1][1]*ty-R[2][1]*D,
+            -R[0][2]*tx-R[1][2]*ty-R[2][2]*D ];   // Rᵀ·(-tx,-ty,-D)
+  const hiddenAt=p=>{
+    const d=[p[0]-E[0], p[1]-E[1], p[2]-E[2]];
+    for(const f of G.faces){
+      const den=d[f.axis];
+      if(Math.abs(den)<1e-9) continue;
+      const t=(f.c-E[f.axis])/den;
+      if(t<=1e-6 || t>=1-1e-6) continue;      // 手前でぶつかる面だけ数える
+      const [u,v]=CROSS_AXU[f.axis];
+      const hu=E[u]+d[u]*t, hv=E[v]+d[v]*t;
+      if(hu>f.o[u]-1+1e-7 && hu<f.o[u]+1-1e-7 &&
+         hv>f.o[v]-1+1e-7 && hv<f.o[v]+1-1e-7) return true;
+    }
+    return false;
+  };
+  const lerp3=(a,b,t)=>[a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t, a[2]+(b[2]-a[2])*t];
+  const Zof=v=>{ const q=mv(R,v); return q[2]+D; };
+  const PX=v=>P[G.vidx[v.join(",")]];
+  /* 3D線分上のパラメータtの点を画面へ。直線の投影は画面上の単純な内分ではなく
+     射影補間（透視の分母Zで重み付け）になる点に注意 */
+  const proj=(a,b,t)=>{
+    if(t<=0) return PX(a);
+    if(t>=1) return PX(b);
+    const A=PX(a), B=PX(b), w0=(1-t)*Zof(a), w1=t*Zof(b), w=w0+w1;
+    return {x:(A.x*w0+B.x*w1)/w, y:(A.y*w0+B.y*w1)/w};
+  };
+  // ヒント面: 完全に見えている面のうち、画面上でいちばん大きいもの
+  let hintF=null, hintA=-1;
+  for(const f of G.faces){
+    const n=[0,0,0]; n[f.axis]=f.s;
+    const cen=[f.o[0],f.o[1],f.o[2]]; cen[f.axis]=f.c;
+    if((E[0]-cen[0])*n[0]+(E[1]-cen[1])*n[1]+(E[2]-cen[2])*n[2] <= 0) continue; // 裏向き
+    const [u,v]=CROSS_AXU[f.axis];
+    let ok=true;
+    for(let iu=-1; iu<=1 && ok; iu++) for(let iv=-1; iv<=1 && ok; iv++){
+      const p=cen.slice(); p[u]+=iu*0.8; p[v]+=iv*0.8;
+      if(hiddenAt(p)) ok=false;
+    }
+    if(!ok) continue;
+    const cor=[[-1,-1],[1,-1],[1,1],[-1,1]].map(([du,dv])=>{
+      const p=[0,0,0]; p[f.axis]=f.c; p[u]=f.o[u]+du; p[v]=f.o[v]+dv; return p; });
+    let s2=0;
+    for(let i=0;i<4;i++){ const a2=PX(cor[i]), b2=PX(cor[(i+1)%4]); s2+=a2.x*b2.y-b2.x*a2.y; }
+    s2=Math.abs(s2)/2;
+    if(s2>hintA){ hintA=s2; hintF={f, cor}; }
+  }
+  if(!hintF) return null;
+  const ekey=(a,b)=>[a.join(","),b.join(",")].sort().join("|");
+  const hkeys=new Set();
+  for(let i=0;i<4;i++) hkeys.add(ekey(hintF.cor[i], hintF.cor[(i+1)%4]));
+  /* 各折り目を48点でサンプリングして「見えている区間」を取り出す。
+     区間の境界は二分法で精密化する（腕のかげに一部だけ隠れる辺があるため） */
+  const N=48, MINRUN=0.06;
+  const targets=[], hidden=[], creaseAll=[];
+  for(const e of G.edges){
+    creaseAll.push([PX(e.a), PX(e.b)]);
+    if(hkeys.has(ekey(e.a,e.b))) continue;       // ヒント面のふちはお手本
+    const visArr=[];
+    for(let i=0;i<N;i++) visArr.push(!hiddenAt(lerp3(e.a,e.b,(i+0.5)/N)));
+    const bound=(lo,hi)=>{
+      let a2=(lo+0.5)/N, b2=(hi+0.5)/N;
+      const va=visArr[lo];
+      for(let k=0;k<14;k++){
+        const m=(a2+b2)/2;
+        if(!hiddenAt(lerp3(e.a,e.b,m))===va) a2=m; else b2=m;
+      }
+      return (a2+b2)/2;
+    };
+    const runs=[]; let st=null;
+    for(let i=0;i<N;i++){
+      if(visArr[i] && st===null) st = (i===0) ? 0 : bound(i-1,i);
+      if(!visArr[i] && st!==null){ runs.push([st, bound(i-1,i)]); st=null; }
+    }
+    if(st!==null) runs.push([st,1]);
+    const kept=[];
+    for(const [t0,t1] of runs)
+      if(t1-t0>=MINRUN){ targets.push([proj(e.a,e.b,t0), proj(e.a,e.b,t1)]); kept.push([t0,t1]); }
+    // 見えている区間の補集合（短すぎて捨てた区間も含む）＝隠れた折り目（答えで点線表示）
+    let prevT=0;
+    for(const [t0,t1] of kept){
+      if(t0-prevT>=0.02) hidden.push({pa:proj(e.a,e.b,prevT), pb:proj(e.a,e.b,t0)});
+      prevT=t1;
+    }
+    if(1-prevT>=0.02) hidden.push({pa:proj(e.a,e.b,prevT), pb:proj(e.a,e.b,1)});
+  }
+  // 作図用のゴースト箱: 6個の立方体それぞれの12辺（描いても無罰）
+  const ghost=[];
+  for(const o of G.cubes){
+    const c8=[];
+    for(const dx of [-1,1]) for(const dy of [-1,1]) for(const dz of [-1,1])
+      c8.push([o[0]+dx, o[1]+dy, o[2]+dz]);
+    for(let i=0;i<8;i++) for(let j=i+1;j<8;j++){
+      let diff=0;
+      for(let a2=0;a2<3;a2++) if(c8[i][a2]!==c8[j][a2]) diff++;
+      if(diff!==1) continue;
+      const A=PX(c8[i]), B=PX(c8[j]);
+      if(A && B) ghost.push([A,B]);
+    }
+  }
+  const hint=[PX(hintF.cor[0]),PX(hintF.cor[1]),PX(hintF.cor[2]),PX(hintF.cor[3]),PX(hintF.cor[0])];
+  return {hint, targets, hidden, creaseAll, ghost};
+}
+
 function rotMat(yaw,pitch){
   const cy=Math.cos(yaw), sy=Math.sin(yaw), cp=Math.cos(pitch), sp=Math.sin(pitch);
   return [
@@ -843,13 +1112,20 @@ const mv = (m,v)=>[
 /* 立方体の「形」は (rot, D, tx, ty) だけで決まる正規化投影（画面サイズに無関係）。
    これに一様スケールと平行移動を掛けて画面に置くので、角度・面の見え方は
    端末が違っても完全に同一になる＝同じシードなら必ず同じお題になる。 */
-function shapeOf(rot, D, tx, ty){
+function shapeOf(rot, D, tx, ty, extra){
   const R = rotMat(rot.yaw, rot.pitch);
   const Q = CUBE_V.map(v=>{
     const q = mv(R,v);
     const Z = q[2]+D;
     return { x:(q[0]+tx)/Z, y:-(q[1]+ty)/Z };
   });
+  // 追加の3D点（辺の中点など）も同じ投影に乗せ、頂点の後ろ(8番以降)に足す。
+  // layoutCubes・リサイズ変換は c.P を丸ごと扱うので、以降は頂点と同じ扱いになる
+  if(extra) for(const v of extra){
+    const q = mv(R,v);
+    const Z = q[2]+D;
+    Q.push({ x:(q[0]+tx)/Z, y:-(q[1]+ty)/Z });
+  }
   const vis = CUBE_FACES.map(f=>{
     const n = mv(R,f.n);
     const cc = [n[0]+tx, n[1]+ty, n[2]+D];
@@ -972,12 +1248,14 @@ function yCornerMinAngle(c){
    + Y字コーナーが90°未満（不自然パース）のお題も再抽選 */
 function genRound(mode, practice, W, H){
   // アオリ／フカンにするかは再抽選をまたいで固定する（確率を正確に20%に保つため）
-  const tilted = mode!=="double" && rng()<TILTED_RATE;
+  // 変化球の日はアオリを混ぜない（十字＋強ピッチは難しすぎるため）
+  const tilted = mode!=="double" && !gameTwist && rng()<TILTED_RATE;
   let r=null;
   for(let i=0;i<40;i++){
     r=buildRound(mode, practice, W, H, tilted);
-    const ok=r.cubes.every((c,ci)=>
-      r.targets.filter(t=>t.cube===ci).length>=3 && yCornerMinAngle(c)>=90 && readableView(c));
+    const minT = r.twist==="maru" ? 1 : 3;   // まんまるはターゲットが円1本だけ
+    const ok=r.twistOk && r.cubes.every((c,ci)=>
+      r.targets.filter(t=>t.cube===ci).length>=minT && yCornerMinAngle(c)>=90 && readableView(c));
     if(ok) break;
   }
   return r;
@@ -985,7 +1263,7 @@ function genRound(mode, practice, W, H){
 function buildRound(mode, practice, W, H, tilted){
   const minWH = Math.min(W,H);
   const cubes = [];
-  let shared = null;
+  let shared = null, crossCtx = null;
 
   if(mode==="double"){
     /* 上下配置か左右配置かもシードから決める。以前は画面の向き(W<H)で決めていたが、
@@ -1008,14 +1286,36 @@ function buildRound(mode, practice, W, H, tilted){
     cubes.push(...layoutCubes(
       [shapeOf(rotA,D1,a.tx,a.ty), shapeOf(rotB,D2,b.tx,b.ty)], rnd(0.60,0.72), W, H));
   }else{
-    const D = rnd(3.8,8);
+    const isCross = mode==="normal" && gameTwist==="cross";
+    /* りったい十字は形が3倍大きいので、透視のきつさを立方体1個と合わせるため
+       視点も遠くに置く（D=3.8〜8 のままだと遠い腕が極端に潰れて読めない） */
+    const D = isCross ? rnd(8.5,12) : rnd(3.8,8);
     /* 配置オフセットは小さく保つ（v1.22）。消失点は回転だけで決まり、tx/tyを大きくすると
        立方体だけが3消失点の三角形の外へ滑っていき、「近い辺のほうが短く見える」
        感覚に反するお題になる。±0.35/±0.25なら重心が三角形の外に出る率は実測0%。 */
     const tx = rnd(-0.35,0.35), ty = rnd(-0.25,0.25);
-    // 大きめの画面では少し小さく出題して余白の自由度を上げる（スマホは描きやすさ優先）
-    const appFrac = (minWH>=560 ? rnd(0.26,0.34) : rnd(0.30,0.40));
-    cubes.push(...layoutCubes([shapeOf(tilted?randRotTilted():randRot(),D,tx,ty)], appFrac, W, H));
+    // 大きめの画面では少し小さく出題して余白の自由度を上げる（スマホは描きやすさ優先）。
+    // まんまるは円が主役なので少し大きめに出す
+    const isMaru = mode==="normal" && gameTwist==="maru";
+    const appFrac = isCross ? rnd(0.66,0.78)
+      : isMaru ? rnd(0.34,0.46)
+      : (minWH>=560 ? rnd(0.26,0.34) : rnd(0.30,0.40));
+    // 変化球の日は追加の3D点も一緒に投影しておく（c.P の 8番以降に入る）。
+    const rot = tilted?randRotTilted():randRot();
+    let wantExtra = (mode!=="normal") ? null
+      : gameTwist==="ta"    ? TWIST_EXTRA3D
+      : gameTwist==="dice"  ? DICE_EXTRA3D
+      : gameTwist==="notch" ? NOTCH_EXTRA3D
+      : null;
+    if(isCross){
+      /* 縦の1個をどちら側に付けるかを先に決める（shapeOfのvis[+y面]と同じ式）。
+         上下でEXTRA3Dの頂点リストが変わるため、投影の前に選ぶ必要がある */
+      const nR=mv(rotMat(rot.yaw,rot.pitch),[0,1,0]);
+      const up = nR[0]*(nR[0]+tx)+nR[1]*(nR[1]+ty)+nR[2]*(nR[2]+D) < 0;
+      crossCtx={rot, D, tx, ty, G: up?CROSS_GEOM.up:CROSS_GEOM.down};
+      wantExtra=crossCtx.G.extra;
+    }
+    cubes.push(...layoutCubes([shapeOf(rot,D,tx,ty,wantExtra)], appFrac, W, H));
   }
 
   const targets = [];
@@ -1041,7 +1341,138 @@ function buildRound(mode, practice, W, H, tilted){
     allSegs.push({pa:{x:pa.x-dx, y:pa.y-dy}, pb:{x:pb.x+dx, y:pb.y+dy}, tol:c.tol});
   }));
 
-  return { mode, practice, cubes, targets, allSegs, shared, result:null };
+  /* デイリーの変化球「よつわり」: 可視面に、辺の中点どうしを結ぶ十字を足す。
+     ヒント面の十字はお手本として最初から描いておき、他の可視面の十字が追加のお題。
+     パースでは面の中心＝対角線の交点（見かけの中点ではない）なので、
+     中心をとるための対角線は allSegs に入れて描いても罰しない（アタリ線と同じ思想） */
+  const twist = (mode==="normal" &&
+    (gameTwist==="ta"||gameTwist==="dice"||gameTwist==="notch"||gameTwist==="cross"||gameTwist==="maru")) ? gameTwist : null;
+  let hintLines=null, extraLen=0, crossHidden=null;
+  if(twist){
+    hintLines=[];
+    const c=cubes[0];
+    const M=(a,b)=>c.P[8+EDGE_IDX[Math.min(a,b)+"_"+Math.max(a,b)]];
+    const addSeg=(pa,pb,ext)=>{ const dx=(pb.x-pa.x)*ext, dy=(pb.y-pa.y)*ext;
+      allSegs.push({pa:{x:pa.x-dx,y:pa.y-dy}, pb:{x:pb.x+dx,y:pb.y+dy}, tol:c.tol}); };
+    // まんまるは立方体を使わない（中点もP に入っていない）ので面の作図線ループを飛ばす
+    if(twist!=="maru") for(let fi=0;fi<6;fi++){
+      if(!c.vis[fi]) continue;
+      const ix=CUBE_FACES[fi].idx;
+      // 中心をとる作図線（対角線・十字）は、どの変化球でも描いて減点されない
+      addSeg(c.P[ix[0]],c.P[ix[2]],EXT); addSeg(c.P[ix[1]],c.P[ix[3]],EXT);
+      const mls=[[M(ix[0],ix[1]),M(ix[2],ix[3])],[M(ix[1],ix[2]),M(ix[3],ix[0])]];
+      for(const [pa,pb] of mls) addSeg(pa,pb,EXT);
+      if(twist==="ta"){
+        for(const [pa,pb] of mls){
+          const len=Math.hypot(pb.x-pa.x,pb.y-pa.y);
+          extraLen+=len;
+          if(fi===c.shown){ hintLines.push([pa,pb]); continue; }   // ヒント面はお手本
+          const n=clamp(Math.round(len/8),8,40);
+          const samples=[];
+          for(let i=0;i<=n;i++) samples.push({x:pa.x+(pb.x-pa.x)*i/n, y:pa.y+(pb.y-pa.y)*i/n});
+          targets.push({cube:0, pa, pb, hidden:false, tol:c.tol, samples, score:0, len});
+        }
+      }else if(twist==="dice"){
+        // サイコロの1の目（投影済みの円＝楕円ポリライン）。閉ループとして扱う
+        const base=20+fi*DICE_N;
+        const pts=[];
+        for(let k=0;k<=DICE_N;k++) pts.push(c.P[base+(k%DICE_N)]);
+        let len=0;
+        for(let k=1;k<pts.length;k++){
+          len+=Math.hypot(pts[k].x-pts[k-1].x, pts[k].y-pts[k-1].y);
+          addSeg(pts[k-1],pts[k],0);
+        }
+        extraLen+=len;
+        if(fi===c.shown){ hintLines.push(pts); continue; }         // ヒント面はお手本
+        const samples=pts.slice(0,DICE_N).map(p=>({x:p.x,y:p.y}));  // 約len/20間隔≒既存の8px方針
+        targets.push({cube:0, pa:pts[0], pb:pts[pts.length-1], hidden:false,
+                      tol:c.tol, samples, score:0, pts, len});
+      }
+    }
+    if(twist==="notch"){
+      /* かじられ立方体。前角の小箱を取り除いた立体で、ヒント＝Ｌ字の面（塗って表示）。
+         お題＝残りの可視辺（前角の3辺は中点まで短縮）＋へこみの辺。
+         元の立方体をまるごと作図として描くのは自由（12辺はallSegs済みで無罰） */
+      const c2=cubes[0];
+      const np=notchParts(c2.P, c2.vis, c2.edges, c2.shown);
+      if(np){
+        targets.length=0;
+        hintLines.push(np.hint);
+        for(const [pa,pb] of np.notch) addSeg(pa,pb,EXT);   // へこみ全周も無罰
+        for(const [pa,pb] of np.targets){
+          const len=Math.hypot(pb.x-pa.x,pb.y-pa.y);
+          extraLen+=len;
+          const n=clamp(Math.round(len/8),8,40);
+          const samples=[];
+          for(let i=0;i<=n;i++) samples.push({x:pa.x+(pb.x-pa.x)*i/n, y:pa.y+(pb.y-pa.y)*i/n});
+          targets.push({cube:0, pa, pb, hidden:false, tol:c2.tol, samples, score:0, len});
+        }
+      }
+      cubes[0].notchOk=!!np;
+    }
+    if(twist==="cross" && crossCtx){
+      /* 月末スペシャル「りったい十字」。ヒント＝完全に見えている一番大きな面。
+         お題＝見えている折り目（一部だけ隠れる辺は、見えている区間だけ）。
+         折り目の全体とゴースト箱6個ぶんは allSegs 入り＝作図として描くのは自由 */
+      const c2=cubes[0];
+      const cp=crossParts(c2.P, crossCtx.G, crossCtx.rot, crossCtx.D, crossCtx.tx, crossCtx.ty);
+      if(cp && cp.targets.length>=10 && cp.targets.length<=64){
+        targets.length=0;
+        hintLines.push(cp.hint);
+        for(const [pa,pb] of cp.creaseAll) addSeg(pa,pb,EXT);
+        for(const [pa,pb] of cp.ghost) addSeg(pa,pb,EXT);
+        for(const [pa,pb] of cp.targets){
+          const len=Math.hypot(pb.x-pa.x,pb.y-pa.y);
+          extraLen+=len;
+          const n=clamp(Math.round(len/8),8,40);
+          const samples=[];
+          for(let i=0;i<=n;i++) samples.push({x:pa.x+(pb.x-pa.x)*i/n, y:pa.y+(pb.y-pa.y)*i/n});
+          targets.push({cube:0, pa, pb, hidden:false, tol:c2.tol, samples, score:0, len});
+        }
+        // 隠れた折り目も正規の線量に数える（ハリガネ式に全部描く人を守る）
+        for(const h of cp.hidden) extraLen+=Math.hypot(h.pb.x-h.pa.x, h.pb.y-h.pa.y);
+        crossHidden=cp.hidden;
+        cubes[0].crossOk=true;
+      }else cubes[0].crossOk=false;
+    }
+    if(twist==="maru"){
+      /* まんまる。きょうは立方体はおやすみ＝レイアウト（中心・大きさ・tol）だけ借りる。
+         見せるのは直径の直線1本、お題はフリーハンドの正円（1本の閉じたポリライン）。
+         見えない立方体の辺で外れた円がまぐれ当たりしないよう、当たり判定線は総入れ替え */
+      const c2=cubes[0];
+      const xs2=c2.P.map(p=>p.x), ys2=c2.P.map(p=>p.y);
+      const cx=(Math.min(...xs2)+Math.max(...xs2))/2, cy=(Math.min(...ys2)+Math.max(...ys2))/2;
+      // 内接半径にする（bboxの長い側だと安全域からはみ出しうる）
+      const CR=Math.min(Math.max(...xs2)-Math.min(...xs2), Math.max(...ys2)-Math.min(...ys2))/2;
+      const th=rnd(0,Math.PI);                       // 直径の角度
+      const N2=44, pts=[];
+      for(let k=0;k<=N2;k++){ const a=th+k/N2*2*Math.PI;
+        pts.push({x:cx+CR*Math.cos(a), y:cy+CR*Math.sin(a)}); }
+      const d1=pts[0], d2={x:cx-CR*Math.cos(th), y:cy-CR*Math.sin(th)};
+      targets.length=0; allSegs.length=0;
+      hintLines.push([d1,d2]);
+      let len=0;
+      for(let k=0;k<N2;k++){
+        len+=Math.hypot(pts[k+1].x-pts[k].x, pts[k+1].y-pts[k].y);
+        addSeg(pts[k],pts[k+1],0);                   // 円そのもの
+      }
+      addSeg(d1,d2,EXT);                             // 与えた直径（なぞり・延長は自由）
+      const ux=Math.cos(th), uy=Math.sin(th);
+      addSeg({x:cx-CR*uy,y:cy+CR*ux},{x:cx+CR*uy,y:cy-CR*ux},EXT);   // 直交する直径
+      const sq=[{x:cx+CR*(ux-uy),y:cy+CR*(uy+ux)},{x:cx+CR*(-ux-uy),y:cy+CR*(-uy+ux)},
+                {x:cx+CR*(-ux+uy),y:cy+CR*(-uy-ux)},{x:cx+CR*(ux+uy),y:cy+CR*(uy-ux)}];
+      for(let k=0;k<4;k++) addSeg(sq[k],sq[(k+1)%4],EXT);            // 外接する正方形（作図の定番）
+      extraLen+=len;
+      targets.push({cube:0, pa:pts[0], pb:pts[N2], hidden:false, tol:c2.tol,
+                    samples:pts.slice(0,N2).map(p=>({x:p.x,y:p.y})), score:0, pts, len});
+    }
+  }
+  return { mode, practice, cubes, targets, allSegs, shared, result:null,
+           twist, hintLines, extraLen, crossHidden,
+           timeLimit: twist==="cross" ? 60 : TIME_LIMIT,   // 月末スペシャルだけ60秒
+           noCube: twist==="notch" || twist==="cross" || twist==="maru",   // 素の正方形ヒント面を描かない日
+           twistOk: (twist!=="notch" || !!cubes[0].notchOk) &&
+                    (twist!=="cross" || !!cubes[0].crossOk) };
 }
 
 /* ================= scoring ================= */
@@ -1224,11 +1655,13 @@ function scoreRound(round, strokes){
   /* 基準は「立方体の全12辺の長さ」。ハリガネのように隠れ線まで全部描くのは
      正しい描き方なので、辺の上に乗っている線は何本でも減点にならない。 */
   const fullLen = round.cubes.reduce((a,c)=>a+c.edges.reduce(
-    (s,e)=>s+Math.hypot(c.P[e.b].x-c.P[e.a].x, c.P[e.b].y-c.P[e.a].y), 0), 0);
+    (s,e)=>s+Math.hypot(c.P[e.b].x-c.P[e.a].x, c.P[e.b].y-c.P[e.a].y), 0), 0)
+    + (round.extraLen||0);   // 変化球の追加ターゲット（よつわりの十字）も正規の線量に数える
   const inkRatio = fullLen>0 ? waste*step/fullLen : 0;   // 外れた線の長さの比
   const eff = inkRatio>WASTE_ALLOW ? WASTE_ALLOW/inkRatio : 1;
   const score = Math.round(100*Math.pow(cov,1.2)*(0.45+0.55*prec)*eff*100)/100;
-  const doodle = doodleKind(round, strokes, cov, prec, needLen);
+  // まんまるの日は落書き判定を切る（「まるいね！でも今回は立方体だよ」が的外れになるため）
+  const doodle = round.twist==="maru" ? null : doodleKind(round, strokes, cov, prec, needLen);
   /* 左右反転して描いてしまった人の検出（鏡の国の住人）。
      線を鏡像にして採点し直し、そちらの方が明らかに合っていれば反転ミスと判断する。
      ちゃんと描けている回は計算をスキップする。 */
@@ -1277,7 +1710,37 @@ const TITLES=[
   [30,"遠近法とけんか中","Beef with Perspective","🥊"],
   [-1,"とうふくずし","Melted Tofu","🫠"],
 ];
-const titleOf = s => { for(const x of TITLES) if(s>=x[0]) return {name: JA?x[1]:x[2], emoji:x[3]}; };
+/* 変化球「ハリガネ」「まんまる」の日は称号もその日のテーマで（ユーザー要望）。
+   しきい値は本家TITLESと同じ。チート疑いだけは実質bot検知なので全テーブル共通 */
+const TITLES_WIRE=[
+  [99.2,"チート疑い","Are you Cheating?","🧀"],
+  [97,"透視の神","X-Ray God","👑"],
+  [94,"人間レントゲン","Human X-Ray","🩻"],
+  [90,"ハリガネマイスター","Wireframe Meister","🎓"],
+  [82,"骨まで見える人","Sees to the Bone","🦴"],
+  [74,"針金細工師","Wire Artisan","🔧"],
+  [66,"骨組み研究生","Framework Apprentice","🔨"],
+  [58,"ほぼ骨格","Almost-a-Skeleton","📏"],
+  [50,"まがった針金","Bent Wire","🥴"],
+  [40,"ハンガー建築士","Hanger Architect","🏗️"],
+  [30,"針金とけんか中","Beef with Wires","🥊"],
+  [-1,"針金だんご","Wire Tangle","🫠"],
+];
+const TITLES_MARU=[
+  [99.2,"チート疑い","Are you Cheating?","🧀"],
+  [97,"まんまるの神","Circle God","👑"],
+  [94,"人間コンパス","Human Compass","🧭"],
+  [90,"まんまるマイスター","Perfect-Circle Meister","🎓"],
+  [82,"円の使い手","Circle Wizard","⚡"],
+  [74,"おだんご職人","Dango Craftsman","🍡"],
+  [66,"おせんべい研究生","Rice-Cracker Apprentice","🍘"],
+  [58,"ほぼたまご","Almost-an-Egg","🥚"],
+  [50,"だえん愛好家","Ellipse Enthusiast","🥴"],
+  [40,"おにぎり建築士","Onigiri Architect","🍙"],
+  [30,"まるとけんか中","Beef with Roundness","🥊"],
+  [-1,"とけたアイス","Melted Scoop","🫠"],
+];
+const titleOf = (s, table) => { for(const x of (table||TITLES)) if(s>=x[0]) return {name: JA?x[1]:x[2], emoji:x[3]}; };
 
 /* ---- 紙吹雪 ---- */
 const fx=(()=>{
@@ -1342,7 +1805,14 @@ function drawScene(){
   const showAnswer = (state==="roundResult");
 
   if(showAnswer){
-    for(const c of round.cubes){
+    if(round.crossHidden){
+      // りったい十字: 隠れた折り目を点線で（中心キューブの辺は形の内部なので描かない）
+      ctx.strokeStyle="rgba(120,100,120,.3)"; ctx.lineWidth=1.5; ctx.setLineDash([3,6]);
+      for(const g of round.crossHidden){
+        ctx.beginPath(); ctx.moveTo(g.pa.x,g.pa.y); ctx.lineTo(g.pb.x,g.pb.y); ctx.stroke();
+      }
+      ctx.setLineDash([]);
+    }else if(round.twist!=="maru") for(const c of round.cubes){   // まんまるの立方体は完全に見せない
       ctx.strokeStyle="rgba(120,100,120,.3)"; ctx.lineWidth=1.5; ctx.setLineDash([3,6]);
       for(const e of c.edges){
         if(e.inShown || e.visible) continue;
@@ -1355,25 +1825,49 @@ function drawScene(){
       const col = t.score>=0.78 ? "#4fbf7f" : t.score>=0.45 ? "#f0a24f" : "#ef6e8a";
       ctx.strokeStyle=col; ctx.lineWidth=3;
       ctx.setLineDash(t.hidden?[7,7]:[]);
-      ctx.beginPath(); ctx.moveTo(t.pa.x,t.pa.y); ctx.lineTo(t.pb.x,t.pb.y); ctx.stroke();
+      ctx.beginPath();
+      if(t.pts){ ctx.moveTo(t.pts[0].x,t.pts[0].y);            // ポリライン（楕円など）
+        for(let i=1;i<t.pts.length;i++) ctx.lineTo(t.pts[i].x,t.pts[i].y); }
+      else { ctx.moveTo(t.pa.x,t.pa.y); ctx.lineTo(t.pb.x,t.pb.y); }
+      ctx.stroke();
     }
     ctx.setLineDash([]);
   }else if(round.practice){
     for(const t of round.targets){
       ctx.strokeStyle="rgba(214,137,159,.42)"; ctx.lineWidth=2;
       ctx.setLineDash(t.hidden?[2,7]:[7,7]);
-      ctx.beginPath(); ctx.moveTo(t.pa.x,t.pa.y); ctx.lineTo(t.pb.x,t.pb.y); ctx.stroke();
+      ctx.beginPath();
+      if(t.pts){ ctx.moveTo(t.pts[0].x,t.pts[0].y);
+        for(let i=1;i<t.pts.length;i++) ctx.lineTo(t.pts[i].x,t.pts[i].y); }
+      else { ctx.moveTo(t.pa.x,t.pa.y); ctx.lineTo(t.pb.x,t.pb.y); }
+      ctx.stroke();
     }
     ctx.setLineDash([]);
   }
 
-  for(const c of round.cubes){
+  if(!round.noCube) for(const c of round.cubes){
     const f=CUBE_FACES[c.shown];
     ctx.beginPath();
     f.idx.forEach((vi,i)=> i?ctx.lineTo(c.P[vi].x,c.P[vi].y):ctx.moveTo(c.P[vi].x,c.P[vi].y));
     ctx.closePath();
     ctx.fillStyle="rgba(255,143,183,.13)"; ctx.fill();
     ctx.strokeStyle="#54455a"; ctx.lineWidth=3; ctx.stroke();
+  }
+
+  // 変化球のヒント線（ヒント面の十字や目、円柱のフタはお手本として最初から見せる）。
+  // 各要素は点の配列（2点なら線分、21点なら楕円ポリライン）。
+  // noCube（円柱）のときは最初のヒント＝フタの楕円を面と同じ色で塗る
+  if(round.hintLines){
+    round.hintLines.forEach((hl,hi)=>{
+      ctx.beginPath(); ctx.moveTo(hl[0].x,hl[0].y);
+      for(let i=1;i<hl.length;i++) ctx.lineTo(hl[i].x,hl[i].y);
+      if(round.noCube && hi===0){
+        ctx.closePath();
+        ctx.fillStyle="rgba(255,143,183,.13)"; ctx.fill();
+      }
+      ctx.strokeStyle="#54455a"; ctx.lineWidth=round.noCube?3:2.5;
+      ctx.stroke();
+    });
   }
 
   if(!hideInk){
@@ -1633,10 +2127,11 @@ function hideJudgeHint(){
 
 /* ================= timer ================= */
 let timerId=null, deadline=0, lastTickSec=null, timedOut=false;
+let curLimit=TIME_LIMIT;   // このラウンドの制限時間（月末スペシャルだけ60秒）
 const ARC_LEN=119.4;
 function updateTimerUI(t){
   $("#timerNum").textContent=Math.ceil(t);
-  $("#timerArc").setAttribute("stroke-dashoffset", (ARC_LEN*(1-t/TIME_LIMIT)).toFixed(1));
+  $("#timerArc").setAttribute("stroke-dashoffset", (ARC_LEN*(1-t/curLimit)).toFixed(1));
   const danger=t<=5.5;
   $("#timerWrap").classList.toggle("danger",danger);
   $("#timerArc").setAttribute("stroke", danger?"#e14b5a":"#ff8fb7");
@@ -1646,9 +2141,10 @@ function startTimer(){
   timedOut=false;
   if(round.practice){ $("#timerWrap").classList.add("hidden"); return; }
   $("#timerWrap").classList.remove("hidden");
-  deadline=performance.now()+TIME_LIMIT*1000;
+  curLimit = round.timeLimit || TIME_LIMIT;
+  deadline=performance.now()+curLimit*1000;
   lastTickSec=null;
-  updateTimerUI(TIME_LIMIT);
+  updateTimerUI(curLimit);
   timerId=setInterval(()=>{
     const t=(deadline-performance.now())/1000;
     if(t<=0){
@@ -1675,14 +2171,16 @@ const MODES={
   double:{name:tr("🧊🧊 ダブル","🧊🧊 Double"),
           hint:tr("2つともかんせいさせよう！消失点はおなじかな…？","Finish both cubes! Same vanishing points… or not?")},
 };
-const TOTAL_ROUNDS=10, PRACTICE_ROUNDS=2;
+const TOTAL_ROUNDS=8, PRACTICE_ROUNDS=2;   // 練習2＋本番6（8本番は長いというユーザーFBで短縮）
 let state="menu", mode="normal", roundIdx=0, round=null, scores=[];
 let roundsInfo=[];   // {shot,baseShot,shotScale,strokes,score,practice,timedOut} per round
 let lastFinal=null;  // {avg,g,isBest,ttl}
 let gameSeed="", seededRun=false, isDaily=false, roundStart=0, resultAt=0;
+let twistSelRun=false;   // 変化球セレクト（かくしメニュー）で始めた回。記録・ランキング対象外
 let encouraged=false;   // 「あきらめないで！」を出したか（1ランに1回まで）
 /* 抽象的でくり返すとうるさい一言は、1ランに1回だけ出す。ここにキーを入れて管理する */
 let noteOnce=new Set();
+let gameTwist=null;   // デイリーの変化球（"ta"=よつわり）。日付から決定論的に決まる
 /* デイリーは開始時の日付を保持する。プレイ中に日付が変わっても、記録・ランキングの
    送信先・シェア画像の日付が翌日にズレないようにするため。 */
 let dailyDate="";
@@ -1697,12 +2195,15 @@ function setState(s){
 }
 
 function updateHud(){
-  $("#modeChip").textContent = MODES[mode].name;
+  // チップと説明はラウンドの実モードに従う（変化球「ふたご」ではダブル表示になる）
+  $("#modeChip").textContent = MODES[round.mode].name;
   $("#roundChip").textContent = tr(`ラウンド ${roundIdx+1} / ${TOTAL_ROUNDS}`,`Round ${roundIdx+1} / ${TOTAL_ROUNDS}`);
   $("#practiceChip").classList.toggle("hidden", !round.practice);
   $("#hint").textContent = round.practice
     ? tr("うすいガイドをなぞって、パースのかんかくをつかもう🌱","Trace the faint guides to get a feel for perspective 🌱")
-    : MODES[mode].hint;
+    : round.twist==="maru"
+      ? tr("その直線が直径！フリーハンドでまんまるな円をかこう","That line is the diameter — draw a perfect circle freehand!")
+      : MODES[round.mode].hint;
 }
 
 function newRound(){
@@ -1710,7 +2211,13 @@ function newRound(){
   if(W!==window.innerWidth || H!==window.innerHeight) resizeCanvases();
   // ラウンドごとに決定論的なシードを張る（同じシード＝同じお題）
   rng = mulberry32(hashSeed(`${gameSeed}#${mode}#${roundIdx}`));
-  round = genRound(mode, roundIdx<PRACTICE_ROUNDS, W, H);
+  // 変化球「ふたご」「ハリガネ」はラウンドだけそのモードとして生成する
+  // （ゲーム自体はノーマル扱いのままなので、デイリーの板・記録はそのまま）
+  const effMode = mode!=="normal" ? mode
+    : gameTwist==="dbl"  ? "double"
+    : gameTwist==="wire" ? "wire"
+    : mode;
+  round = genRound(effMode, roundIdx<PRACTICE_ROUNDS, W, H);
   roundStart = performance.now();
   strokes=[]; cur=null; activeId=null; history=[]; erasing=false; hoverPos=null;
   eraseUses=0; undoKeyUses=0; undoBtnUses=0; clearUses=0;
@@ -1723,11 +2230,208 @@ function newRound(){
   render();
 }
 
+/* ================= デイリーの変化球 ================= */
+/* どの日にどの変化球を出すかは日付から決定論的に決める（全端末で同じ）。
+   ⚠ 散らし方を変えるときは、必ず「全クライアントに行き渡った後の日付」から
+   発動させること（古いキャッシュの端末が同じデイリー板に別のお題で登録してしまう） */
+const TWIST_START="2026-08-01";
+function twistForDailySeed(seed){
+  const m=/^daily-(\d{4})-(\d{2})-(\d{2})$/.exec(String(seed||""));
+  if(!m) return null;
+  const dateStr=m[1]+"-"+m[2]+"-"+m[3];
+  if(dateStr < TWIST_START) return null;
+  /* 週2回（水曜・土曜）だけ変化球にする（ユーザー決定）。
+     曜日はUTC基準で計算するので全端末で同じ。4種を2週間で一巡するローテ */
+  const t=Date.UTC(+m[1], +m[2]-1, +m[3]);
+  /* 月末スペシャル「りったい十字」(cross) は封印中（2026-07-28 ユーザー判断）。
+     主因: ヒント面が立体のどの面なのか判別できず、答えが一意に定まらない。
+     ほかに縦キューブの向きの偏り・スマホでの描画範囲の問題も。
+     コードは温存してあるので、復活はここに月末判定
+     if(new Date(t+86400000).getUTCDate()===1) return "cross"; を戻すだけ */
+  const dow=new Date(t).getUTCDay();          // 0=日 … 3=水 … 6=土
+  if(dow!==3 && dow!==6) return null;
+  const pool=["ta","dice","dbl","notch","wire","maru"];
+  const week=Math.floor(t/(7*86400000));
+  return pool[(week*2 + (dow===6?1:0)) % pool.length];
+}
+const TWISTS={
+  ta:  { name:()=>tr("⊞ よつわりキューブ","⊞ Quartered Cube"),
+         desc:()=>tr("面のまんなかを通る十字もかこう！中心は対角線でさがせるよ",
+                     "Draw the cross through each face's centre — diagonals will find it!") },
+  dice:{ name:()=>tr("⚀ ぜんぶ1のサイコロ","⚀ All-Ones Die"),
+         desc:()=>tr("どの面もサイコロの1！まんなかの丸もかこう。円はパースでつぶれて楕円になるよ",
+                     "Every face shows a one! Draw the centred pip — circles squash into ellipses in perspective") },
+  dbl: { name:()=>tr("🧊🧊 ふたごキューブ","🧊🧊 Twin Cubes"),
+         desc:()=>tr("きょうは立方体が2つ！消失点が共通か別々かは…ひみつ",
+                     "Two cubes today! Whether they share vanishing points is… a secret") },
+  notch:{ name:()=>tr("🍫 かじられキューブ","🍫 Bitten Cube"),
+          desc:()=>tr("角をひとくちかじられた立方体！Ｌ字の面をヒントに、へこみまでかんせいさせよう。かじり口は辺のまんなかで止まるよ",
+                      "A cube with one corner bitten off! Complete it — dent and all — from the L-shaped face. The bite stops at the edge midpoints") },
+  cross:{ name:()=>tr("➕ りったい十字","➕ 3D Cross"),
+          desc:()=>tr("月末スペシャル！立方体6こでできた十字を組み立てよう。作図の箱はいくら描いても減点なし。制限時間はとくべつに60びょう！",
+                      "Month-end special! Build a cross made of six cubes. Scaffolding boxes cost nothing — and you get a special 60-second timer!") },
+  wire: { name:()=>tr("🩻 ハリガネ","🩻 Wireframe"),
+          desc:()=>tr("きょうの立方体はスケスケ！おくにかくれて見えない辺まで、ぜんぶで8辺かこう",
+                      "X-ray day! Draw all 8 edges — even the ones hidden behind the cube") },
+  maru: { name:()=>tr("⭕ まんまる","⭕ Perfect Circle"),
+          desc:()=>tr("きょうは立方体はおやすみ！その直線は円の直径。フリーハンドでまんまるな正円をかこう",
+                      "The cube takes a day off! That line is a diameter — draw a perfect circle freehand") },
+};
+/* お手本は実際の出題とは別の固定角度で見せる（答えそのものを見せると写す作業になる） */
+function renderTwistExample(cnv, kind){
+  const g=cnv.getContext("2d");
+  g.clearRect(0,0,cnv.width,cnv.height);
+  if(kind==="dbl"){
+    // ふたご: 2つの立方体を並べたお手本（共通消失点の例）
+    const rotEx={yaw:0.42,pitch:-0.22};
+    const shapes=[shapeOf(rotEx,7,-1.8,0), shapeOf(rotEx,7,1.8,0)];
+    const all=shapes.reduce((a,s2)=>a.concat(s2.Q),[]);
+    const xs=all.map(p=>p.x), ys=all.map(p=>p.y);
+    const l=Math.min(...xs),r=Math.max(...xs),t0=Math.min(...ys),b=Math.max(...ys);
+    const K=Math.min(cnv.width/(r-l), cnv.height/(b-t0))*0.9;
+    const ax=(cnv.width-(r-l)*K)/2 - l*K, ay=(cnv.height-(b-t0)*K)/2 - t0*K;
+    g.lineCap="round"; g.lineJoin="round";
+    for(const s2 of shapes){
+      const P=s2.Q.map(p=>({x:p.x*K+ax, y:p.y*K+ay}));
+      const f=CUBE_FACES[s2.shown];
+      g.beginPath(); f.idx.forEach((vi,i)=> i?g.lineTo(P[vi].x,P[vi].y):g.moveTo(P[vi].x,P[vi].y));
+      g.closePath(); g.fillStyle="rgba(255,143,183,.13)"; g.fill();
+      g.strokeStyle="#54455a"; g.lineWidth=2.5;
+      for(const e of s2.edges){ if(!e.visible) continue;
+        g.beginPath(); g.moveTo(P[e.a].x,P[e.a].y); g.lineTo(P[e.b].x,P[e.b].y); g.stroke(); }
+    }
+    return;
+  }
+  if(kind==="maru"){
+    // まんまるのお手本: 与えるもの＝直径の直線（濃色）、描くもの＝正円（インク色）
+    const cx=cnv.width/2, cy=cnv.height/2, R=Math.min(cnv.width,cnv.height)*0.40;
+    const th=-0.5;
+    g.lineCap="round"; g.lineJoin="round";
+    g.strokeStyle="#5f6fd6"; g.lineWidth=2;
+    g.beginPath(); g.arc(cx,cy,R,0,7); g.stroke();
+    g.strokeStyle="#54455a"; g.lineWidth=2.5;
+    g.beginPath(); g.moveTo(cx+R*Math.cos(th),cy+R*Math.sin(th));
+    g.lineTo(cx-R*Math.cos(th),cy-R*Math.sin(th)); g.stroke();
+    return;
+  }
+  if(kind==="cross"){
+    // りったい十字のお手本。縦の1個をどちらへ付けるかは本番と同じ式で選ぶ
+    const rotEx={yaw:0.55,pitch:-0.30}, Dx=10;
+    const nR=mv(rotMat(rotEx.yaw,rotEx.pitch),[0,1,0]);
+    const G=(nR[0]*nR[0]+nR[1]*nR[1]+nR[2]*(nR[2]+Dx)<0) ? CROSS_GEOM.up : CROSS_GEOM.down;
+    const s2=shapeOf(rotEx,Dx,0,0,G.extra);
+    const xs=s2.Q.map(p=>p.x), ys=s2.Q.map(p=>p.y);
+    const l=Math.min(...xs),r=Math.max(...xs),t0=Math.min(...ys),b=Math.max(...ys);
+    const K=Math.min(cnv.width/(r-l), cnv.height/(b-t0))*0.92;
+    const ax=(cnv.width-(r-l)*K)/2 - l*K, ay=(cnv.height-(b-t0)*K)/2 - t0*K;
+    const P=s2.Q.map(p=>({x:p.x*K+ax, y:p.y*K+ay}));
+    g.lineCap="round"; g.lineJoin="round";
+    const cp=crossParts(P, G, rotEx, Dx, 0, 0);
+    if(!cp) return;
+    g.strokeStyle="rgba(120,100,120,.3)"; g.lineWidth=1.2; g.setLineDash([3,5]);
+    for(const h of cp.hidden){
+      g.beginPath(); g.moveTo(h.pa.x,h.pa.y); g.lineTo(h.pb.x,h.pb.y); g.stroke();
+    }
+    g.setLineDash([]);
+    g.beginPath(); g.moveTo(cp.hint[0].x,cp.hint[0].y);
+    for(let i=1;i<cp.hint.length;i++) g.lineTo(cp.hint[i].x,cp.hint[i].y);
+    g.closePath(); g.fillStyle="rgba(255,143,183,.13)"; g.fill();
+    g.strokeStyle="#54455a"; g.lineWidth=2.5; g.stroke();
+    g.strokeStyle="#5f6fd6"; g.lineWidth=1.8;
+    for(const [pa,pb] of cp.targets){
+      g.beginPath(); g.moveTo(pa.x,pa.y); g.lineTo(pb.x,pb.y); g.stroke();
+    }
+    return;
+  }
+  const rotEx={yaw:0.55,pitch:-0.30};
+  const extra = kind==="dice" ? DICE_EXTRA3D
+    : kind==="notch" ? NOTCH_EXTRA3D
+    : TWIST_EXTRA3D;
+  const s=shapeOf(rotEx,5.4,0,0,extra);
+  const xs=s.Q.map(p=>p.x), ys=s.Q.map(p=>p.y);
+  const l=Math.min(...xs),r=Math.max(...xs),t0=Math.min(...ys),b=Math.max(...ys);
+  const K=Math.min(cnv.width/(r-l), cnv.height/(b-t0))*0.82;
+  const ax=(cnv.width-(r-l)*K)/2 - l*K, ay=(cnv.height-(b-t0)*K)/2 - t0*K;
+  const P=s.Q.map(p=>({x:p.x*K+ax, y:p.y*K+ay}));
+  g.lineCap="round"; g.lineJoin="round";
+  if(kind==="notch"){
+    // ヒント＝Ｌ字の面（塗り）、描くもの＝のこりの辺とへこみ
+    const np=notchParts(P, s.vis, s.edges, s.shown);
+    if(!np) return;
+    g.beginPath(); g.moveTo(np.hint[0].x,np.hint[0].y);
+    for(let i=1;i<np.hint.length;i++) g.lineTo(np.hint[i].x,np.hint[i].y);
+    g.closePath(); g.fillStyle="rgba(255,143,183,.13)"; g.fill();
+    g.strokeStyle="#54455a"; g.lineWidth=2.5; g.stroke();
+    g.strokeStyle="#5f6fd6"; g.lineWidth=2;
+    for(const [pa,pb] of np.targets){
+      g.beginPath(); g.moveTo(pa.x,pa.y); g.lineTo(pb.x,pb.y); g.stroke();
+    }
+    return;
+  }
+  if(kind==="wire"){
+    // ハリガネ: かくれた辺（描いてもらうもの）をインク色の点線で
+    const fw=CUBE_FACES[s.shown];
+    g.beginPath(); fw.idx.forEach((vi,i)=> i?g.lineTo(P[vi].x,P[vi].y):g.moveTo(P[vi].x,P[vi].y));
+    g.closePath(); g.fillStyle="rgba(255,143,183,.13)"; g.fill();
+    g.strokeStyle="#54455a"; g.lineWidth=2.5;
+    for(const e of s.edges){ if(!e.visible) continue;
+      g.beginPath(); g.moveTo(P[e.a].x,P[e.a].y); g.lineTo(P[e.b].x,P[e.b].y); g.stroke(); }
+    g.strokeStyle="#5f6fd6"; g.lineWidth=2; g.setLineDash([6,5]);
+    for(const e of s.edges){ if(e.visible) continue;
+      g.beginPath(); g.moveTo(P[e.a].x,P[e.a].y); g.lineTo(P[e.b].x,P[e.b].y); g.stroke(); }
+    g.setLineDash([]);
+    return;
+  }
+  const f=CUBE_FACES[s.shown];
+  g.beginPath(); f.idx.forEach((vi,i)=> i?g.lineTo(P[vi].x,P[vi].y):g.moveTo(P[vi].x,P[vi].y));
+  g.closePath(); g.fillStyle="rgba(255,143,183,.13)"; g.fill();
+  g.strokeStyle="#54455a"; g.lineWidth=2.5;
+  for(const e of s.edges){ if(!e.visible) continue;
+    g.beginPath(); g.moveTo(P[e.a].x,P[e.a].y); g.lineTo(P[e.b].x,P[e.b].y); g.stroke(); }
+  g.strokeStyle="#5f6fd6"; g.lineWidth=2;   // 描いてもらうものはインク色で
+  for(let fi=0;fi<6;fi++){
+    if(!s.vis[fi]) continue;
+    const ix=CUBE_FACES[fi].idx;
+    if(kind==="dice"){
+      const base=20+fi*DICE_N;
+      g.beginPath(); g.moveTo(P[base].x,P[base].y);
+      for(let k=1;k<=DICE_N;k++){ const p=P[base+(k%DICE_N)]; g.lineTo(p.x,p.y); }
+      g.stroke();
+    }else{
+      const M=(a,b2)=>P[8+EDGE_IDX[Math.min(a,b2)+"_"+Math.max(a,b2)]];
+      const pairs=[[M(ix[0],ix[1]),M(ix[2],ix[3])],[M(ix[1],ix[2]),M(ix[3],ix[0])]];
+      for(const [pa,pb] of pairs){ g.beginPath(); g.moveTo(pa.x,pa.y); g.lineTo(pb.x,pb.y); g.stroke(); }
+    }
+  }
+}
+function showTwistIntro(k, onceEver){
+  const t=TWISTS[k]; if(!t) return;
+  if(onceEver){
+    // 変化球セレクト用: その変化球を初めて遊ぶときだけ出す（種類ごとに1回きり）
+    const kk="cube-challenge-twist-known-"+k;
+    try{ if(localStorage.getItem(kk)==="1") return; localStorage.setItem(kk,"1"); }catch(_){}
+  }else{
+  const seenKey=gameSeed+"#"+k;   // 同じ日のリトライでは2回出さない
+  try{ if(localStorage.getItem("cube-challenge-twist-seen")===seenKey) return; }catch(_){}
+  }
+  $("#twistTitle").innerHTML=tr("⚡ きょうのデイリーは<br>ひとあじちがう！","⚡ Today's daily has<br>a twist!");
+  $("#twistName").textContent=t.name();
+  $("#twistDesc").textContent=t.desc();
+  $("#btnTwistGo").textContent=tr("✨ わかった！","✨ Got it!");
+  renderTwistExample($("#twistCv"), k);
+  $("#twistIntro").classList.remove("hidden");
+  try{ localStorage.setItem("cube-challenge-twist-seen",seenKey); }catch(_){}
+}
+
 function startGame(m, opts){
   opts=opts||{};
   mode=m; roundIdx=0; scores=[]; roundsInfo=[]; encouraged=false; noteOnce=new Set(); inputPts={};
   gameSeed = opts.seed || randomSeed();
   seededRun = !!opts.seed;
+  // 変化球はシードの日付から決まる（デイリー本番も、共有された?seed=での再挑戦も同じお題になる）。
+  // opts.twist は変化球セレクト（かくしメニュー）からの指名。この回は記録対象外にする
+  gameTwist = (TWISTS[opts.twist] && opts.twist) || twistForDailySeed(gameSeed) || null;
+  twistSelRun = !!(TWISTS[opts.twist] && opts.twist);
   isDaily = !!opts.daily;
   dailyDate = isDaily ? (opts.seed||todaySeedStr()) : "";
   $("#menuOverlay").classList.add("hidden");
@@ -1736,8 +2440,12 @@ function startGame(m, opts){
   stopReplay();
   $("#shotPopup").classList.add("hidden");
   $("#sharePopup").classList.add("hidden");
+  $("#twistIntro").classList.add("hidden");
   Sound.start();
   newRound();
+  // お題見せ画面。ラウンド1は練習（タイマーなし）なので上に被せても安全。
+  // セレクトの回は「その変化球を初めて遊ぶとき」だけ出す（毎回出るとうっとおしい）
+  if(gameTwist) showTwistIntro(gameTwist, twistSelRun);
 }
 
 /* 「前半は真面目に描いていたのに急に投げやりになった人」を見つける。
@@ -1789,14 +2497,16 @@ function roundNotes(res, auto, oneStroke, giveUp){
   /* 何を直せば伸びるかの診断。「描き落とし」と「位置ずれ」は
      引いた線の総長で見分ける（本数だと一筆書きの人を誤診する） */
   if(!res.doodle){
-    const needLen=round.targets.reduce((a,t)=>a+Math.hypot(t.pb.x-t.pa.x,t.pb.y-t.pa.y),0);
+    const needLen=round.targets.reduce((a,t)=>a+(t.len||Math.hypot(t.pb.x-t.pa.x,t.pb.y-t.pa.y)),0);
     let drawnLen=0;
     for(const s of strokes){ const p=s.pts;
       for(let i=1;i<p.length;i++) drawnLen+=Math.hypot(p[i].x-p[i-1].x,p[i].y-p[i-1].y); }
     const drewEnough = needLen>0 && drawnLen>=needLen*0.7;
-    if(res.cov<0.60 && !drewEnough)     pushLoud(v([tr("🧩 かけていない辺があるよ","🧩 Some edges are still missing"),
-                                                 tr("🧩 まだ描いてない辺がある","🧩 There are edges left undrawn"),
-                                                 tr("🧩 辺が足りてないかも","🧩 Looks like a few edges short")]));
+    if(res.cov<0.60 && !drewEnough)     pushLoud(round.twist==="maru"
+      ? tr("🧩 円がとぎれているよ。さいごまでつなげよう","🧩 The circle has gaps — close the loop")
+      : v([tr("🧩 かけていない辺があるよ","🧩 Some edges are still missing"),
+           tr("🧩 まだ描いてない辺がある","🧩 There are edges left undrawn"),
+           tr("🧩 辺が足りてないかも","🧩 Looks like a few edges short")]));
     // 「位置がずれてる」は抽象的なので、気づかせる1回だけにする
     else if(res.cov<0.75 && drewEnough && !quiet) pushOnce("offset", tr("📏 ぜんぶ描けてる！あとは位置","📏 All there — just off position"));
     else if(res.eff<0.95)               pushLoud(v([tr("✏️ 辺からはずれた線が多いです","✏️ Too many lines off the edges"),
@@ -1822,6 +2532,18 @@ function roundNotes(res, auto, oneStroke, giveUp){
               tr("🌟 自己最高の回","🌟 A personal best round")]));
   }
   // 出題のたね明かし
+  if(round.twist==="ta") pushOnce("twistTa",
+    tr("⊞ 面の中心は対角線でとれるよ","⊞ Diagonals find the centre of a face"));
+  if(round.twist==="dice") pushOnce("twistDice",
+    tr("⚀ 目の丸は、面のかたむきと同じだけつぶれるよ","⚀ Pips squash exactly as much as their face does"));
+  if(round.twist==="notch") pushOnce("twistNotch",
+    tr("🍫 かじり口は、よつわりの十字で作図できるよ","🍫 The bite lines up with the quartering cross"));
+  if(round.twist==="cross") pushOnce("twistCross",
+    tr("➕ ゴースト箱を6こ組んでから折り目をなぞると速いよ","➕ Rough in six ghost boxes, then trace the creases"));
+  if(round.mode==="wire") pushOnce("twistWire",
+    tr("🩻 かくれた辺も、おなじ消失点にあつまるよ","🩻 Hidden edges meet the same vanishing points"));
+  if(round.twist==="maru") pushOnce("twistMaru",
+    tr("⭕ 外に接する正方形を作図すると、まるが安定するよ","⭕ A circumscribed square keeps your circle honest"));
   if(round.mode==="double") push(tr(`消失点は「${round.shared?"共通":"別々"}」でした！`,`Vanishing points were ${round.shared?"shared":"different"}!`));
   if(Math.abs(round.cubes[0].rot.pitch)>=45*DEG)
     push(v([tr("⛰️ アオリ／フカンの回でした","⛰️ That was a worm's/bird's-eye one"),
@@ -1835,7 +2557,7 @@ function roundNotes(res, auto, oneStroke, giveUp){
       A:[tr("👏 いいかんじ！","👏 Nicely done!"), tr("👏 かなり近い","👏 Very close"), tr("👏 つかめてる","👏 You've got it")],
       B:[tr("🧊 かたちになってきた","🧊 It's taking shape"), tr("🧊 立方体に見える","🧊 Reads as a cube"), tr("🧊 あと一歩","🧊 One step away")],
       C:[tr("🌱 つぎはもうすこし","🌱 A little closer next time"), tr("🌱 おしい","🌱 So close"), tr("🌱 かたちは見えてる","🌱 The shape is there")],
-      D:[tr("🌱 ゆっくりでいいよ","🌱 Take your time"), tr("🌱 つぎの1回で","🌱 Next one's yours"), tr("🌱 まだ8回ある","🌱 Plenty of rounds left")],
+      D:[tr("🌱 ゆっくりでいいよ","🌱 Take your time"), tr("🌱 つぎの1回で","🌱 Next one's yours"), tr("🌱 まだ6回ある","🌱 Plenty of rounds left")],
     }[gradeOf(res.score)];
     push(vv[roundIdx % vv.length]);
   }
@@ -1899,8 +2621,9 @@ function submit(auto){
     // アオリ／フカンの回か、最初の線を引くまでに何秒かけたか（バッジの判定用）
     tilted: Math.abs(round.cubes[0].rot.pitch)>=45*DEG,
     firstAt: strokes.length ? (strokes[0].pts[0].t||0)/1000 : null,
-    // 残り時間（本番のみ）。早撃ち／ギリギリ職人の判定に使う
+    // 残り時間（本番のみ）とそのラウンドの制限時間。早撃ち／ギリギリ職人の判定に使う
     secLeft: round.practice ? null : Math.max(0,(deadline-performance.now())/1000),
+    limit: round.timeLimit || TIME_LIMIT,
   });
   if(!round.practice && g==="S") fx.burst(70);
   render();
@@ -1919,7 +2642,9 @@ function showFinal(){
   const scored=scores.filter(s=>s!==null);
   const avg=Math.round(scored.reduce((a,b)=>a+b,0)/scored.length*100)/100;
   const g=gradeOf(avg);
-  $("#finalMode").textContent = MODES[mode].name + (isDaily?tr("・きょうのチャレンジ"," · Daily Challenge"):"");
+  $("#finalMode").textContent = twistSelRun && TWISTS[gameTwist]
+    ? tr("変化球セレクト・","Twist Select · ")+TWISTS[gameTwist].name()
+    : MODES[mode].name + (isDaily?tr("・きょうのチャレンジ"," · Daily Challenge"):"");
   $("#finalScore").innerHTML=`${avg.toFixed(2)}<small>${tr("点","pts")}</small>`;
   $("#finalGrade").textContent=g;
   $("#finalGrade").style.background=gradeColor(g);
@@ -1957,13 +2682,17 @@ function showFinal(){
     $("#finalBest").textContent = best[mode]!==undefined
       ? tr(`自己ベスト：${(+best[mode]).toFixed(2)}点（シード戦は記録対象外）`,`Personal best: ${(+best[mode]).toFixed(2)} (seed runs aren't recorded)`)
       : tr("シード戦は自己ベスト対象外","Seed runs don't count toward your best");
+  }else if(twistSelRun){
+    $("#finalBest").textContent = tr("変化球セレクトは記録対象外（れんしゅう）","Twist-select runs aren't recorded (practice)");
   }else if(best[mode]===undefined || avg>best[mode]){
     best[mode]=avg; saveBest(best); isBest=true;
     $("#finalBest").textContent=tr("🏆 自己ベストこうしん！","🏆 New personal best!");
   }else{
     $("#finalBest").textContent=tr(`自己ベスト：${(+best[mode]).toFixed(2)}点`,`Personal best: ${(+best[mode]).toFixed(2)}`);
   }
-  const ttl=titleOf(avg);
+  // ハリガネ／まんまるの日（セレクト含む。封印中のハリガネモードも）はテーマ称号
+  const ttl=titleOf(avg, gameTwist==="maru" ? TITLES_MARU
+    : (gameTwist==="wire" || mode==="wire") ? TITLES_WIRE : null);
   $("#finalTitleLine").textContent=`${ttl.emoji} ${ttl.name}`;
   /* かくしバッジ（条件を満たしたものを並べる。増やす時はここにpushする） */
   const specials=[];
@@ -1982,7 +2711,7 @@ function showFinal(){
   // 補助線をたくさん使う人（立方体の外に全辺長と同じくらい線を引いている）
   if(R.filter(r=>r.farInk>=0.8).length>=half) add("guide",SPECIAL_TITLES);
   // 早撃ち: 10秒以内に描き上げてそれなりの点を出した回が3回以上
-  if(R.filter(r=>r.secLeft!=null && TIME_LIMIT-r.secLeft<=10 && r.score>=55).length>=3) add("quick",SPECIAL_TITLES);
+  if(R.filter(r=>r.secLeft!=null && (r.limit||TIME_LIMIT)-r.secLeft<=10 && r.score>=55).length>=3) add("quick",SPECIAL_TITLES);
   // ギリギリ職人: 残り2秒未満で「自分で」判定した回が半分以上（時間切れの自動判定は職人技ではない）
   if(R.filter(r=>r.secLeft!=null && !r.timedOut && r.secLeft<2).length>=half) add("clutch",SPECIAL_TITLES);
   // 消しゴムの魔術師: よく消して、それでいて点も出している
@@ -2134,8 +2863,9 @@ async function rankFetch(path, opts){
     });
   }finally{ clearTimeout(timer); }
 }
-/* ランキングの集計単位: 通常プレイ=モード別 / デイリー=その日 / シード戦=対象外 */
-const boardKey = () => isDaily ? "daily:"+(dailyDate||todaySeedStr()) : (seededRun ? null : "mode:"+mode);
+/* ランキングの集計単位: 通常プレイ=モード別 / デイリー=その日 / シード戦・変化球セレクト=対象外 */
+const boardKey = () => isDaily ? "daily:"+(dailyDate||todaySeedStr())
+  : (seededRun || twistSelRun) ? null : "mode:"+mode;
 /* 端末ごとの匿名プレイヤーID（同一ブラウザ=同一プレイヤーとしてベスト1行を維持） */
 function playerId(){
   let id=null;
@@ -2319,11 +3049,11 @@ async function buildShareCard(){
   g.fillText(lastFinal.avg.toFixed(2)+tr("点"," pts"), Wc-M, 88);
   g.fillStyle=gradeColor(lastFinal.g); g.font="800 36px "+F;
   g.fillText(tr("グレード ","Grade ")+lastFinal.g, Wc-M, 132);
-  // 5x2 thumbnails
+  // 4x2 thumbnails（練習2＋本番6の全8ラウンド）
   const imgs=await Promise.all(roundsInfo.map(r=>loadImg(r.shot)));
-  const gw=(Wc-2*M-4*14)/5, gh=138;
+  const gw=(Wc-2*M-3*14)/4, gh=138;
   roundsInfo.forEach((info,i)=>{
-    const x=M+(i%5)*(gw+14), y=162+Math.floor(i/5)*(gh+44);
+    const x=M+(i%4)*(gw+14), y=162+Math.floor(i/4)*(gh+44);
     drawCover(g,imgs[i],x,y,gw,gh,10);
     g.textAlign="center"; g.fillStyle=info.practice?"#b3a08a":"#8a6f80"; g.font="700 19px "+F;
     g.fillText(info.practice?`R${i+1} 🌱`:`R${i+1}  ${info.score.toFixed(2)}`, x+gw/2, y+gh+28);
@@ -2470,7 +3200,10 @@ $("#btnClear").addEventListener("click",clearAll);
 $("#btnMenu").addEventListener("click",toMenu);
 $("#btnRetry").addEventListener("click",()=>{
   if(isDaily){ startDaily(); return; }          // デイリーは回数制限を通す
-  startGame(mode, seededRun?{seed:gameSeed}:{});
+  // シード戦は同じシードで、変化球セレクトは同じ変化球で（新しいお題を）もう一度
+  const o = seededRun ? {seed:gameSeed} : {};
+  if(twistSelRun) o.twist=gameTwist;
+  startGame(mode, o);
 });
 $("#btnShare").addEventListener("click",shareResult);
 $("#btnToMenu").addEventListener("click",toMenu);
@@ -2535,6 +3268,8 @@ $("#btnLang").addEventListener("click",()=>{
 });
 
 $("#btnDaily").addEventListener("click",startDaily);
+$("#btnTwistGo").addEventListener("click",()=>$("#twistIntro").classList.add("hidden"));
+$("#twistIntro").addEventListener("click",e=>{ if(e.target.id==="twistIntro") $("#twistIntro").classList.add("hidden"); });
 $("#btnSeedPlay").addEventListener("click",()=>{
   const s=prompt(tr("シードを入力してね（配信者とおなじお題に挑戦！）\n※ノーマルモードで開始します。URLの ?seed=◯◯&mode=◯◯ でモード指定もできます",
                     "Enter a seed to play the same puzzles!\nStarts in Normal mode — use ?seed=…&mode=… in the URL for other modes"));
@@ -2554,33 +3289,37 @@ $("#btnSeedPlay").addEventListener("click",()=>{
   $("#challengeSlot").appendChild(b);
 })();
 
-/* ---- かくしモード解放：コナミコマンド／タイトル7連打（スマホ用） ---- */
+/* ---- かくしメニュー解放：コナミコマンド／タイトル7連打（スマホ用） ----
+   もとは封印中のハリガネモードを解放していたが、ハリガネは変化球入りしたので
+   いまは「変化球セレクト」（5種から選んで遊べる・記録対象外のれんしゅう枠）を解放する。
+   キー名は当時のまま＝過去に解放した人はそのまま引き継がれる */
 const WIRE_KEY="cube-challenge-wire";
-const wireUnlocked = () => { try{ return localStorage.getItem(WIRE_KEY)==="1"; }catch(_){ return false; } };
-function unlockWire(quiet){
-  const b=document.querySelector('.modeBtn[data-mode="wire"]');
+const twistSelUnlocked = () => { try{ return localStorage.getItem(WIRE_KEY)==="1"; }catch(_){ return false; } };
+function unlockTwistSel(quiet){
+  const b=$("#twistSelBox");
   if(!b || b.style.display!=="none") return;      // すでに解放済みなら何もしない
   b.style.display="";
-  refreshMenuBest();
   if(quiet) return;
   try{ localStorage.setItem(WIRE_KEY,"1"); }catch(_){}
-  toast(tr("🎮 かくしモード「ハリガネ」を解放！","🎮 Hidden mode “Wireframe” unlocked!"));
+  toast(tr("🎮 かくしメニュー「変化球セレクト」を解放！","🎮 Hidden menu “Twist Select” unlocked!"));
   Sound.fanfare(true); fx.burst(90);
 }
-if(wireUnlocked()) unlockWire(true);
+if(twistSelUnlocked()) unlockTwistSel(true);
+document.querySelectorAll(".twistSelBtn").forEach(b=>
+  b.addEventListener("click",()=>startGame("normal",{twist:b.dataset.twist})));
 const KONAMI=["arrowup","arrowup","arrowdown","arrowdown","arrowleft","arrowright","arrowleft","arrowright","b","a"];
 let konamiIdx=0;
 window.addEventListener("keydown",e=>{
   const k=(e.key||"").toLowerCase();
   konamiIdx = (k===KONAMI[konamiIdx]) ? konamiIdx+1 : (k===KONAMI[0] ? 1 : 0);
-  if(konamiIdx===KONAMI.length){ konamiIdx=0; unlockWire(false); }
+  if(konamiIdx===KONAMI.length){ konamiIdx=0; unlockTwistSel(false); }
 });
 let titleTaps=0, titleTapAt=0;
 $("#menuOverlay h1").addEventListener("click",()=>{
   const now=performance.now();
   titleTaps = (now-titleTapAt<900) ? titleTaps+1 : 1;
   titleTapAt=now;
-  if(titleTaps>=7){ titleTaps=0; unlockWire(false); }
+  if(titleTaps>=7){ titleTaps=0; unlockTwistSel(false); }
 });
 
 refreshDaily();
@@ -2661,7 +3400,15 @@ window.addEventListener("resize",()=>{
       const seen=new Set();
       const xf=p=>{ if(seen.has(p))return; seen.add(p); p.x=p.x*s+ax; p.y=p.y*s+ay; };
       round.cubes.forEach(c=>{ c.P.forEach(xf); c.tol*=s; });   // targetsのpa,pbはc.Pと同じ参照
-      round.targets.forEach(t2=>{ t2.samples.forEach(xf); t2.tol*=s; });
+      // pa/pb は通常 c.P への参照（seenが二重変換を防ぐ）。変化球のターゲットが
+      // 独立した点を持つ場合に取り残さないよう、ここで必ず変換する
+      round.targets.forEach(t2=>{ xf(t2.pa); xf(t2.pb); t2.samples.forEach(xf);
+        if(t2.pts) t2.pts.forEach(xf);   // ポリライン点（まんまるの円は独立点。diceはP参照でseenが守る）
+        t2.tol*=s; });
+      // りったい十字の「隠れた折り目」も独立した点を持つので変換する
+      if(round.crossHidden) round.crossHidden.forEach(g=>{ xf(g.pa); xf(g.pb); });
+      // ヒント線（まんまるの直径など）が独立した点を持つ場合も取り残さない（seenが二重変換を防ぐ）
+      if(round.hintLines) round.hintLines.forEach(hl=>hl.forEach(xf));
       // allSegsのpa,pbはEXT延長した独立コピーなので、座標も必ず変換する
       // （忘れると採点が移動前の位置と照合され、正確な絵が大減点になる）
       round.allSegs.forEach(g=>{ xf(g.pa); xf(g.pb); g.tol*=s; });
@@ -2698,6 +3445,7 @@ if(DEBUG_API) window.__cube = {
   buildShareCard,
   get roundsInfo(){ return roundsInfo; },
   get seed(){ return gameSeed; },
+  get twist(){ return gameTwist; },
   start(m,o){ startGame(m,o); },
 };
 
@@ -2725,6 +3473,12 @@ if(!JA){
   document.querySelector('.modeBtn[data-mode="wire"] .mn').textContent="🩻 Wireframe";
   document.querySelector('.modeBtn[data-mode="wire"] .md').textContent="Draw all 8 edges — including the ones hidden behind the cube";
   document.querySelector('.modeBtn[data-mode="double"] .mn').textContent="🧊🧊 Double";
+  $("#twistSelLab").textContent="🎮 Twist Select (nothing is recorded)";
+  document.querySelector('.twistSelBtn[data-twist="ta"]').textContent="⊞ Quartered";
+  document.querySelector('.twistSelBtn[data-twist="dice"]').textContent="⚀ Die";
+  document.querySelector('.twistSelBtn[data-twist="notch"]').textContent="🍫 Bitten";
+  document.querySelector('.twistSelBtn[data-twist="wire"]').textContent="🩻 Wireframe";
+  document.querySelector('.twistSelBtn[data-twist="maru"]').textContent="⭕ Circle";
   $("#btnSeedPlay").textContent="🔗 Enter a seed to play the same puzzles";
   $("#menuOverlay .foot").innerHTML="<span style='opacity:.85'>made by <a href='https://x.com/daromeon' target='_blank' rel='noopener' style='color:#e86f9e;text-decoration:none;font-weight:800;'>@daromeon</a></span><span id='verLab' style='opacity:.6'></span>";
   $("#finalOverlay .foot").innerHTML = (RANK_ENABLED
