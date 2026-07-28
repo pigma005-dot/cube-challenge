@@ -26,7 +26,24 @@
     --card:#fffdfa;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-  html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none;}
+  html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none;touch-action:none;}
+  /* iPad + Apple Pencil 対策。canvasだけに touch-action:none を付けても足りない。
+     ペンで描くと手のひらも画面に触れ、それが画面下部のツールバーや音声ボタンの上に落ちる。
+     それらは touch-action が auto / manipulation でパンを許可しているため、そのタッチが
+     パン操作として扱われる。ゲーム自身はスクロールできないので、ジェスチャは親フレームへ
+     伝播し、itch.io の（縦に長い）ページがスクロールしてしまう。
+     → 操作面はすべてパンを禁止する。ただしメニュー・結果のカードは小さい画面で
+        縦スクロールが必要なので pan-y を残し、名前欄は選択操作のため auto に戻す。 */
+  #topbar,#hint,#timerWrap,#scoreFloat,#nextBar,#toolbar,#audioDock,
+  #modeChip,#roundChip,#practiceChip,#btnMenu,#btnLang{touch-action:none;}
+  #toolbar *,#audioDock *,#nextBar *,#topbar *{touch-action:none;}
+  .overlay,#shotPopup,#sharePopup,#toast{touch-action:none;}
+  .card,.card *{touch-action:pan-y;}   /* カード内は縦スクロールだけ許す（横は親へ伝播させない） */
+  #shotPopup *{touch-action:none;}
+  /* #sharePopup の中身 #shareCardBox は max-height + overflow-y:auto で、横持ちスマホや
+     低い画面ではボタンまで縦スクロールしないと届かない。none にすると指で送れなくなる。 */
+  #sharePopup,#sharePopup *{touch-action:pan-y;}
+  #rankName{touch-action:auto;}        /* 文字選択・カーソル移動を残す */
   body{
     font-family:"Segoe UI","Yu Gothic UI","Hiragino Maru Gothic ProN","Meiryo",system-ui,sans-serif;
     background:var(--paper);color:var(--plum);
@@ -151,6 +168,7 @@
     background:var(--card);border:3px solid var(--pink);border-radius:28px;padding:28px 32px;
     max-width:600px;width:100%;
     box-shadow:0 16px 60px rgba(180,90,140,.28);max-height:calc(100vh - 110px);overflow-y:auto;
+    overscroll-behavior:contain;   /* 端まで送ったジェスチャを親ページ（itchの外側）へ抜けさせない */
   }
   .card h1{margin:0 0 4px;font-size:29px;letter-spacing:.02em;color:var(--plum-dark);}
   .card .sub{color:#b39aa8;font-size:14px;margin:0 0 12px;font-weight:600;}
@@ -207,6 +225,8 @@
   #rankResult .big{font-size:16px;color:#7a6ab8;margin-bottom:6px;}
   #rankResult .rrow{display:flex;justify-content:space-between;max-width:280px;margin:2px auto;padding:3px 12px;border-radius:8px;background:#fff3f8;}
   #rankResult .rrow.me{background:var(--lav);}
+  #rankResult .rin{font-size:11px;opacity:.75;}                 /* 入力デバイスのアイコン */
+  #rankResult .rmix{font-size:11.5px;font-weight:700;color:#9a8090;margin-top:6px;}
 
   /* final: 5x2 round-snapshot grid */
   /* 称号（インラインstyleにするとメディアクエリが効かなくなるのでCSSで持つ） */
@@ -234,7 +254,7 @@
     background:var(--card);border:3px solid var(--pink);border-radius:22px;
     padding:16px;max-width:520px;width:100%;text-align:center;
     box-shadow:0 16px 60px rgba(0,0,0,.35);
-    max-height:calc(100vh - 24px);overflow-y:auto;  /* 横持ちスマホでボタンが画面外に出ないように */
+    max-height:calc(100vh - 24px);overflow-y:auto;overscroll-behavior:contain;  /* 横持ちスマホでボタンが画面外に出ないように */
   }
   #sharePrev{width:100%;border-radius:12px;border:2px solid #ffd9e8;display:block;}
   #shareHint{font-size:13px;font-weight:700;color:#8a6f80;margin:10px 0 10px;}
@@ -478,7 +498,7 @@
    ============================================================ */
 const TIME_LIMIT = 30;   // 本番ラウンドの制限時間（秒）
 const ERASER_R   = 16;   // けしゴムの半径(px)
-const GAME_VER = "1.22";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
+const GAME_VER = "1.23";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
                            // ※アップロード時にまとめて上げる運用。ローカル改修では触らない
 // ネイティブアプリ（Capacitor/App Store版）で動いているか
 const CAP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
@@ -1386,6 +1406,10 @@ let erasing=false, eraseChanged=false, erasePrev=null;
 let eraseUses=0;   // このラウンドで消しゴムを使った回数（かくし称号の判定用）
 let undoKeyUses=0, undoBtnUses=0;   // Ctrl+Z とボタンでの取り消し回数（同上）
 let clearUses=0;                    // このラウンドで「ぜんぶけす」を使った回数（同上）
+/* 1ランを通して、どの入力デバイスで描いたかを点の数で重み付けして数える。
+   途中で持ち替えても代表を1つ決められるようにするため（本数で数えると
+   短い誤タップが重く出てしまうので、点の数で数える）。 */
+let inputPts={};
 let history=[];
 
 const mid=(a,b)=>({x:(a.x+b.x)/2, y:(a.y+b.y)/2});
@@ -1564,6 +1588,9 @@ function endStroke(e){
     pushHistory();
     // pushHistory snapshots current strokes (without cur) — then commit
     strokes.push(cur);
+    // どの入力デバイスで描いたか（ペン／マウス／指）を点の数で数えておく
+    const it=e.pointerType||"mouse";
+    inputPts[it]=(inputPts[it]||0)+cur.pts.length;
     maybeShowJudgeHint();
   }
   cur=null; activeId=null;
@@ -1698,13 +1725,17 @@ function newRound(){
 
 function startGame(m, opts){
   opts=opts||{};
-  mode=m; roundIdx=0; scores=[]; roundsInfo=[]; encouraged=false; noteOnce=new Set();
+  mode=m; roundIdx=0; scores=[]; roundsInfo=[]; encouraged=false; noteOnce=new Set(); inputPts={};
   gameSeed = opts.seed || randomSeed();
   seededRun = !!opts.seed;
   isDaily = !!opts.daily;
   dailyDate = isDaily ? (opts.seed||todaySeedStr()) : "";
   $("#menuOverlay").classList.add("hidden");
   $("#finalOverlay").classList.add("hidden");
+  // ポップアップが開いたまま次のゲームが始まると、キャンバスの上に残って操作を塞ぐ
+  stopReplay();
+  $("#shotPopup").classList.add("hidden");
+  $("#sharePopup").classList.add("hidden");
   Sound.start();
   newRound();
 }
@@ -2147,14 +2178,20 @@ function randomPainterName(){
 }
 
 /* ランキングは誰にでも見える場所なので、明らかに不適切な名前は登録させない */
+/* 追加時の注意: ここは部分一致なので、短い語を足すと普通の名前を巻き込む。
+   足したら必ずNG_SAFEに誤爆する実在の語を書くこと（sex→Essex、anal→analog など）。
+   「えろ」「あなる」のような短いかな語は かえろ／きえろ／ぬりかえろ 等と衝突するので入れない。 */
 const NG_WORDS=["fuck","shit","bitch","cunt","nigg","fag","whore","rape","asshole","dick",
-  "死ね","殺す","しね","ころす","ちんこ","ちんちん","まんこ","うんこ","セックス","レイプ","キチガイ","きちがい",
+  "porn","sex","slut","hentai",
+  "死ね","殺す","しね","ころす","ちんこ","ちんちん","ちんぽ","まんこ","うんこ",
+  "セックス","レイプ","キチガイ","きちがい","ポルノ","ヘンタイ","変態",
   "unko","chinko","manko","korosu"];
 /* 全角・カタカナ・記号ちがいの抜け道を塞ぎつつ、普通の名前を巻き込まない。
    Nishitani / Yoshitaka / Grape / Dickens などは先に安全リストで通す。
    取りこぼしは結果画面の「不適切な名前を報告」から作者が消す運用で補う。 */
 const NG_SAFE=[/nishit/,/yoshit/,/toshit/,/ashit/,/kishit/,/hashit/,/mashit/,
   /grape/,/drape/,/dicken/,/dickin/,/dicky/,/bunko/,/funko/,
+  /essex/,/sussex/,/wessex/,/unisex/,/sexton/,           // sex を含む実在の語
   /ころすけ/,/こけし/,/しねま/,/しねこん/,/おいしね/];
 const toHira = s => s.replace(/[ァ-ヶ]/g, c=>String.fromCharCode(c.charCodeAt(0)-0x60));
 const isNgName = s => {
@@ -2167,6 +2204,15 @@ const isNgName = s => {
   for(const re of NG_SAFE) rest=rest.replace(new RegExp(re.source,"g"),"");
   return NG_WORDS.some(w=>rest.includes(toHira(w.normalize("NFKC").toLowerCase())));
 };
+
+/* このランの代表入力デバイス。一番多く点を描いたもの。1本も描いていなければ null */
+function mainInput(){
+  let best=null, bn=0;
+  for(const k in inputPts) if(inputPts[k]>bn){ bn=inputPts[k]; best=k; }
+  return (best==="pen"||best==="mouse"||best==="touch") ? best : null;
+}
+const INPUT_ICON={pen:"🖊",mouse:"🖱",touch:"👆"};
+const inputLabel=k=>({pen:tr("ペン","Pen"),mouse:tr("マウス","Mouse"),touch:tr("指","Touch")})[k]||"";
 
 async function submitScore(){
   if($("#btnRankSubmit").disabled) return;  // 送信中のEnter連打・多重呼び出しを無視
@@ -2182,28 +2228,49 @@ async function submitScore(){
   $("#btnRankSubmit").disabled=true;
   $("#rankResult").textContent=tr("そうしんちゅう…","Submitting…");
   try{
-    // 同一プレイヤー(端末ID)はベストスコアで1行を上書き（RPC）。
-    // RPC未設定のサーバーでは旧方式のINSERTにフォールバック。
+    // 同一プレイヤー(端末ID)はベストスコアで1行を上書き（RPC経由のみ）。
+    // 旧方式の直接INSERTはサーバ側のRLSで封鎖済みなのでフォールバックは持たない。
     let stored=lastFinal.avg;
-    let r=await rankFetch("rpc/submit_score",{method:"POST",body:JSON.stringify({
-      p_pid:playerId(), p_name:name, p_board:board, p_score:lastFinal.avg })});
-    if(r.status===404){
-      r=await rankFetch("scores",{method:"POST",body:JSON.stringify({name,board,score:lastFinal.avg})});
-    }else if(r.ok){
+    const base={p_pid:playerId(), p_name:name, p_board:board, p_score:lastFinal.avg};
+    const inp=mainInput();
+    let r=await rankFetch("rpc/submit_score",{method:"POST",
+      body:JSON.stringify(inp?{...base, p_input:inp}:base)});
+    // 入力デバイス列がまだ無いサーバーでは引数が合わず404になる。その場合は旧形式で送り直す
+    // （SQLとクライアントのどちらを先に更新しても壊れないようにするため）
+    if(r.status===404 && inp){
+      r=await rankFetch("rpc/submit_score",{method:"POST",body:JSON.stringify(base)});
+    }
+    if(r.ok){
       try{ const v=await r.json(); if(typeof v==="number") stored=v; }catch(_){}
     }
     if(!r.ok) throw new Error("post "+r.status);
     const higher=await rankCount(board,"&score=gt."+stored);
     const total=await rankCount(board,"");
-    const top=await (await rankFetch(
-      `scores?select=name,score&board=eq.${encodeURIComponent(board)}&order=score.desc,created_at.asc&limit=10`)).json();
+    // input列がまだ無いサーバーだと400が返るので、その場合は列なしで取り直す
+    let top=[];
+    let tr1=await rankFetch(
+      `scores?select=name,score,input&board=eq.${encodeURIComponent(board)}&order=score.desc,created_at.asc&limit=10`);
+    if(!tr1.ok) tr1=await rankFetch(
+      `scores?select=name,score&board=eq.${encodeURIComponent(board)}&order=score.desc,created_at.asc&limit=10`);
+    try{ top=await tr1.json(); }catch(_){ top=[]; }
     const esc=s=>String(s).replace(/[<>&]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]));
-    const rows=top.map((e,i)=>
-      `<div class="rrow${e.name===name&&Math.abs(e.score-stored)<0.005?" me":""}"><span>${i+1}. ${esc(e.name)}</span><span>${(+e.score).toFixed(2)}</span></div>`).join("");
+    const rows=top.map((e,i)=>{
+      const ic=INPUT_ICON[e.input]||"";
+      return `<div class="rrow${e.name===name&&Math.abs(e.score-stored)<0.005?" me":""}">`+
+        `<span>${i+1}. ${esc(e.name)}${ic?` <span class="rin" title="${inputLabel(e.input)}">${ic}</span>`:""}</span>`+
+        `<span>${(+e.score).toFixed(2)}</span></div>`;
+    }).join("");
+    // TOP10がどの入力デバイスで占められているか（追加の通信は発生しない）
+    const mix={};
+    top.forEach(e=>{ if(INPUT_ICON[e.input]) mix[e.input]=(mix[e.input]||0)+1; });
+    const mixTxt=Object.keys(mix).length
+      ? `<div class="rmix">${tr("上位10人","Top 10")}: ` +
+        ["pen","mouse","touch"].filter(k=>mix[k]).map(k=>`${INPUT_ICON[k]}${mix[k]}`).join("　") + `</div>`
+      : "";
     const bestNote = stored>lastFinal.avg+0.004
       ? `<div style="font-size:12px;color:#9a8090;">${tr(`じこベスト ${stored.toFixed(2)}点でとうろく中`,`Your best ${stored.toFixed(2)} stays on the board`)}</div>` : "";
     $("#rankResult").innerHTML=
-      `<div class="big">🏅 ${tr(`${total}人中 ${higher+1}位！`,`Rank ${higher+1} of ${total}!`)}</div>${bestNote}${rows}`;
+      `<div class="big">🏅 ${tr(`${total}人中 ${higher+1}位！`,`Rank ${higher+1} of ${total}!`)}</div>${bestNote}${rows}${mixTxt}`;
     $("#rankEntry").classList.add("hidden");
   }catch(_){
     $("#rankResult").textContent=tr("送信に失敗しました…（通信環境を確認してね）","Submission failed… (check your connection)");
@@ -2607,8 +2674,14 @@ window.addEventListener("resize",()=>{
   rebuildInk(); render();
 });
 
-/* debug hook */
-window.__cube = {
+/* デバッグ用API。ローカルのfile://か ?debug=1 のときだけ生やす。
+   ※これは対策ではなく衛生。本体は単一のクラシックscriptなので startGame 等は
+     どうせグローバルに出ており、これを閉じても攻撃面は減らない。
+   ※判定に hostname は使わないこと。Capacitorの既定が capacitor://localhost なので
+     localhost で見るとApp Store版で常時ONになる。 */
+const DEBUG_API = location.protocol==="file:" ||
+  new URLSearchParams(location.search).get("debug")==="1";
+if(DEBUG_API) window.__cube = {
   get round(){ return round; },
   get strokes(){ return strokes; },
   get state(){ return state; },
@@ -2646,6 +2719,7 @@ if(!JA){
   $("#btnToMenu").textContent="🏠 Modes";
   $("#menuOverlay h1").textContent="🧊 Cube Challenge";
   $("#menuOverlay .sub").textContent="See one face, predict and draw the rest of the cube! Pen tablet & mouse friendly";
+  $("#howtoBox img").alt="Complete the cube from a single face";
   document.querySelector("#btnDaily .mn").textContent="📅 Daily Challenge";
   document.querySelector('.modeBtn[data-mode="normal"] .mn').textContent="🧊 Normal";
   document.querySelector('.modeBtn[data-mode="wire"] .mn').textContent="🩻 Wireframe";
