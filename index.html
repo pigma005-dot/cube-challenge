@@ -1490,20 +1490,39 @@ function distToSeg(px,py,ax,ay,bx,by){
 }
 function resampleStrokes(strokes, step){
   const pts=[];
+  let si=0;
   for(const s of strokes){
+    const os=[];
+    si++;
     let prev=null, acc=0;
     for(const p0 of s.pts){
       const p={x:p0.x, y:p0.y};
-      if(!prev){ pts.push({x:p.x,y:p.y}); prev=p; continue; }
+      if(!prev){ os.push({x:p.x,y:p.y}); prev=p; continue; }
       let d=Math.hypot(p.x-prev.x, p.y-prev.y);
       while(acc+d>=step){
         const t=(step-acc)/d;
         prev={x:prev.x+(p.x-prev.x)*t, y:prev.y+(p.y-prev.y)*t};
-        pts.push({x:prev.x, y:prev.y});
+        os.push({x:prev.x, y:prev.y});
         d=Math.hypot(p.x-prev.x, p.y-prev.y);
         acc=0;
       }
       acc+=d; prev=p;
+    }
+    /* ストロークの最後の生点も必ず出力する（4px刻みの端数で末端が欠けると、
+       完璧になぞっても端のサンプルだけ減衰が残ってしまう） */
+    if(prev && os.length &&
+       (os[os.length-1].x!==prev.x || os[os.length-1].y!==prev.y))
+      os.push({x:prev.x, y:prev.y});
+    /* 各点に「線の局所的な向き」を付ける（±2点＝約8pxの窓で手ぶれを均す）。
+       covの判定で使う: 辺と同じ向きの線だけがその辺を描いたことになる。
+       タップ（1点だけのストローク）は向きを持たない＝どの辺の得点にもならない */
+    for(let i=0;i<os.length;i++){
+      const a=os[Math.max(0,i-2)], b=os[Math.min(os.length-1,i+2)];
+      const dx=b.x-a.x, dy=b.y-a.y, L=Math.hypot(dx,dy);
+      if(L>1e-6){ os[i].dx=dx/L; os[i].dy=dy/L; }
+      else { os[i].dx=0; os[i].dy=0; }
+      os[i].si=si;   // ストローク番号（covで隣接点を線分としてつなぐのに使う）
+      pts.push(os[i]);
     }
   }
   return pts;
@@ -1563,6 +1582,42 @@ function doodleKind(round, strokes, cov, prec, needLen){
   if(artish) return "art";
   return null;
 }
+/* グリッド・点打ちハックの検出（バッジと一言用。減点そのものは採点式の向き判定がやる）。
+   誤検知を避けるため条件は厳しめ:
+   ・タップの弾幕（1点ストローク40個以上）か、
+   ・長い直線が10本以上で、向きが50°以上離れた2グループ（各5本以上）に分かれる
+   かつ prec が低い（辺に沿っていない）ときだけ。
+   ハリガネ描き・アタリ線プレイは prec が高い、下手な正直プレイは本数と族サイズが小さいので該当しない */
+function gridKind(round, strokes, prec){
+  let dots=0; const longs=[];
+  const boxes=inkBoxes(round);
+  const diag=Math.hypot(boxes[0].r-boxes[0].l, boxes[0].b-boxes[0].t);
+  for(const s of strokes){
+    const p=s.pts; if(!p.length) continue;
+    let L=0; for(let i=1;i<p.length;i++) L+=Math.hypot(p[i].x-p[i-1].x, p[i].y-p[i-1].y);
+    if(L<6){ dots++; continue; }
+    const chord=Math.hypot(p[p.length-1].x-p[0].x, p[p.length-1].y-p[0].y);
+    if(chord>0.9*L && L>0.3*diag)
+      longs.push(Math.atan2(p[p.length-1].y-p[0].y, p[p.length-1].x-p[0].x));
+  }
+  /* 点描は prec に関係なく判定する。辺に沿って点で描く「正直な点描画家」も
+     向き判定で0点になるので、バッジと一言で気づかせたい。
+     「点が入力の主体」であることを条件にする（誤タップ混じりの普通のプレイは拾わない） */
+  if(dots>=25 && dots>=0.7*strokes.length) return "dots";
+  if(prec>=0.60) return null;   // 線系の判定だけprecで守る（ハリガネ・アタリ線の誤検知防止）
+  if(longs.length>=10){
+    const bins=new Array(12).fill(0);
+    for(const a of longs){ let d=a%Math.PI; if(d<0)d+=Math.PI; bins[Math.floor(d/(Math.PI/12))%12]++; }
+    const grp=i=>bins[i]+bins[(i+1)%12];
+    let b1=0,i1=0; for(let i=0;i<12;i++) if(grp(i)>b1){ b1=grp(i); i1=i; }
+    let b2=0; for(let i=0;i<12;i++){
+      const d=Math.min(Math.abs(i-i1),12-Math.abs(i-i1));
+      if(d>=5 && grp(i)>b2) b2=grp(i);   // 5ビン=45°以上離れた第2グループ（実グリッドは90°差）
+    }
+    if(b1>=5 && b2>=5) return "grid";
+  }
+  return null;
+}
 const DOODLE_TITLES={
   art   :{ja:"自由すぎる画家",       en:"Free-Spirited Painter", emoji:"🎨"},
   text  :{ja:"伝えたいことがある人", en:"Someone With a Message", emoji:"✍️"},
@@ -1585,6 +1640,11 @@ const SPECIAL_TITLES={
   steep    :{ja:"アオリに強い人",   en:"Steep-Angle Specialist",    emoji:"⛰️"},
   clear    :{ja:"いちからやり直す人", en:"Clean Slate",             emoji:"🗑️"},
   collector:{ja:"バッジコレクター", en:"Badge Collector",           emoji:"🎭"},
+  /* グリッド・点打ちの検出バッジ。v1.25で向き判定により点は出なくなったので、
+     これは罰ではなく「気づいてるよ」の合図。COLLECTIBLES（16種）には数えない。
+     点描はハック狙いでも愛のあるバッジにする（ユーザー指示）。🌅はモネの「印象・日の出」 */
+  grid     :{ja:"方眼紙職人",       en:"Graph-Paper Artisan",       emoji:"🕸️"},
+  impress  :{ja:"印象派作家",       en:"The Impressionist",         emoji:"🌅"},
 };
 /* 集めた種類を数える対象（コレクター自身は除く） */
 const COLLECTIBLES=["art","text","circle","any","oneStroke","mirror","guide","quick","clutch",
@@ -1619,17 +1679,56 @@ function scoreRound(round, strokes){
     round.targets.forEach(t=>t.score=0);
     return {score:0, cov:0, prec:0, eff:1, inkRatio:0, doodle:null, mirrored:false};
   }
+  /* cov: 「辺と同じ向きの線」だけがその辺を描いたことになる（v1.25）。
+     グリッドや点打ちで面を覆うと近さだけでcovが稼げてしまう穴（レビュー報告）への対策。
+     なぞり・ハリガネ描き・アタリ線は向きが一致するので従来どおり満点になる。
+     25°までは満点扱い（手ぶれ幅）、60°以上ずれた線は0点。
+     さらにインクは「点の集まり」ではなく「点をつないだ線分」として測る:
+     リサンプル4px刻みの量子化誤差（最大2px）が消え、完璧になぞれば理論上100.00になる。
+     タップ（1点だけのストローク）は線分にならないので引き続き無得点。 */
+  const DIR_COS0=0.5, DIR_NORM=1/(0.9063-0.5);   // cos60°〜cos25°をなだらかに
+  const segs=[];
+  for(let j=1;j<sp.length;j++){
+    const a=sp[j-1], b=sp[j];
+    if(a.si!==b.si) continue;              // 別ストロークはつながない
+    let dx=a.dx+b.dx, dy=a.dy+b.dy, L=Math.hypot(dx,dy);
+    if(L<1e-6){ dx=b.x-a.x; dy=b.y-a.y; L=Math.hypot(dx,dy); }   // Uターンの縮退は弦の向きで
+    if(L<1e-6) continue;
+    segs.push({ax:a.x,ay:a.y,bx:b.x,by:b.y,
+               mx:(a.x+b.x)/2,my:(a.y+b.y)/2, dx:dx/L, dy:dy/L});
+  }
   let covSum=0;
   for(const t of round.targets){
-    let q=0;
-    for(const s of t.samples){
-      let best=Infinity;
-      for(const p of sp){
-        const dx=p.x-s.x, dy=p.y-s.y;
-        const d2=dx*dx+dy*dy;
-        if(d2<best) best=d2;
+    // サンプルごとの「辺の向き」: 線分は一律、ポリライン（円など）は各点の接線
+    const dirs=[];
+    if(t.pts){
+      const n=t.samples.length;
+      for(let k=0;k<n;k++){
+        const a=t.pts[(k-1+n)%n], b=t.pts[(k+1)%n];
+        const dx=b.x-a.x, dy=b.y-a.y, L=Math.hypot(dx,dy)||1;
+        dirs.push({x:dx/L, y:dy/L});
       }
-      q += falloff(Math.sqrt(best), t.tol);
+    }else{
+      const dx=t.pb.x-t.pa.x, dy=t.pb.y-t.pa.y, L=Math.hypot(dx,dy)||1;
+      const d0={x:dx/L, y:dy/L};
+      for(let k=0;k<t.samples.length;k++) dirs.push(d0);
+    }
+    t._dirs=dirs;               // 鏡像判定でも同じ向きデータを使う
+    const cutM=3*t.tol+step, cutM2=cutM*cutM;   // 中点での粗い足切り（線分長ぶんの余裕込み）
+    let q=0;
+    for(let si2=0;si2<t.samples.length;si2++){
+      const s=t.samples[si2], sd=dirs[si2];
+      let best=0;
+      for(const g2 of segs){
+        const mdx=g2.mx-s.x, mdy=g2.my-s.y;
+        if(mdx*mdx+mdy*mdy>=cutM2) continue;
+        const dot=Math.abs(g2.dx*sd.x + g2.dy*sd.y);
+        if(dot<=DIR_COS0) continue;
+        const w=Math.min(1,(dot-DIR_COS0)*DIR_NORM);
+        const c=falloff(distToSeg(s.x,s.y,g2.ax,g2.ay,g2.bx,g2.by), t.tol)*w;
+        if(c>best){ best=c; if(best>=0.9995) break; }
+      }
+      q+=best;
     }
     t.score = q/t.samples.length;
     covSum += t.score;
@@ -1639,6 +1738,32 @@ function scoreRound(round, strokes){
      消失点をとるために遠くまで伸ばしたアタリ線は、加点も減点もしない。 */
   const boxes=inkBoxes(round);
   const inBox=p=>boxes.some(b=>p.x>=b.l&&p.x<=b.r&&p.y>=b.t&&p.y<=b.b);
+  /* アタリ線ストロークの判定: 辺の2.5倍以上の長さで、半分以上が立方体の外
+     ＝消失点へ引く線の性質そのもの。こうした線が立方体の近くを通る区間は、
+     従来まるまる的中率に混ざって大減点だった（10°ずれ4本で実測-10.9点）。
+     GUIDE_W だけ残して緩める。全額無罪にはしない（ユーザー方針:
+     アタリ線を消した人・使わなかった人のほうが上に来るべき）。
+     ※waste（線量ペナルティ）は満額のまま数える。ここも割り引くと、
+       線を画面外まで伸ばしたグリッドがeffをすり抜けて復活してしまう */
+  const GUIDE_W=0.35;
+  const guideSet=new Set();
+  {
+    const maxTL=round.targets.reduce((a,t)=>
+      Math.max(a, t.len||Math.hypot(t.pb.x-t.pa.x,t.pb.y-t.pa.y)), 0);
+    let gi=0;
+    for(const st of strokes){
+      gi++;
+      const p=st.pts; if(!p || p.length<2) continue;
+      let L=0;
+      for(let i=1;i<p.length;i++) L+=Math.hypot(p[i].x-p[i-1].x, p[i].y-p[i-1].y);
+      if(L<2.5*maxTL) continue;
+      let inB=0;
+      for(const q of p) if(inBox(q)) inB++;
+      /* 箱内率70%まで許す: 辺を両側へ延長したアタリ線は延長部も箱を斜めに
+         横切るので、実測の箱内率は47〜63%になる。グリッド線は90%超なので混ざらない */
+      if(inB<=p.length*0.7) guideSet.add(gi);
+    }
+  }
   let pSum=0, pN=0, waste=0, farN=0;
   for(const p of sp){
     if(!inBox(p)){ farN++; continue; }   // 立方体から離れた線＝補助線として別に数える
@@ -1648,7 +1773,9 @@ function scoreRound(round, strokes){
       if(d<best){ best=d; tol=g.tol; }
     }
     const hit=falloff(best, tol);
-    pSum += hit; pN++; waste += 1-hit;      // 辺から外れているぶんを積算
+    const w=guideSet.has(p.si)?GUIDE_W:1;
+    pSum += hit*w; pN += w;
+    waste += 1-hit;                      // 辺から外れているぶんを積算（こちらは満額）
   }
   const prec = pN ? pSum/pN : 0;
   const needLen = round.targets.reduce((a,t)=>a+Math.hypot(t.pb.x-t.pa.x, t.pb.y-t.pa.y), 0);
@@ -1676,15 +1803,21 @@ function scoreRound(round, strokes){
     let msum=0;
     for(const t of round.targets){
       const axis2=axes[t.cube];
+      const cutM=3*t.tol+step, cutM2=cutM*cutM;
       let q=0;
-      for(const s of t.samples){
-        let best=Infinity;
-        for(const p of sp){
-          const dx=(axis2-p.x)-s.x, dy=p.y-s.y;
-          const d2=dx*dx+dy*dy;
-          if(d2<best) best=d2;
+      for(let si2=0;si2<t.samples.length;si2++){
+        const s=t.samples[si2], sd=t._dirs[si2];
+        let best=0;
+        for(const g2 of segs){
+          const mdx=(axis2-g2.mx)-s.x, mdy=g2.my-s.y;   // 線分をx反転して照合
+          if(mdx*mdx+mdy*mdy>=cutM2) continue;
+          const dot=Math.abs(-g2.dx*sd.x + g2.dy*sd.y);   // 向きも反転
+          if(dot<=DIR_COS0) continue;
+          const w=Math.min(1,(dot-DIR_COS0)*DIR_NORM);
+          const c=falloff(distToSeg(s.x,s.y, axis2-g2.ax,g2.ay, axis2-g2.bx,g2.by), t.tol)*w;
+          if(c>best){ best=c; if(best>=0.9995) break; }
         }
-        q += falloff(Math.sqrt(best), t.tol);
+        q+=best;
       }
       msum += q/t.samples.length;
     }
@@ -1692,6 +1825,7 @@ function scoreRound(round, strokes){
     mirrored = mcov>0.5 && mcov>cov+0.25;
   }
   return {score, cov, prec, eff, inkRatio, doodle, mirrored,
+          gridish: gridKind(round, strokes, prec),      // グリッド／点打ちハックの検出（バッジ用）
           farInk: fullLen>0 ? farN*step/fullLen : 0};   // 補助線の量（全辺長に対する比）
 }
 const gradeOf = s => s>=88?"S":s>=72?"A":s>=55?"B":s>=35?"C":"D";
@@ -2023,7 +2157,9 @@ function evPoint(e){
 cv.addEventListener("pointerdown", e=>{
   if(state!=="draw") return;
   if(e.pointerType==="pen") lastPenAt=performance.now();
-  if(e.pointerType==="touch" && performance.now()-lastPenAt<8000) return; // palm rejection
+  /* palm rejection: ペンの「接触」から1.5秒だけ指を無視する。
+     8秒は長すぎて「ペンを置いたあと指で描けない」時間が生まれていた */
+  if(e.pointerType==="touch" && performance.now()-lastPenAt<1500) return;
   if(activeId!==null) return;
   activeId=e.pointerId;
   try{ cv.setPointerCapture(e.pointerId); }catch(_){}
@@ -2040,7 +2176,9 @@ cv.addEventListener("pointerdown", e=>{
   e.preventDefault();
 });
 window.addEventListener("pointermove", e=>{
-  if(e.pointerType==="pen") lastPenAt=performance.now();
+  /* ペンの「接触中」だけ記録する。ホバーでも更新すると、Apple Pencilを
+     浮かせて近づけているだけで指入力が拒否され続けるバグになる（保留していた対策E） */
+  if(e.pointerType==="pen" && e.buttons>0) lastPenAt=performance.now();
   // hover indicator for eraser (even when not pressing)
   if(state==="draw" && tool==="eraser" && e.target===cv && activeId===null){
     hoverPos=evPoint(e); render();
@@ -2091,7 +2229,21 @@ function endStroke(e){
   render();
 }
 window.addEventListener("pointerup", endStroke);
-window.addEventListener("pointercancel", endStroke);
+/* パンなどOSにジェスチャを奪われたときは、その線を「確定」ではなく「破棄」する。
+   途切れた線がそのまま採点に混ざるのを防ぐ（保留していた対策F）。
+   消しゴム中に奪われた場合は、消しはじめ時点のスナップショットへ巻き戻す */
+window.addEventListener("pointercancel", e=>{
+  if(activeId!==e.pointerId) return;
+  if(erasing){
+    const snap=history.pop();
+    if(snap) strokes=snap;
+    erasing=false; erasePrev=null; activeId=null;
+    rebuildInk(); render();
+    return;
+  }
+  cur=null; activeId=null;
+  rebuildInk(); render();
+});
 cv.addEventListener("pointerout", ()=>{ if(activeId===null){ hoverPos=null; render(); } });
 cv.addEventListener("contextmenu", e=>e.preventDefault());
 
@@ -2487,6 +2639,9 @@ function roundNotes(res, auto, oneStroke, giveUp){
   if(round.practice) push(v([tr("🌱 れんしゅう（採点対象外）","🌱 Practice (not scored)"),
                              tr("🌱 れんしゅう中。点はつかないよ","🌱 Practice — no score here")]));
   if(giveUp) push(tr("🍀 あきらめないで！1本からでいいよ","🍀 Don't give up — one edge is enough!"));
+  if(res.gridish) push(res.gridish==="dots"
+    ? tr("🌅 みごとな点描！でも点数は線からしか出ないよ","🌅 Fine pointillism! But only lines can score")
+    : tr("🕸️ グリッドでは点がでないよ。辺をなぞろう","🕸️ Grids don't score — trace the edges"));
   if(res.doodle) push(doodleNote(res.doodle, roundIdx));
   else if(res.mirrored) push(v([tr("🪞 左右がぎゃくさまだよ！","🪞 That's the mirror image!"),
                                 tr("🪞 鏡にうつってる！","🪞 You drew it flipped!")]));
@@ -2495,8 +2650,9 @@ function roundNotes(res, auto, oneStroke, giveUp){
   // キーボードショートカットに気づいて使っている人をほめる（1ランに1回）
   if(undoKeyUses>0) pushOnce("undokey", tr("⌨️ Ctrl+Z つかえてる！","⌨️ Nice — Ctrl+Z!"));
   /* 何を直せば伸びるかの診断。「描き落とし」と「位置ずれ」は
-     引いた線の総長で見分ける（本数だと一筆書きの人を誤診する） */
-  if(!res.doodle){
+     引いた線の総長で見分ける（本数だと一筆書きの人を誤診する）。
+     グリッド／点描の回は🕸️🌅の一言が原因を言っているので診断は出さない */
+  if(!res.doodle && !res.gridish){
     const needLen=round.targets.reduce((a,t)=>a+(t.len||Math.hypot(t.pb.x-t.pa.x,t.pb.y-t.pa.y)),0);
     let drawnLen=0;
     for(const s of strokes){ const p=s.pts;
@@ -2615,7 +2771,7 @@ function submit(auto){
     shot, baseShot, shotScale,
     strokes: strokes.map(s=>({pts:s.pts.map(p=>({x:p.x,y:p.y,w:p.w,t:p.t||0}))})),
     score:res.score, practice:round.practice, timedOut:!!auto, doodle:res.doodle||null,
-    oneStroke, mirrored:!!res.mirrored,
+    oneStroke, mirrored:!!res.mirrored, gridish:res.gridish||null,
     farInk:res.farInk||0, erased:eraseUses, strokeCount:strokes.length,
     undoKey:undoKeyUses, undoBtn:undoBtnUses, cleared:clearUses,
     // アオリ／フカンの回か、最初の線を引くまでに何秒かけたか（バッジの判定用）
@@ -2708,6 +2864,9 @@ function showFinal(){
   }
   if(R.some(r=>r.oneStroke)) add("oneStroke",SPECIAL_TITLES);
   if(R.filter(r=>r.mirrored).length>=2) add("mirror",SPECIAL_TITLES);
+  // グリッド／点描の回が半分以上（採点は向き判定で既に0点近くになる。バッジは別々）
+  if(R.filter(r=>r.gridish==="grid").length>=half) add("grid",SPECIAL_TITLES);
+  if(R.filter(r=>r.gridish==="dots").length>=half) add("impress",SPECIAL_TITLES);
   // 補助線をたくさん使う人（立方体の外に全辺長と同じくらい線を引いている）
   if(R.filter(r=>r.farInk>=0.8).length>=half) add("guide",SPECIAL_TITLES);
   // 早撃ち: 10秒以内に描き上げてそれなりの点を出した回が3回以上
@@ -2863,6 +3022,32 @@ async function rankFetch(path, opts){
     });
   }finally{ clearTimeout(timer); }
 }
+/* ---- 匿名起動ログ（配信元別のプレイ数計測） ----
+   送るのは「どの配信元か（itch/pages/pwa/app/other）」とバージョンだけ。
+   端末やプレイヤーを識別する情報は一切含まない（privacy.htmlにも明記）。
+   1端末1日1回だけ（localStorageで記録。成功時のみ記録＝失敗したら翌ロードで再試行）。
+   テーブル未作成(404)でも黙って失敗するだけでゲームには影響しない */
+(function(){
+  try{
+    if(!RANK_ENABLED || location.protocol==="file:") return;   // 開発中は数えない
+    const LKEY="cube-challenge-lastlog";
+    const today=todaySeedStr();
+    if(localStorage.getItem(LKEY)===today) return;
+    const standalone=(window.matchMedia && matchMedia("(display-mode: standalone)").matches)
+      || navigator.standalone===true;
+    const origin = CAP ? "app"
+      : location.hostname.includes("itch") ? "itch"
+      : standalone ? "pwa"
+      : location.hostname.includes("github.io") ? "pages"
+      : "other";
+    fetch(RANK_URL+"/rest/v1/launches",{method:"POST",
+      headers:{apikey:RANK_KEY, Authorization:"Bearer "+RANK_KEY,
+               "Content-Type":"application/json", Prefer:"return=minimal"},
+      body:JSON.stringify({origin, ver:GAME_VER}),
+    }).then(r=>{ if(r.ok){ try{ localStorage.setItem(LKEY,today); }catch(_){} } }).catch(()=>{});
+  }catch(_){}
+})();
+
 /* ランキングの集計単位: 通常プレイ=モード別 / デイリー=その日 / シード戦・変化球セレクト=対象外 */
 const boardKey = () => isDaily ? "daily:"+(dailyDate||todaySeedStr())
   : (seededRun || twistSelRun) ? null : "mode:"+mode;
