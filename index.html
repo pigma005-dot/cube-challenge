@@ -205,6 +205,15 @@
   .foot{font-size:12px;color:#947d8b;margin-top:12px;line-height:1.7;font-weight:600;}
   #menuOverlay .foot{display:flex;justify-content:space-between;align-items:center;}
 
+  /* 離席から戻ったときの「3・2・1」。全面を覆うので、カウント中の描画・誤タップも自然に防げる
+     （タブを切り替えるたびに時間外で描ける抜け道を塞ぐ意味もある） */
+  #resumeVeil{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;background:rgba(255,249,242,.86);
+    touch-action:none;user-select:none;}
+  #resumeNum{font-size:86px;font-weight:800;line-height:1;color:var(--plum-dark);
+    animation:pop .35s cubic-bezier(.34,1.8,.64,1);}
+  #resumeLab{font-size:15px;font-weight:800;color:#9a8090;margin-top:10px;}
+
   /* かくしメニュー: 変化球セレクト（コナミコマンド／タイトル7連打で解放）。
      解放時だけメニューが伸びるので、itchの720px枠でも溢れないよう詰めてある */
   #twistSelBox{margin:0 0 4px;padding:5px 10px 4px;border-radius:16px;
@@ -434,6 +443,17 @@
       <span><span class="mn">📅 きょうのチャレンジ</span></span>
       <span class="best" id="bestDailyLab"></span>
     </button>
+    <button class="modeBtn" id="btnModes" style="background:#f3f0ff;border-color:#c9b8f0;">
+      <span><span class="mn">🎮 モードをえらぶ</span></span>
+    </button>
+    <button id="btnSeedPlay" style="display:none;width:100%;background:#f2fbff;border-color:#bfe3ff;font-size:13.5px;">🔗 シードを入力して同じお題であそぶ</button>
+    <div class="foot"><span style="opacity:.85">つくったひと：<a href="https://x.com/daromeon" target="_blank" rel="noopener" style="color:#e86f9e;text-decoration:none;font-weight:800;">@daromeon</a></span><span id="verLab" style="opacity:.6"></span></div>
+  </div>
+</div>
+
+<div id="modePopup" class="overlay hidden">
+  <div class="card">
+    <h1 id="modePopTitle" style="font-size:20px;margin:0 0 12px;">🎮 モードをえらぶ</h1>
     <button class="modeBtn" data-mode="normal">
       <span><span class="mn">🧊 ノーマル</span></span>
       <span class="best" id="bestNormal"></span>
@@ -446,6 +466,10 @@
       <span><span class="mn">🧊🧊 ダブル</span></span>
       <span class="best" id="bestDouble"></span>
     </button>
+    <button class="modeBtn" data-mode="endless">
+      <span><span class="mn">♾️ 無限モード</span><br><span class="md">1ラウンドごとに時間がみじかく、ごうかくラインは高くなる</span></span>
+      <span class="best" id="bestEndless"></span>
+    </button>
     <div id="twistSelBox" style="display:none">
       <div id="twistSelLab">🎮 変化球セレクト（きろくはつかないよ）</div>
       <div id="twistSelRow">
@@ -456,8 +480,7 @@
         <button class="twistSelBtn" data-twist="maru">⭕ まんまる</button>
       </div>
     </div>
-    <button id="btnSeedPlay" style="display:none;width:100%;background:#f2fbff;border-color:#bfe3ff;font-size:13.5px;">🔗 シードを入力して同じお題であそぶ</button>
-    <div class="foot"><span style="opacity:.85">つくったひと：<a href="https://x.com/daromeon" target="_blank" rel="noopener" style="color:#e86f9e;text-decoration:none;font-weight:800;">@daromeon</a></span><span id="verLab" style="opacity:.6"></span></div>
+    <button id="btnModeClose" class="ghost small" style="width:100%;margin-top:4px;">✕ とじる</button>
   </div>
 </div>
 
@@ -510,6 +533,11 @@
     <p id="twistDesc" style="font-size:13px;color:#8a6f80;margin:0 0 12px;font-weight:700;line-height:1.5;"></p>
     <button id="btnTwistGo" class="primary"></button>
   </div>
+</div>
+
+<div id="resumeVeil" class="hidden">
+  <div id="resumeNum">3</div>
+  <div id="resumeLab">もうすぐ さいかい！</div>
 </div>
 
 <div id="shotPopup" class="hidden">
@@ -1249,7 +1277,11 @@ function yCornerMinAngle(c){
 function genRound(mode, practice, W, H){
   // アオリ／フカンにするかは再抽選をまたいで固定する（確率を正確に20%に保つため）
   // 変化球の日はアオリを混ぜない（十字＋強ピッチは難しすぎるため）
-  const tilted = mode!=="double" && !gameTwist && rng()<TILTED_RATE;
+  /* チャレンジでは、時間に余裕のある序盤だけアオリ／フカンを混ぜる。
+     4〜7秒のラウンドで引くと実力ではなく運で即死するため（rng()は必ず消費して
+     お題の決定性を保つ） */
+  const tilted = mode!=="double" && !gameTwist && rng()<TILTED_RATE
+    && (!endlessRun || endTime(roundIdx)>=8);
   let r=null;
   for(let i=0;i<40;i++){
     r=buildRound(mode, practice, W, H, tilted);
@@ -2155,7 +2187,7 @@ function evPoint(e){
            t: performance.now()-roundStart };
 }
 cv.addEventListener("pointerdown", e=>{
-  if(state!=="draw") return;
+  if(state!=="draw" || inputFrozen()) return;   // ポーズ中・復帰カウントダウン中は描かせない
   if(e.pointerType==="pen") lastPenAt=performance.now();
   /* palm rejection: ペンの「接触」から1.5秒だけ指を無視する。
      8秒は長すぎて「ペンを置いたあと指で描けない」時間が生まれていた */
@@ -2254,6 +2286,8 @@ const judgedTimes=()=>{ try{ return +localStorage.getItem(JUDGE_KEY)||0; }catch(
 function maybeShowJudgeHint(){
   const need=Math.min(4, round?round.targets.length:4); // お題が3辺なら3本で出す
   if(state!=="draw" || strokes.length<need || judgedTimes()>=5) return;
+  // 制限時間が短い回では、1.3秒後に出る矢印は「出た瞬間に時間切れ」の演出ノイズにしかならない
+  if((round.timeLimit||TIME_LIMIT) < 10) return;
   clearTimeout(judgeHintTimer);
   judgeHintTimer=setTimeout(()=>{
     if(state!=="draw" || strokes.length<need) return;
@@ -2279,21 +2313,30 @@ function hideJudgeHint(){
 
 /* ================= timer ================= */
 let timerId=null, deadline=0, lastTickSec=null, timedOut=false;
-let curLimit=TIME_LIMIT;   // このラウンドの制限時間（月末スペシャルだけ60秒）
+let curLimit=TIME_LIMIT;   // このラウンドの制限時間（チャレンジは毎ラウンド変わる）
+/* 警告を出しはじめる残り秒数。絶対値5秒のままだと、制限時間そのものが4〜7秒の
+   チャレンジ後半で「開始と同時に警報が鳴り、赤く点滅し続ける」状態になるので
+   制限時間に対する割合で決める（30秒→5、13秒→5、9秒→4、7秒→3、4秒→2 で従来モードは挙動不変） */
+let warnAt=5;
+const warnFor = lim => Math.max(2, Math.min(5, Math.round(lim*0.4)));
 const ARC_LEN=119.4;
 function updateTimerUI(t){
   $("#timerNum").textContent=Math.ceil(t);
   $("#timerArc").setAttribute("stroke-dashoffset", (ARC_LEN*(1-t/curLimit)).toFixed(1));
-  const danger=t<=5.5;
+  const danger=t<=warnAt+0.5;
   $("#timerWrap").classList.toggle("danger",danger);
   $("#timerArc").setAttribute("stroke", danger?"#e14b5a":"#ff8fb7");
 }
 function startTimer(){
   stopTimer();
+  /* 世代を進めて、前ラウンドの復帰カウントダウンがこのラウンドに書き込むのを防ぐ。
+     練習ラウンドで早期returnする前に必ず通すこと */
+  timerGen++; clearResume(); pausedLeft=null;
   timedOut=false;
   if(round.practice){ $("#timerWrap").classList.add("hidden"); return; }
   $("#timerWrap").classList.remove("hidden");
   curLimit = round.timeLimit || TIME_LIMIT;
+  warnAt = warnFor(curLimit);
   deadline=performance.now()+curLimit*1000;
   lastTickSec=null;
   updateTimerUI(curLimit);
@@ -2307,12 +2350,74 @@ function startTimer(){
     }else{
       updateTimerUI(t);
       const s=Math.ceil(t);
-      // 残り5秒で軽く予告 → 残り4秒からは警告音でせかす
-      if(s<=5 && s!==lastTickSec){ lastTickSec=s; s>=5 ? Sound.tick() : Sound.countdown(s); }
+      // 最初の1回は軽い予告、そこから先は警告音でせかす
+      if(s<=warnAt && s!==lastTickSec){ lastTickSec=s; s>=warnAt ? Sound.tick() : Sound.countdown(s); }
     }
   },100);
 }
 function stopTimer(){ if(timerId){ clearInterval(timerId); timerId=null; } }
+/* 通知・タブ切替・ホーム画面への離脱でタイマーを止める。
+   止めないと、戻った瞬間に時間切れ判定が走って「見ていないうちにラウンドを失う」。
+   ラン全体が一撃で終わるチャレンジモードでは特に致命的。
+   復帰時はすぐ再開せず「3・2・1」を挟んで、画面を認識する時間を返す。
+
+   ⚠ ここは実装で3回踏んだ落とし穴がある。必ず次の3点を守ること:
+   ①カウントダウン中(timerId===null)に再び離脱しても止められること
+     → 止めないと、裏でカウントダウンが完走して本タイマーが非表示のまま走り出す
+   ②カウントダウンは「始まったラウンド」以外に絶対に書き込まないこと（timerGenで判定）
+     → 判定→つぎへ が700msの隙間に入ると、次ラウンドの残り時間を前ラウンドの値で上書きし、
+       100msタイマーが二重に走る（実測: 13秒のラウンドが0.32秒になって即死した）
+   ③カウントダウン中は入力を止めること
+     → 止めないと「タブを切り替えるたびに約2秒の時間外描画」ができてしまう */
+let pausedLeft=null, resumeTimer=null, timerGen=0;
+function clearResume(){
+  if(resumeTimer){ clearInterval(resumeTimer); resumeTimer=null; }
+  $("#resumeVeil").classList.add("hidden");
+}
+const inputFrozen = () => pausedLeft!==null;   // ポーズ中・カウントダウン中は描けない
+function pauseRoundTimer(){
+  if(state!=="draw" || !round || round.practice) return;
+  // カウントダウン中に再離脱: カウントダウンだけ止めて「止まったまま」を保つ
+  // （pausedLeft は残すので、次の復帰で3・2・1をやり直す）
+  if(resumeTimer){ clearResume(); return; }
+  if(!timerId) return;
+  pausedLeft=Math.max(0.5,(deadline-performance.now())/1000);
+  stopTimer();
+  clearResume();
+}
+function resumeRoundTimer(){
+  if(pausedLeft===null || state!=="draw" || resumeTimer) return;
+  const gen=timerGen;              // このカウントダウンが属するラウンド
+  let n=3;
+  const veil=$("#resumeVeil"), num=$("#resumeNum");
+  veil.classList.remove("hidden");
+  const tick=()=>{
+    // 別のラウンドに移った／ゲームが終わった場合は、何も書き込まずに消える
+    if(gen!==timerGen || state!=="draw"){ clearResume(); pausedLeft=null; return; }
+    if(n>0){ num.textContent=n; $("#timerNum").textContent=n; n--; return; }
+    clearResume();
+    const left=pausedLeft; pausedLeft=null;
+    stopTimer();                   // 孤児インターバルを残さない
+    deadline=performance.now()+left*1000;
+    lastTickSec=null;
+    timerId=setInterval(()=>{
+      const t=(deadline-performance.now())/1000;
+      if(t<=0){ stopTimer(); updateTimerUI(0); timedOut=true; submit(true); }
+      else{
+        updateTimerUI(t);
+        const s=Math.ceil(t);
+        if(s<=warnAt && s!==lastTickSec){ lastTickSec=s; s>=warnAt ? Sound.tick() : Sound.countdown(s); }
+      }
+    },100);
+  };
+  tick();
+  resumeTimer=setInterval(tick,700);
+}
+document.addEventListener("visibilitychange",()=>{
+  if(document.hidden) pauseRoundTimer(); else resumeRoundTimer();
+});
+window.addEventListener("pagehide", pauseRoundTimer);
+window.addEventListener("pageshow", resumeRoundTimer);
 
 /* ================= game state ================= */
 const MODES={
@@ -2322,9 +2427,37 @@ const MODES={
         hint:tr("かくれてる辺も、ぜんぶかこう！","Draw every edge — even the hidden ones!")},
   double:{name:tr("🧊🧊 ダブル","🧊🧊 Double"),
           hint:tr("2つともかんせいさせよう！消失点はおなじかな…？","Finish both cubes! Same vanishing points… or not?")},
+  endless:{name:tr("♾️ 無限モード","♾️ Endless"),
+          hint:tr("時間はどんどんみじかくなる！合格ラインを下回ったら終わりだよ",
+                  "Time keeps shrinking — drop below the pass line and it's over!")},
 };
 const TOTAL_ROUNDS=8, PRACTICE_ROUNDS=2;   // 練習2＋本番6（8本番は長いというユーザーFBで短縮）
+
+/* ================= チャレンジモード（エンドレス・サバイバル） =================
+   ラウンドごとに制限時間が縮み、合格ラインは上がる。
+   タイムアウト、または「合格ライン以下」でラン終了＝何ラウンド生き延びたかを競う。
+   ★数値の根拠（実測・2026-07-28）:
+   ・5辺のお題で 2本を正確に描くと 49.8点。これが「手抜き戦法」の理論上限。
+     → R17 で合格ライン50点がこれを上回るので、手抜きはそこで数学的に死ぬ。
+   ・4秒では 認知0.4＋パースの読み1.5＋3本描画2.2＋判定0.15＝4.25秒 が必要になり、
+     合格60点（3本以上が要る）は物理的に不可能。→ 遅くともR19〜20で必ず終了する
+     ＝ランキングに入る値が有界（score列の0-100制約を超えない）。
+   ・序盤の合格ラインを20点に下げてあるのは、30秒でも事故で30点を割る回が
+     実測5〜8%あり、「時間はたっぷり余っているのに理不尽に死ぬ」のを防ぐため。 */
+const END_TIMES=[15,13,12,11,10,9,8,8,7,7,6,6,5,5,4];   // 16ラウンド目以降はずっと4秒
+/* 合格ライン（この点数「以上」で生き残る）。表示と判定を必ず同じ値で行うこと——
+   別々にすると「21点必要と出ているのに20.5点で生き残る」ようなズレが出る */
+const END_KEEP_SHOTS=8;   // 結果画面に残すサムネイルの数（古い回の画像は捨ててメモリを守る）
+/* 人間なら合格ラインが物理的に届かなくなるR19〜20で必ず終わるが、
+   スクリプトで正解をなぞられると理論上は永久に続く。
+   ランキングの値（ラウンド数）を0-100に収めるためのハードキャップ。 */
+const END_MAX=99;
+const endTime  = r => END_TIMES[Math.min(r, END_TIMES.length-1)];   // r=0起点
+const endPass = r => (r+1<=15 ? 20+5*Math.floor(r/3) : 40+5*(r+1-15)) + 1;
 let state="menu", mode="normal", roundIdx=0, round=null, scores=[];
+/* ラン単位の可変値。チャレンジは「練習なし・無限ラウンド」になる */
+let totalRounds=TOTAL_ROUNDS, practiceRounds=PRACTICE_ROUNDS, endlessRun=false;
+let endDead=false, endDeadReason="";   // ランを終わらせたか／死因（"time"|"score"）
 let roundsInfo=[];   // {shot,baseShot,shotScale,strokes,score,practice,timedOut} per round
 let lastFinal=null;  // {avg,g,isBest,ttl}
 let gameSeed="", seededRun=false, isDaily=false, roundStart=0, resultAt=0;
@@ -2349,7 +2482,10 @@ function setState(s){
 function updateHud(){
   // チップと説明はラウンドの実モードに従う（変化球「ふたご」ではダブル表示になる）
   $("#modeChip").textContent = MODES[round.mode].name;
-  $("#roundChip").textContent = tr(`ラウンド ${roundIdx+1} / ${TOTAL_ROUNDS}`,`Round ${roundIdx+1} / ${TOTAL_ROUNDS}`);
+  // エンドレスは分母を出さず、代わりに今の合格ラインを見せる（時間とは別軸の緊張）
+  $("#roundChip").textContent = endlessRun
+    ? tr(`R${roundIdx+1}・ごうかく ${endPass(roundIdx)}点`,`R${roundIdx+1} · pass ${endPass(roundIdx)}`)
+    : tr(`ラウンド ${roundIdx+1} / ${totalRounds}`,`Round ${roundIdx+1} / ${totalRounds}`);
   $("#practiceChip").classList.toggle("hidden", !round.practice);
   $("#hint").textContent = round.practice
     ? tr("うすいガイドをなぞって、パースのかんかくをつかもう🌱","Trace the faint guides to get a feel for perspective 🌱")
@@ -2369,7 +2505,9 @@ function newRound(){
     : gameTwist==="dbl"  ? "double"
     : gameTwist==="wire" ? "wire"
     : mode;
-  round = genRound(effMode, roundIdx<PRACTICE_ROUNDS, W, H);
+  round = genRound(effMode, roundIdx<practiceRounds, W, H);
+  // チャレンジはラウンドごとに制限時間が縮む（変化球の60秒などと衝突しないよう後から上書き）
+  if(endlessRun) round.timeLimit = endTime(roundIdx);
   roundStart = performance.now();
   strokes=[]; cur=null; activeId=null; history=[]; erasing=false; hoverPos=null;
   eraseUses=0; undoKeyUses=0; undoBtnUses=0; clearUses=0;
@@ -2578,16 +2716,25 @@ function showTwistIntro(k, onceEver){
 function startGame(m, opts){
   opts=opts||{};
   mode=m; roundIdx=0; scores=[]; roundsInfo=[]; encouraged=false; noteOnce=new Set(); inputPts={};
+  /* チャレンジ＝エンドレス・サバイバル。練習ラウンドは置かない
+     （練習はタイマー自体が出ないので、ラダー先頭が「無制限の練習」に食われる） */
+  endlessRun = (m==="endless");
+  totalRounds  = endlessRun ? Infinity : TOTAL_ROUNDS;
+  practiceRounds = endlessRun ? 0 : PRACTICE_ROUNDS;
+  endDead=false; endDeadReason="";
   gameSeed = opts.seed || randomSeed();
   seededRun = !!opts.seed;
   // 変化球はシードの日付から決まる（デイリー本番も、共有された?seed=での再挑戦も同じお題になる）。
-  // opts.twist は変化球セレクト（かくしメニュー）からの指名。この回は記録対象外にする
-  gameTwist = (TWISTS[opts.twist] && opts.twist) || twistForDailySeed(gameSeed) || null;
-  twistSelRun = !!(TWISTS[opts.twist] && opts.twist);
+  // opts.twist は変化球セレクト（かくしメニュー）からの指名。この回は記録対象外にする。
+  // チャレンジは純粋な腕試しなので変化球を混ぜない（?seed=で日付を渡されても無効）
+  gameTwist = endlessRun ? null
+    : (TWISTS[opts.twist] && opts.twist) || twistForDailySeed(gameSeed) || null;
+  twistSelRun = !!(TWISTS[opts.twist] && opts.twist) && !endlessRun;
   isDaily = !!opts.daily;
   dailyDate = isDaily ? (opts.seed||todaySeedStr()) : "";
   $("#menuOverlay").classList.add("hidden");
   $("#finalOverlay").classList.add("hidden");
+  $("#modePopup").classList.add("hidden");
   // ポップアップが開いたまま次のゲームが始まると、キャンバスの上に残って操作を塞ぐ
   stopReplay();
   $("#shotPopup").classList.add("hidden");
@@ -2604,7 +2751,8 @@ function startGame(m, opts){
    下手な人を巻き込まないよう、点数ではなく“手数と時間”で判定する。
    （難しい回を粘って時間切れになった人は対象にしない） */
 function gaveUpNow(res, elapsedSec, auto){
-  if(encouraged || round.practice) return false;
+  // チャレンジは「速く判定する」のが正しい遊び方なので、投げやり判定（12秒以内＝あきらめ）は使わない
+  if(encouraged || round.practice || endlessRun) return false;
   const R=roundsInfo.filter(r=>!r.practice);
   // もともとちゃんと描いていた回が2回以上あることが前提
   if(R.filter(r=>r.strokeCount>=3 && r.score>=45).length<2) return false;
@@ -2633,9 +2781,17 @@ function roundNotes(res, auto, oneStroke, giveUp){
   const pushLoud=s=>{ if(!quiet) push(s); };
   const R=roundsInfo.filter(r=>!r.practice);       // まだ今回はpushされていない＝前回まで
   const prev=R.length?R[R.length-1]:null;
+  /* 時間切れは「合否」ではなく事実の通知。描けていた分で合格ラインを超えていれば生き残る */
   if(auto) push(v([tr("⏰ じかんぎれ！","⏰ Time's up!"),
                    tr("⏰ タイムアップ！","⏰ Out of time!"),
                    tr("⏰ ここまで！","⏰ Pens down!")]));
+  /* ランが終わった回は、理由をはっきり出す（説明なく終わると「壊れた」と読まれる） */
+  if(endlessRun && endDead){
+    push(endDeadReason==="cap"
+      ? tr("👑 ここまで来たらもう完璧だよ","👑 That's as far as it goes — flawless")
+      : tr(`😵 ごうかくライン ${endPass(roundIdx)}点にとどかず`,
+           `😵 Below the ${endPass(roundIdx)}-point pass line`));
+  }
   if(round.practice) push(v([tr("🌱 れんしゅう（採点対象外）","🌱 Practice (not scored)"),
                              tr("🌱 れんしゅう中。点はつかないよ","🌱 Practice — no score here")]));
   if(giveUp) push(tr("🍀 あきらめないで！1本からでいいよ","🍀 Don't give up — one edge is enough!"));
@@ -2713,7 +2869,9 @@ function roundNotes(res, auto, oneStroke, giveUp){
       A:[tr("👏 いいかんじ！","👏 Nicely done!"), tr("👏 かなり近い","👏 Very close"), tr("👏 つかめてる","👏 You've got it")],
       B:[tr("🧊 かたちになってきた","🧊 It's taking shape"), tr("🧊 立方体に見える","🧊 Reads as a cube"), tr("🧊 あと一歩","🧊 One step away")],
       C:[tr("🌱 つぎはもうすこし","🌱 A little closer next time"), tr("🌱 おしい","🌱 So close"), tr("🌱 かたちは見えてる","🌱 The shape is there")],
-      D:[tr("🌱 ゆっくりでいいよ","🌱 Take your time"), tr("🌱 つぎの1回で","🌱 Next one's yours"), tr("🌱 まだ6回ある","🌱 Plenty of rounds left")],
+      D:[tr("🌱 ゆっくりでいいよ","🌱 Take your time"), tr("🌱 つぎの1回で","🌱 Next one's yours"),
+         endlessRun ? tr("🌱 つぎで取りかえそう","🌱 Win it back next round")
+                      : tr("🌱 まだ6回ある","🌱 Plenty of rounds left")],
     }[gradeOf(res.score)];
     push(vv[roundIdx % vv.length]);
   }
@@ -2722,6 +2880,7 @@ function roundNotes(res, auto, oneStroke, giveUp){
 
 function submit(auto){
   if(state!=="draw") return;
+  if(!auto && inputFrozen()) return;   // 復帰カウントダウン中の判定は受け付けない
   // 縦画面では「つぎへ」と「はんてい！」がほぼ同じ位置に出るため、
   // ラウンド開始直後の誤タップ（ダブルタップの2打目）で0点にならないよう無視する
   if(!auto && performance.now()-roundStart < 450) return;
@@ -2736,6 +2895,18 @@ function submit(auto){
   // ペンを一度も離さずに描き切った人（かくし称号「一筆書きの達人」）
   const oneStroke = strokes.length===1 && res.score>=60;
   round.result=res;
+  /* チャレンジの生死判定はここ1箇所だけで決める（submitとnextの二重発火を避ける）。
+     表示は2桁に丸めた値なので、判定も丸めた値で行う——「30.00点なのに死んだ」を防ぐ */
+  /* 時間切れそのものは不合格にしない（ユーザー判断）。
+     ブザーが鳴る前に描けていた分はちゃんと採点され、合格ラインを超えていれば生き残る。
+     ＝時間の短さは「点が伸びない」という形で効き、二重の罰にはしない。
+     終了は「合格ラインを下回った」ときだけ。ラインはR27で101点＝満点でも不可能になるので
+     必ず終わる（時間切れ判定に頼らなくても有界であることは変わらない） */
+  if(endlessRun && !endDead){
+    const shown=+res.score.toFixed(2);
+    if(shown<endPass(roundIdx)){ endDead=true; endDeadReason="score"; }
+    else if(roundIdx>=END_MAX-1){ endDead=true; endDeadReason="cap"; }
+  }
   scores.push(round.practice ? null : res.score);
   setState("roundResult");
   resultAt=performance.now();
@@ -2747,7 +2918,8 @@ function submit(auto){
   const giveUp = gaveUpNow(res, (performance.now()-roundStart)/1000, auto);
   if(giveUp) encouraged=true;            // 1ラン1回だけ。しつこく言わない
   $("#rpNote").textContent = roundNotes(res, auto, oneStroke, giveUp).join("　");
-  $("#btnNext").textContent = roundIdx===TOTAL_ROUNDS-1 ? tr("🏁 けっかをみる","🏁 See results") : tr("➡️ つぎへ","➡️ Next");
+  $("#btnNext").textContent = (endlessRun ? endDead : roundIdx===totalRounds-1)
+    ? tr("🏁 けっかをみる","🏁 See results") : tr("➡️ つぎへ","➡️ Next");
   if(auto) Sound.timeup(); else Sound.score(g);
   // 答え合わせスナップショット（最終画面グリッド＆シェア用）と
   // インクなしベース画像（リプレイ用）を撮っておく
@@ -2781,6 +2953,13 @@ function submit(auto){
     secLeft: round.practice ? null : Math.max(0,(deadline-performance.now())/1000),
     limit: round.timeLimit || TIME_LIMIT,
   });
+  /* エンドレスでは roundsInfo が際限なく膨らむ（1ラウンドあたりJPEG2枚＋全ストローク座標）。
+     長く生き延びた人ほどメモリで落ちるのは本末転倒なので、
+     古い回の重いデータだけ捨てる（点数などの集計用フィールドは残す） */
+  if(endlessRun && roundsInfo.length>END_KEEP_SHOTS){
+    const drop=roundsInfo[roundsInfo.length-1-END_KEEP_SHOTS];
+    if(drop){ drop.shot=null; drop.baseShot=null; drop.strokes=[]; }
+  }
   if(!round.practice && g==="S") fx.burst(70);
   render();
 }
@@ -2789,23 +2968,47 @@ function next(){
   if(state!=="roundResult") return;
   // 「はんてい！」の誤ダブルタップで答え合わせを飛ばさないようにする
   if(performance.now()-resultAt < 450) return;
+  // チャレンジは死んだ時だけ終わる（ラウンド数の上限はない）
+  if(endlessRun){
+    if(endDead){ showFinal(); return; }
+    roundIdx++; newRound(); return;
+  }
   roundIdx++;
-  if(roundIdx>=TOTAL_ROUNDS){ showFinal(); } else { newRound(); }
+  if(roundIdx>=totalRounds){ showFinal(); } else { newRound(); }
 }
 
 function showFinal(){
   setState("final");
   const scored=scores.filter(s=>s!==null);
-  const avg=Math.round(scored.reduce((a,b)=>a+b,0)/scored.length*100)/100;
-  const g=gradeOf(avg);
+  // 1ラウンドも採点されずに終わっても NaN にしない（チャレンジは初回で死にうる）
+  const avg = scored.length
+    ? Math.round(scored.reduce((a,b)=>a+b,0)/scored.length*100)/100 : 0;
+  /* チャレンジの成績は「平均点」ではなく「生き延びたラウンド数」。
+     死んだラウンドは越えられていないので数に入れない。
+     同点崩し用に、生き延びた回だけの平均点も出しておく（早く死んだ人が
+     平均で有利にならないよう、順位は必ずラウンド数が優先される） */
+  const survived = endlessRun
+    ? (endDeadReason==="cap" ? scored.length : Math.max(0, scored.length-1)) : 0;
+  const aliveArr = endlessRun ? scored.slice(0,survived) : [];
+  const avgAlive = aliveArr.length
+    ? Math.round(aliveArr.reduce((a,b)=>a+b,0)/aliveArr.length*100)/100 : 0;
+  const g=gradeOf(endlessRun ? avgAlive : avg);
   $("#finalMode").textContent = twistSelRun && TWISTS[gameTwist]
     ? tr("変化球セレクト・","Twist Select · ")+TWISTS[gameTwist].name()
     : MODES[mode].name + (isDaily?tr("・きょうのチャレンジ"," · Daily Challenge"):"");
-  $("#finalScore").innerHTML=`${avg.toFixed(2)}<small>${tr("点","pts")}</small>`;
-  $("#finalGrade").textContent=g;
-  $("#finalGrade").style.background=gradeColor(g);
+  if(endlessRun){
+    $("#finalScore").innerHTML=`${survived}<small>${tr("ラウンド","rounds")}</small>`;
+    $("#finalGrade").textContent=g;
+    $("#finalGrade").style.background=gradeColor(g);
+  }else{
+    $("#finalScore").innerHTML=`${avg.toFixed(2)}<small>${tr("点","pts")}</small>`;
+    $("#finalGrade").textContent=g;
+    $("#finalGrade").style.background=gradeColor(g);
+  }
   const grid=$("#finalGrid"); grid.innerHTML="";
+  // エンドレスでは画像を捨てた古い回があるので、残っている回だけ並べる
   roundsInfo.forEach((info,i)=>{
+    if(endlessRun && !info.shot) return;
     const cell=document.createElement("div");
     cell.className="shotCell"+(info.practice?" practice":"");
     const im=document.createElement("img");
@@ -2834,20 +3037,35 @@ function showFinal(){
     }
     // 押せなくはせず薄く見せる（押すと「また明日ね！」と理由が出る方が親切）
     $("#btnRetry").style.opacity = left===0 ? .55 : 1;
-  }else if(seededRun){
+  }else if(seededRun && !endlessRun){
     $("#finalBest").textContent = best[mode]!==undefined
       ? tr(`自己ベスト：${(+best[mode]).toFixed(2)}点（シード戦は記録対象外）`,`Personal best: ${(+best[mode]).toFixed(2)} (seed runs aren't recorded)`)
       : tr("シード戦は自己ベスト対象外","Seed runs don't count toward your best");
   }else if(twistSelRun){
     $("#finalBest").textContent = tr("変化球セレクトは記録対象外（れんしゅう）","Twist-select runs aren't recorded (practice)");
+  }else if(endlessRun){
+    const reason = endDeadReason==="cap"
+      ? tr("👑 かんぜんせいは！","👑 Perfect run!")
+      : tr(`😵 ごうかくライン ${endPass(Math.max(0,scored.length-1))}点にとどかず`,
+           `😵 Below the ${endPass(Math.max(0,scored.length-1))}-point pass line`);
+    // シード付きチャレンジ（同じお題での対戦）は自己ベストに記録しない
+    if(seededRun){
+      $("#finalBest").textContent=reason+tr("　シード戦は記録対象外","  (seed runs aren't recorded)");
+    }else if(best.endless===undefined || survived>best.endless){
+      best.endless=survived; saveBest(best); isBest=true;
+      $("#finalBest").textContent=reason+tr("　🏆 自己ベストこうしん！","  🏆 New personal best!");
+    }else{
+      $("#finalBest").textContent=reason+tr(`　自己ベスト：${best.endless}ラウンド`,`  Best: ${best.endless} rounds`);
+    }
   }else if(best[mode]===undefined || avg>best[mode]){
     best[mode]=avg; saveBest(best); isBest=true;
     $("#finalBest").textContent=tr("🏆 自己ベストこうしん！","🏆 New personal best!");
   }else{
     $("#finalBest").textContent=tr(`自己ベスト：${(+best[mode]).toFixed(2)}点`,`Personal best: ${(+best[mode]).toFixed(2)}`);
   }
-  // ハリガネ／まんまるの日（セレクト含む。封印中のハリガネモードも）はテーマ称号
-  const ttl=titleOf(avg, gameTwist==="maru" ? TITLES_MARU
+  // ハリガネ／まんまるの日（セレクト含む。封印中のハリガネモードも）はテーマ称号。
+  // チャレンジは死んだ回を含む平均だと不当に低く出るので、グレードと同じ avgAlive で決める
+  const ttl=titleOf(endlessRun ? avgAlive : avg, gameTwist==="maru" ? TITLES_MARU
     : (gameTwist==="wire" || mode==="wire") ? TITLES_WIRE : null);
   $("#finalTitleLine").textContent=`${ttl.emoji} ${ttl.name}`;
   /* かくしバッジ（条件を満たしたものを並べる。増やす時はここにpushする） */
@@ -2869,10 +3087,13 @@ function showFinal(){
   if(R.filter(r=>r.gridish==="dots").length>=half) add("impress",SPECIAL_TITLES);
   // 補助線をたくさん使う人（立方体の外に全辺長と同じくらい線を引いている）
   if(R.filter(r=>r.farInk>=0.8).length>=half) add("guide",SPECIAL_TITLES);
-  // 早撃ち: 10秒以内に描き上げてそれなりの点を出した回が3回以上
-  if(R.filter(r=>r.secLeft!=null && (r.limit||TIME_LIMIT)-r.secLeft<=10 && r.score>=55).length>=3) add("quick",SPECIAL_TITLES);
-  // ギリギリ職人: 残り2秒未満で「自分で」判定した回が半分以上（時間切れの自動判定は職人技ではない）
-  if(R.filter(r=>r.secLeft!=null && !r.timedOut && r.secLeft<2).length>=half) add("clutch",SPECIAL_TITLES);
+  /* 早撃ち／ギリギリ職人は「絶対秒」で書くと、制限時間が4〜7秒のチャレンジ後半で
+     全ラウンドが自動的に条件を満たしてしまう。制限時間に対する割合で見る
+     （30秒なら従来どおり10秒以内／残り2秒未満と同じ意味になる） */
+  const usedFast = r => (r.limit||TIME_LIMIT)-r.secLeft <= Math.min(10,(r.limit||TIME_LIMIT)*0.34);
+  const clutchy  = r => r.secLeft < Math.min(2,(r.limit||TIME_LIMIT)*0.07);
+  if(R.filter(r=>r.secLeft!=null && usedFast(r) && r.score>=55).length>=3) add("quick",SPECIAL_TITLES);
+  if(R.filter(r=>r.secLeft!=null && !r.timedOut && clutchy(r)).length>=half) add("clutch",SPECIAL_TITLES);
   // 消しゴムの魔術師: よく消して、それでいて点も出している
   if(R.filter(r=>r.erased>=3).length>=half && avg>=40) add("eraser",SPECIAL_TITLES);
   // 無の境地: 本番で一本も描かなかった
@@ -2883,7 +3104,9 @@ function showFinal(){
   if(R.filter(r=>(r.undoKey||0)>0).length>=3 && uKey>uBtn) add("undoKey",SPECIAL_TITLES);
   // よく見る人: 描き出すまでじっくり見ている（平均8秒以上）のに点も出している
   const firsts=R.map(r=>r.firstAt).filter(v=>v!=null);
-  if(firsts.length>=half && firsts.reduce((a,b)=>a+b,0)/firsts.length>=8 && avg>=40) add("observer",SPECIAL_TITLES);
+  const avgLim=R.length ? R.reduce((a,r)=>a+(r.limit||TIME_LIMIT),0)/R.length : TIME_LIMIT;
+  if(firsts.length>=half && firsts.reduce((a,b)=>a+b,0)/firsts.length>=Math.min(8,avgLim*0.27)
+     && avg>=40) add("observer",SPECIAL_TITLES);
   // アオリに強い人: アオリ／フカンの回を1つも落としていない
   const st=R.filter(r=>r.tilted);
   if(st.length && Math.min(...st.map(r=>r.score))>=Math.max(65,avg)) add("steep",SPECIAL_TITLES);
@@ -2893,7 +3116,10 @@ function showFinal(){
   const hh=new Date().getHours(); if(hh>=2 && hh<5) add("night",SPECIAL_TITLES);
   /* 集めたバッジの種類を記録し、4種類以上で「バッジコレクター」を贈る */
   let owned=[]; try{ const v=JSON.parse(localStorage.getItem(COLLECT_KEY)); if(Array.isArray(v)) owned=v; }catch(_){}
-  specials.forEach(s=>{ if(COLLECTIBLES.includes(s.key) && !owned.includes(s.key)) owned.push(s.key); });
+  // チャレンジは条件が特殊（短時間・少ラウンド）でバッジが取りやすいので、
+  // コレクションには加算しない（16種の価値を守る。表示はする）
+  if(!endlessRun)
+    specials.forEach(s=>{ if(COLLECTIBLES.includes(s.key) && !owned.includes(s.key)) owned.push(s.key); });
   owned=owned.filter(k=>COLLECTIBLES.includes(k));
   try{ localStorage.setItem(COLLECT_KEY, JSON.stringify(owned)); }catch(_){}
   if(owned.length>=4) add("collector",SPECIAL_TITLES);
@@ -2905,7 +3131,7 @@ function showFinal(){
     ? tr(`🎭 バッジコレクション ${owned.length} / ${COLLECTIBLES.length}`,
          `🎭 Badges collected ${owned.length} / ${COLLECTIBLES.length}`) : "";
   $("#finalSeed").textContent=tr(`🔗 シード ${gameSeed}（クリックでコピー）`,`🔗 Seed ${gameSeed} (click to copy)`);
-  lastFinal={avg, g, isBest, ttl, specials};
+  lastFinal={avg, g, isBest, ttl, specials, survived, avgAlive, endless:endlessRun};
   // ランキング欄（設定済みかつ対象ボードがある時だけ表示）
   const rb = RANK_ENABLED ? boardKey() : null;
   $("#rankBox").classList.toggle("hidden", !rb);
@@ -3048,9 +3274,12 @@ async function rankFetch(path, opts){
   }catch(_){}
 })();
 
-/* ランキングの集計単位: 通常プレイ=モード別 / デイリー=その日 / シード戦・変化球セレクト=対象外 */
+/* ランキングの集計単位: 通常プレイ=モード別 / デイリー=その日 / シード戦・変化球セレクト=対象外。
+   チャレンジだけは単位が「点」ではなく「ラウンド数」なので、盤の接頭辞から分ける
+   （mode: の盤を点スケール前提で集計している既存SQLを汚さないため） */
 const boardKey = () => isDaily ? "daily:"+(dailyDate||todaySeedStr())
-  : (seededRun || twistSelRun) ? null : "mode:"+mode;
+  : (seededRun || twistSelRun) ? null
+  : endlessRun ? "rounds:endless" : "mode:"+mode;
 /* 端末ごとの匿名プレイヤーID（同一ブラウザ=同一プレイヤーとしてベスト1行を維持） */
 function playerId(){
   let id=null;
@@ -3145,8 +3374,19 @@ async function submitScore(){
   try{
     // 同一プレイヤー(端末ID)はベストスコアで1行を上書き（RPC経由のみ）。
     // 旧方式の直接INSERTはサーバ側のRLSで封鎖済みなのでフォールバックは持たない。
-    let stored=lastFinal.avg;
-    const base={p_pid:playerId(), p_name:name, p_board:board, p_score:lastFinal.avg};
+    /* チャレンジは「生き延びたラウンド数」が成績。ただし値の種類が十数個しかなく
+       素の整数だと同着だらけで、TOP10が最初に到達した10人で固定されてしまう。
+       小数部に「生き延びた回の平均点/100」を入れて同着を崩す
+       （降順ソートでラウンド数が必ず優先され、同ラウンドなら内容の良い方が上）。 */
+    /* 小数部は「整数部へ繰り上がらない」ことが絶対条件。
+       avgAlive=100.00（満点を続けた人）で 0.9999→四捨五入で 1.00 になり、
+       1ラウンドが2ラウンドとして登録されるバグを実測で踏んだ。
+       整数点に切り捨てて 0.99 を上限にする（同着崩しの精度は1点刻みで十分） */
+    const sendVal = lastFinal.endless
+      ? lastFinal.survived + Math.floor(Math.min(99, lastFinal.avgAlive))/100
+      : lastFinal.avg;
+    let stored=sendVal;
+    const base={p_pid:playerId(), p_name:name, p_board:board, p_score:sendVal};
     const inp=mainInput();
     let r=await rankFetch("rpc/submit_score",{method:"POST",
       body:JSON.stringify(inp?{...base, p_input:inp}:base)});
@@ -3169,11 +3409,14 @@ async function submitScore(){
       `scores?select=name,score&board=eq.${encodeURIComponent(board)}&order=score.desc,created_at.asc&limit=10`);
     try{ top=await tr1.json(); }catch(_){ top=[]; }
     const esc=s=>String(s).replace(/[<>&]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]));
+    // 盤の単位で表示を変える（ラウンド盤は整数部だけ見せる。小数部は同着崩し用の内部値）
+    const fmt = v => lastFinal.endless
+      ? tr(`${Math.floor(+v)}ラウンド`,`${Math.floor(+v)} rounds`) : (+v).toFixed(2);
     const rows=top.map((e,i)=>{
       const ic=INPUT_ICON[e.input]||"";
       return `<div class="rrow${e.name===name&&Math.abs(e.score-stored)<0.005?" me":""}">`+
         `<span>${i+1}. ${esc(e.name)}${ic?` <span class="rin" title="${inputLabel(e.input)}">${ic}</span>`:""}</span>`+
-        `<span>${(+e.score).toFixed(2)}</span></div>`;
+        `<span>${fmt(e.score)}</span></div>`;
     }).join("");
     // TOP10がどの入力デバイスで占められているか（追加の通信は発生しない）
     const mix={};
@@ -3182,8 +3425,8 @@ async function submitScore(){
       ? `<div class="rmix">${tr("上位10人","Top 10")}: ` +
         ["pen","mouse","touch"].filter(k=>mix[k]).map(k=>`${INPUT_ICON[k]}${mix[k]}`).join("　") + `</div>`
       : "";
-    const bestNote = stored>lastFinal.avg+0.004
-      ? `<div style="font-size:12px;color:#9a8090;">${tr(`じこベスト ${stored.toFixed(2)}点でとうろく中`,`Your best ${stored.toFixed(2)} stays on the board`)}</div>` : "";
+    const bestNote = stored>sendVal+0.004
+      ? `<div style="font-size:12px;color:#9a8090;">${tr(`じこベスト ${fmt(stored)}でとうろく中`,`Your best ${fmt(stored)} stays on the board`)}</div>` : "";
     $("#rankResult").innerHTML=
       `<div class="big">🏅 ${tr(`${total}人中 ${higher+1}位！`,`Rank ${higher+1} of ${total}!`)}</div>${bestNote}${rows}${mixTxt}`;
     $("#rankEntry").classList.add("hidden");
@@ -3228,20 +3471,36 @@ async function buildShareCard(){
   g.fillStyle="#54455a"; g.font="800 44px "+F;
   g.fillText(tr("🧊 立方体チャレンジ","🧊 Cube Challenge"), M, 78);
   g.fillStyle="#8a6f80"; g.font="700 25px "+F;
-  g.fillText(MODES[mode].name+tr("　そうごうスコア","  ·  Total Score"), M, 118);
+  g.fillText(MODES[mode].name + (lastFinal.endless
+    ? tr("　どこまでいけた？","  ·  How far did you get?")
+    : tr("　そうごうスコア","  ·  Total Score")), M, 118);
   g.textAlign="right";
   g.fillStyle="#54455a"; g.font="800 74px "+F;
-  g.fillText(lastFinal.avg.toFixed(2)+tr("点"," pts"), Wc-M, 88);
-  g.fillStyle=gradeColor(lastFinal.g); g.font="800 36px "+F;
-  g.fillText(tr("グレード ","Grade ")+lastFinal.g, Wc-M, 132);
-  // 4x2 thumbnails（練習2＋本番6の全8ラウンド）
-  const imgs=await Promise.all(roundsInfo.map(r=>loadImg(r.shot)));
-  const gw=(Wc-2*M-3*14)/4, gh=138;
-  roundsInfo.forEach((info,i)=>{
-    const x=M+(i%4)*(gw+14), y=162+Math.floor(i/4)*(gh+44);
-    drawCover(g,imgs[i],x,y,gw,gh,10);
+  if(lastFinal.endless){
+    // エンドレスの主役は到達ラウンド数。平均点は添えるだけ
+    g.fillText(tr(`${lastFinal.survived} ラウンド`,`${lastFinal.survived} rounds`), Wc-M, 88);
+    g.fillStyle="#8a6f80"; g.font="800 30px "+F;
+    g.fillText(tr(`生きのこった回の平均 ${lastFinal.avgAlive.toFixed(2)}点`,
+                  `Avg while alive ${lastFinal.avgAlive.toFixed(2)}`), Wc-M, 132);
+  }else{
+    g.fillText(lastFinal.avg.toFixed(2)+tr("点"," pts"), Wc-M, 88);
+    g.fillStyle=gradeColor(lastFinal.g); g.font="800 36px "+F;
+    g.fillText(tr("グレード ","Grade ")+lastFinal.g, Wc-M, 132);
+  }
+  /* サムネイル。通常は4列×2行（練習2＋本番6）。
+     チャレンジは何ラウンドになるか分からないので、画像が残っている回だけを
+     1行に詰めて並べる（カードの高さは固定なので、はみ出させない） */
+  const cells=roundsInfo.map((info,i)=>({info,i})).filter(c=>c.info.shot||!endlessRun);
+  const shown=endlessRun ? cells.slice(-END_KEEP_SHOTS) : cells;
+  const imgs=await Promise.all(shown.map(c=>loadImg(c.info.shot)));
+  const cols=endlessRun ? Math.max(4,Math.min(8,shown.length)) : 4;
+  const gw=(Wc-2*M-(cols-1)*14)/cols, gh=endlessRun&&cols>4 ? 108 : 138;
+  shown.forEach((c,k)=>{
+    const info=c.info;
+    const x=M+(k%cols)*(gw+14), y=162+Math.floor(k/cols)*(gh+44);
+    drawCover(g,imgs[k],x,y,gw,gh,10);
     g.textAlign="center"; g.fillStyle=info.practice?"#b3a08a":"#8a6f80"; g.font="700 19px "+F;
-    g.fillText(info.practice?`R${i+1} 🌱`:`R${i+1}  ${info.score.toFixed(2)}`, x+gw/2, y+gh+28);
+    g.fillText(info.practice?`R${c.i+1} 🌱`:`R${c.i+1}  ${info.score.toFixed(2)}`, x+gw/2, y+gh+28);
   });
   g.textAlign="center"; g.fillStyle="#54455a"; g.font="800 34px "+F;
   const sp=(lastFinal.specials||[]);
@@ -3277,6 +3536,9 @@ function buildShareText(){
   const sp2=(lastFinal.specials||[]).slice(0,2);   // 投稿文は2つまで
   const spTxt=sp2.map(s=>`＋「${s.name}」`).join("");
   const spEn =sp2.map(s=>` + "${s.name}"`).join("");
+  if(lastFinal.endless) return tr(
+    `立方体チャレンジ【♾️無限モード】${lastFinal.survived}ラウンド生きのこった！（生存平均${lastFinal.avgAlive.toFixed(2)}点）${spTxt}${link} #立方体チャレンジ`,
+    `Cube Challenge [♾️ Endless] — survived ${lastFinal.survived} rounds! (avg ${lastFinal.avgAlive.toFixed(2)} while alive)${spEn}${link} #CubeChallenge`);
   return tr(
     `立方体チャレンジ（${MODES[mode].name}${isDaily?"・きょうのチャレンジ":""}）${lastFinal.avg.toFixed(2)}点・グレード${lastFinal.g} 称号「${lastFinal.ttl.name}」${spTxt}！${link} #立方体チャレンジ`,
     `Cube Challenge (${MODES[mode].name}${isDaily?" · Daily":""}) — ${lastFinal.avg.toFixed(2)} pts, grade ${lastFinal.g}, title "${lastFinal.ttl.name}"${spEn}!${link} #CubeChallenge`);
@@ -3364,6 +3626,7 @@ function toMenu(){
   setState("menu");
   round=null;
   $("#finalOverlay").classList.add("hidden");
+  $("#modePopup").classList.add("hidden");
   refreshMenuBest();
   refreshDaily();
   $("#menuOverlay").classList.remove("hidden");
@@ -3373,11 +3636,23 @@ function refreshMenuBest(){
   const b=loadBest();
   const f=(id,k)=>{ $(id).textContent = b[k]!==undefined ? tr(`ベスト ${(+b[k]).toFixed(2)}点`,`Best ${(+b[k]).toFixed(2)}`) : ""; };
   f("#bestNormal","normal"); f("#bestWire","wire"); f("#bestDouble","double");
+  // チャレンジだけ単位がラウンド数
+  $("#bestEndless").textContent = b.challenge!==undefined
+    ? tr(`ベスト ${b.challenge}ラウンド`,`Best ${b.challenge} rounds`) : "";
 }
 
 /* ================= wiring ================= */
 document.querySelectorAll(".modeBtn[data-mode]").forEach(b=>
   b.addEventListener("click",()=>startGame(b.dataset.mode)));
+/* モード選択はポップアップに入れた（トップは「きょうのチャレンジ」と2ボタンだけ） */
+$("#btnModes").addEventListener("click",()=>{
+  refreshMenuBest();
+  $("#modePopup").classList.remove("hidden");
+});
+$("#btnModeClose").addEventListener("click",()=>$("#modePopup").classList.add("hidden"));
+$("#modePopup").addEventListener("click",e=>{   // カードの外側を押したら閉じる
+  if(e.target===$("#modePopup")) $("#modePopup").classList.add("hidden");
+});
 $("#btnSubmit").addEventListener("click",()=>submit(false));
 $("#btnNext").addEventListener("click",next);
 $("#btnUndo").addEventListener("click",()=>undo(false));   // 引数なしで渡すとEventが真になるので包む
@@ -3658,6 +3933,11 @@ if(!JA){
   document.querySelector('.modeBtn[data-mode="wire"] .mn').textContent="🩻 Wireframe";
   document.querySelector('.modeBtn[data-mode="wire"] .md').textContent="Draw all 8 edges — including the ones hidden behind the cube";
   document.querySelector('.modeBtn[data-mode="double"] .mn').textContent="🧊🧊 Double";
+  document.querySelector('#btnModes .mn').textContent="🎮 Choose a mode";
+  $("#modePopTitle").textContent="🎮 Choose a mode";
+  $("#btnModeClose").textContent="✕ Close";
+  document.querySelector('.modeBtn[data-mode="endless"] .mn').textContent="♾️ Endless";
+  document.querySelector('.modeBtn[data-mode="endless"] .md').textContent="Less time every round, and the pass line keeps rising";
   $("#twistSelLab").textContent="🎮 Twist Select (nothing is recorded)";
   document.querySelector('.twistSelBtn[data-twist="ta"]').textContent="⊞ Quartered";
   document.querySelector('.twistSelBtn[data-twist="dice"]').textContent="⚀ Die";
