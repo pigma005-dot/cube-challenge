@@ -422,6 +422,7 @@
 <div id="audioDock">
   <button id="btnSfx" title="効果音 オン/オフ">🔔</button>
   <button id="btnBgm" title="BGM オン/オフ">🎵</button>
+  <button id="btnZoomReset" class="hidden" title="ひょうじを もとの大きさに">🔍</button>
 </div>
 
 <div id="scoreFloat">
@@ -462,9 +463,13 @@
       <span><span class="mn">🩻 ハリガネ</span><br><span class="md">おくにかくれた辺まで、ぜんぶで8辺をかく</span></span>
       <span class="best" id="bestWire"></span>
     </button>
-    <button class="modeBtn" data-mode="double">
+    <button class="modeBtn" data-mode="double" style="display:none">
       <span><span class="mn">🧊🧊 ダブル</span></span>
       <span class="best" id="bestDouble"></span>
+    </button>
+    <button class="modeBtn" data-mode="study" style="background:#eef7ff;border-color:#a8cdf0;">
+      <span><span class="mn">🎓 れんしゅう</span><br><span class="md">じかんむせいげん・きろくなし。はんてい後に消失点とパース線が見える</span></span>
+      <span class="best" id="bestStudy"></span>
     </button>
     <button class="modeBtn" data-mode="endless">
       <span><span class="mn">♾️ 無限モード</span><br><span class="md">1ラウンドごとに時間がみじかく、ごうかくラインは高くなる</span></span>
@@ -557,7 +562,9 @@
    設定
    ============================================================ */
 const TIME_LIMIT = 30;   // 本番ラウンドの制限時間（秒）
-const ERASER_R   = 16;   // けしゴムの半径(px)
+const ERASER_R   = 16;   // けしゴムの半径(画面px)
+// ズームしても「画面上の大きさ」は一定にする（拡大したら細かく消せる）
+const eraserR = () => ERASER_R/viewS;
 const GAME_VER = "1.25";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
                            // ※アップロード時にまとめて上げる運用。ローカル改修では触らない
 // ネイティブアプリ（Capacitor/App Store版）で動いているか
@@ -1316,7 +1323,8 @@ function buildRound(mode, practice, W, H, tilted){
     const a = stacked ? {tx:j1, ty: sep} : {tx:-sep, ty:j1};
     const b = stacked ? {tx:j2, ty:-sep} : {tx: sep, ty:j2};
     cubes.push(...layoutCubes(
-      [shapeOf(rotA,D1,a.tx,a.ty), shapeOf(rotB,D2,b.tx,b.ty)], rnd(0.60,0.72), W, H));
+      [shapeOf(rotA,D1,a.tx,a.ty,TWIST_EXTRA3D), shapeOf(rotB,D2,b.tx,b.ty,TWIST_EXTRA3D)],
+      rnd(0.60,0.72), W, H));
   }else{
     const isCross = mode==="normal" && gameTwist==="cross";
     /* りったい十字は形が3倍大きいので、透視のきつさを立方体1個と合わせるため
@@ -1334,11 +1342,13 @@ function buildRound(mode, practice, W, H, tilted){
       : (minWH>=560 ? rnd(0.26,0.34) : rnd(0.30,0.40));
     // 変化球の日は追加の3D点も一緒に投影しておく（c.P の 8番以降に入る）。
     const rot = tilted?randRotTilted():randRot();
-    let wantExtra = (mode!=="normal") ? null
-      : gameTwist==="ta"    ? TWIST_EXTRA3D
-      : gameTwist==="dice"  ? DICE_EXTRA3D
-      : gameTwist==="notch" ? NOTCH_EXTRA3D
-      : null;
+    /* 中点(TWIST_EXTRA3D)はどのモードでも投影しておく。十字の作図線を
+       無罰にするのに要るため。凸包の内側の点なので bbox も採点も変わらない */
+    let wantExtra = TWIST_EXTRA3D;
+    if(mode==="normal"){
+      if(gameTwist==="dice")       wantExtra=DICE_EXTRA3D;
+      else if(gameTwist==="notch") wantExtra=NOTCH_EXTRA3D;
+    }
     if(isCross){
       /* 縦の1個をどちら側に付けるかを先に決める（shapeOfのvis[+y面]と同じ式）。
          上下でEXTRA3Dの頂点リストが変わるため、投影の前に選ぶ必要がある */
@@ -1372,6 +1382,26 @@ function buildRound(mode, practice, W, H, tilted){
     const dx=(pb.x-pa.x)*EXT, dy=(pb.y-pa.y)*EXT;
     allSegs.push({pa:{x:pa.x-dx, y:pa.y-dy}, pb:{x:pb.x+dx, y:pb.y+dy}, tol:c.tol});
   }));
+  /* 面の中心をとる作図線（対角線と、辺の中点どうしを結ぶ十字）は
+     **どのモードでも**引いて減点されない。ゲーム内のワンポイントで
+     「面の中心は対角線の交点」「十字を引くと奥行きの詰まりが見える」と
+     勧めているのに、そのとおり描くと点が下がるのでは筋が通らないため。
+     以前は変化球の日だけ無罰だった。 */
+  cubes.forEach(c=>{
+    const hasMid = c.P.length>=20;      // 中点が投影されているか
+    const MM=(a,b)=>c.P[8+EDGE_IDX[Math.min(a,b)+"_"+Math.max(a,b)]];
+    const push=(pa,pb)=>{ const dx=(pb.x-pa.x)*EXT, dy=(pb.y-pa.y)*EXT;
+      allSegs.push({pa:{x:pa.x-dx,y:pa.y-dy}, pb:{x:pb.x+dx,y:pb.y+dy}, tol:c.tol}); };
+    for(let fi=0;fi<6;fi++){
+      if(!c.vis[fi]) continue;
+      const ix=CUBE_FACES[fi].idx;
+      push(c.P[ix[0]],c.P[ix[2]]); push(c.P[ix[1]],c.P[ix[3]]);          // 対角線
+      if(hasMid){
+        push(MM(ix[0],ix[1]),MM(ix[2],ix[3]));                            // 十字
+        push(MM(ix[1],ix[2]),MM(ix[3],ix[0]));
+      }
+    }
+  });
 
   /* デイリーの変化球「よつわり」: 可視面に、辺の中点どうしを結ぶ十字を足す。
      ヒント面の十字はお手本として最初から描いておき、他の可視面の十字が追加のお題。
@@ -1386,14 +1416,12 @@ function buildRound(mode, practice, W, H, tilted){
     const M=(a,b)=>c.P[8+EDGE_IDX[Math.min(a,b)+"_"+Math.max(a,b)]];
     const addSeg=(pa,pb,ext)=>{ const dx=(pb.x-pa.x)*ext, dy=(pb.y-pa.y)*ext;
       allSegs.push({pa:{x:pa.x-dx,y:pa.y-dy}, pb:{x:pb.x+dx,y:pb.y+dy}, tol:c.tol}); };
-    // まんまるは立方体を使わない（中点もP に入っていない）ので面の作図線ループを飛ばす
+    // まんまるは立方体を使わないので面のループを飛ばす
+    // （対角線・十字は下の共通処理ですでに無罰登録されている）
     if(twist!=="maru") for(let fi=0;fi<6;fi++){
       if(!c.vis[fi]) continue;
       const ix=CUBE_FACES[fi].idx;
-      // 中心をとる作図線（対角線・十字）は、どの変化球でも描いて減点されない
-      addSeg(c.P[ix[0]],c.P[ix[2]],EXT); addSeg(c.P[ix[1]],c.P[ix[3]],EXT);
       const mls=[[M(ix[0],ix[1]),M(ix[2],ix[3])],[M(ix[1],ix[2]),M(ix[3],ix[0])]];
-      for(const [pa,pb] of mls) addSeg(pa,pb,EXT);
       if(twist==="ta"){
         for(const [pa,pb] of mls){
           const len=Math.hypot(pb.x-pa.x,pb.y-pa.y);
@@ -1952,13 +1980,126 @@ const ictx=ink.getContext("2d");
 let W=0,H=0,dpr=1;
 let hideInk=false; // リプレイ用ベース画像キャプチャ時にインクを描かない
 
+/* ================= 表示だけのズーム（ピンチ／ホイール） =================
+   お題・ストローク・採点はすべて「ワールド座標」のまま。ズームは見え方だけを変える
+   ので、拡大して描いても点数はまったく変わらない（有利にも不利にもならない）。
+     画面座標 = ワールド座標 * viewS + (viewX, viewY) */
+let viewS=1, viewX=0, viewY=0;
+const VIEW_MIN=0.15, VIEW_MAX=4;
+const toWorld = (sx,sy) => ({x:(sx-viewX)/viewS, y:(sy-viewY)/viewS});
+// いま画面に映っているワールド座標の範囲
+const viewWorldBox = () => ({l:-viewX/viewS, t:-viewY/viewS,
+                             r:(W-viewX)/viewS, b:(H-viewY)/viewS});
+function applyViewToInk(){
+  ictx.setTransform(dpr*viewS,0,0,dpr*viewS, dpr*viewX, dpr*viewY);
+  ictx.lineCap="round"; ictx.lineJoin="round"; ictx.strokeStyle="#5f6fd6";
+}
+function setView(s,x,y){
+  viewS=clamp(s,VIEW_MIN,VIEW_MAX);
+  /* 引きすぎ・寄せすぎで迷子にならないよう、画面のどこかに必ずお題が残るようにする */
+  const pad=Math.min(W,H)*0.35;
+  viewX=clamp(x, -(W*viewS)+pad, W-pad);
+  viewY=clamp(y, -(H*viewS)+pad, H-pad);
+  applyViewToInk(); rebuildInk();
+  $("#btnZoomReset").classList.toggle("hidden", Math.abs(viewS-1)<0.01);
+  render();
+}
+function resetView(){ if(viewS===1 && viewX===0 && viewY===0) return; setView(1,0,0); }
+/* 一点を固定したまま倍率を変える（ピンチ・ホイールの共通処理） */
+function zoomAt(sx,sy,ns){
+  ns=clamp(ns,VIEW_MIN,VIEW_MAX);
+  const w=toWorld(sx,sy);
+  setView(ns, sx-w.x*ns, sy-w.y*ns);
+}
+
 function resizeCanvases(){
   dpr=Math.min(window.devicePixelRatio||1,2);
   W=window.innerWidth; H=window.innerHeight;
   for(const c of [cv,ink]){ c.width=Math.round(W*dpr); c.height=Math.round(H*dpr); }
   cv.style.width=W+"px"; cv.style.height=H+"px";
-  ictx.setTransform(dpr,0,0,dpr,0,0);
-  ictx.lineCap="round"; ictx.lineJoin="round"; ictx.strokeStyle="#5f6fd6";
+  applyViewToInk();
+}
+
+/* 消失点＝投影された平行辺どうしの交点。画面座標から直接求めるので、
+   リサイズの相似変換やズームを掛けたあとでも正しい位置になる。
+   画面上でほぼ平行な組（＝消失点が無限遠）は null を返す。
+   戻り値の並びは PARALLEL_GROUPS と同じで、[0]と[2]が横方向、[1]が縦方向。 */
+function vanishingPoints(c){
+  return PARALLEL_GROUPS.map(g=>{
+    // いちばん「平行から遠い」2辺を選ぶと交点が数値的に安定する
+    let bi=null, bj=null, best=0;
+    for(let i=0;i<g.length;i++) for(let j=i+1;j<g.length;j++){
+      const d1={x:c.P[g[i][1]].x-c.P[g[i][0]].x, y:c.P[g[i][1]].y-c.P[g[i][0]].y};
+      const d2={x:c.P[g[j][1]].x-c.P[g[j][0]].x, y:c.P[g[j][1]].y-c.P[g[j][0]].y};
+      const L1=Math.hypot(d1.x,d1.y), L2=Math.hypot(d2.x,d2.y);
+      if(L1<1e-6||L2<1e-6) continue;
+      const cr=Math.abs((d1.x*d2.y-d1.y*d2.x)/(L1*L2));
+      if(cr>best){ best=cr; bi=g[i]; bj=g[j]; }
+    }
+    if(!bi || best<2e-3) return null;          // 平行＝消失点は無限のかなた
+    const p=c.P[bi[0]], q=c.P[bj[0]];
+    const d1={x:c.P[bi[1]].x-p.x, y:c.P[bi[1]].y-p.y};
+    const d2={x:c.P[bj[1]].x-q.x, y:c.P[bj[1]].y-q.y};
+    const den=d1.x*d2.y-d1.y*d2.x;
+    const t=((q.x-p.x)*d2.y-(q.y-p.y)*d2.x)/den;
+    return {x:p.x+d1.x*t, y:p.y+d1.y*t};
+  });
+}
+/* れんしゅうモードの答え合わせで、消失点とそこへ集まるパース線を見せる。
+   消失点は画面外へ出ることが多いので、画面内なら丸印、画面外なら
+   「この方向にあるよ」という印を画面のふちに置く。 */
+function drawVanishingAid(){
+  const c=round.cubes[0];
+  const vps=vanishingPoints(c);
+  ctx.save();
+  // ① 各辺から消失点へのパース線
+  ctx.setLineDash([5,7]); ctx.lineWidth=1.2;
+  ctx.strokeStyle="rgba(122,106,184,.42)";
+  vps.forEach((vp,gi)=>{
+    if(!vp) return;
+    for(const [a,b] of PARALLEL_GROUPS[gi]){
+      const pa=c.P[a], pb=c.P[b];
+      // 消失点に近いほうの端点から伸ばす（辺そのものは上書きしない）
+      const near = Math.hypot(pa.x-vp.x,pa.y-vp.y) < Math.hypot(pb.x-vp.x,pb.y-vp.y) ? pa : pb;
+      ctx.beginPath(); ctx.moveTo(near.x,near.y); ctx.lineTo(vp.x,vp.y); ctx.stroke();
+    }
+  });
+  // ② 地平線（横向きの消失点2つを結ぶ線＝目線の高さ）
+  if(vps[0] && vps[2]){
+    ctx.setLineDash([12,8]); ctx.lineWidth=1.6;
+    ctx.strokeStyle="rgba(58,160,148,.55)";
+    const dx=vps[2].x-vps[0].x, dy=vps[2].y-vps[0].y;
+    ctx.beginPath();
+    ctx.moveTo(vps[0].x-dx*4, vps[0].y-dy*4);
+    ctx.lineTo(vps[2].x+dx*4, vps[2].y+dy*4);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  // ③ 消失点そのもの。画面外なら、ふちに向きの印を出す
+  const box=viewWorldBox(), m=26;
+  vps.forEach(vp=>{
+    if(!vp) return;
+    const inside = vp.x>box.l+m && vp.x<box.r-m && vp.y>box.t+m && vp.y<box.b-m;
+    if(inside){
+      ctx.fillStyle="#7a6ab8";
+      ctx.beginPath(); ctx.arc(vp.x,vp.y,6/viewS,0,7); ctx.fill();
+      ctx.strokeStyle="#fff"; ctx.lineWidth=2/viewS; ctx.stroke();
+    }else{
+      // 立方体の中心から消失点へ向かう線が、画面のふちを横切る点に印を置く
+      const cx=(box.l+box.r)/2, cy=(box.t+box.b)/2;
+      let ux=vp.x-cx, uy=vp.y-cy;
+      const L=Math.hypot(ux,uy); if(L<1e-6) return;
+      ux/=L; uy/=L;
+      let s=Infinity;
+      if(ux>0) s=Math.min(s,(box.r-m-cx)/ux); else if(ux<0) s=Math.min(s,(box.l+m-cx)/ux);
+      if(uy>0) s=Math.min(s,(box.b-m-cy)/uy); else if(uy<0) s=Math.min(s,(box.t+m-cy)/uy);
+      if(!isFinite(s)||s<0) return;
+      const ex=cx+ux*s, ey=cy+uy*s;
+      ctx.fillStyle="rgba(122,106,184,.55)";
+      ctx.beginPath(); ctx.arc(ex,ey,5/viewS,0,7); ctx.fill();
+    }
+  });
+  ctx.restore();
 }
 
 function drawScene(){
@@ -1966,6 +2107,8 @@ function drawScene(){
   ctx.fillStyle="#fff9f2";
   ctx.fillRect(0,0,W,H);
   if(!round) return;
+  // ここから先はワールド座標で描く（ズームは見え方だけの変換）
+  ctx.setTransform(dpr*viewS,0,0,dpr*viewS, dpr*viewX, dpr*viewY);
   ctx.lineCap="round"; ctx.lineJoin="round";
 
   const showAnswer = (state==="roundResult");
@@ -2036,19 +2179,25 @@ function drawScene(){
     });
   }
 
+  // れんしゅうモードでは、答え合わせと一緒に消失点とパース線を見せる
+  if(showAnswer && studyRun) drawVanishingAid();
+
   if(!hideInk){
+    // インクは ictx 側でズーム済みなので、ここは画面座標のまま等倍で貼る
+    ctx.setTransform(dpr,0,0,dpr,0,0);
     ctx.globalAlpha = showAnswer?0.4:1;
     ctx.drawImage(ink,0,0,ink.width,ink.height,0,0,W,H);
     ctx.globalAlpha = 1;
+    ctx.setTransform(dpr*viewS,0,0,dpr*viewS, dpr*viewX, dpr*viewY);
   }
 
   // eraser radius indicator
   if(state==="draw" && tool==="eraser" && hoverPos){
     ctx.strokeStyle="rgba(232,111,158,.7)"; ctx.lineWidth=1.5; ctx.setLineDash([4,4]);
-    ctx.beginPath(); ctx.arc(hoverPos.x,hoverPos.y,ERASER_R,0,7); ctx.stroke();
+    ctx.beginPath(); ctx.arc(hoverPos.x,hoverPos.y,eraserR(),0,7); ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle="rgba(255,179,199,.15)";
-    ctx.beginPath(); ctx.arc(hoverPos.x,hoverPos.y,ERASER_R,0,7); ctx.fill();
+    ctx.beginPath(); ctx.arc(hoverPos.x,hoverPos.y,eraserR(),0,7); ctx.fill();
   }
 }
 let rafPending=false;
@@ -2060,6 +2209,9 @@ function render(){
 
 /* ================= strokes / eraser / history ================= */
 let strokes=[], cur=null, activeId=null, lastPenAt=-1e9;
+/* 描画中ポインタの生存確認用。pointerup を取りこぼしても復帰できるようにする
+   （画面端でペンが範囲外に出ると pointerup が来ないことがある） */
+let captureOk=false, lastActiveAt=0;
 let tool="pen";              // "pen" | "eraser"
 let hoverPos=null;           // eraser indicator
 let erasing=false, eraseChanged=false, erasePrev=null;
@@ -2073,7 +2225,9 @@ let inputPts={};
 let history=[];
 
 const mid=(a,b)=>({x:(a.x+b.x)/2, y:(a.y+b.y)/2});
-function segWidth(a,b){ return (a.w+b.w)/2; }
+/* 保存する w は「画面で見た太さ」。実際に塗るときだけ現在の倍率で割る
+   （データに /viewS を焼き込むと、等倍で描き直すサムネイル・シェア画像・リプレイで太さが狂う） */
+function segWidth(a,b){ return ((a.w+b.w)/2)/viewS; }
 function drawLiveSegment(pts){
   const n=pts.length;
   if(n===2){
@@ -2090,11 +2244,11 @@ function drawLiveSegment(pts){
 function finishStrokeInk(pts){
   const n=pts.length;
   if(n===1){
-    ictx.beginPath(); ictx.arc(pts[0].x,pts[0].y,pts[0].w/2,0,7);
+    ictx.beginPath(); ictx.arc(pts[0].x,pts[0].y,pts[0].w/2/viewS,0,7);
     ictx.fillStyle="#5f6fd6"; ictx.fill();
   }else if(n>=2){
     const m=mid(pts[n-2],pts[n-1]);
-    ictx.lineWidth=pts[n-1].w;
+    ictx.lineWidth=pts[n-1].w/viewS;
     ictx.beginPath(); ictx.moveTo(m.x,m.y); ictx.lineTo(pts[n-1].x,pts[n-1].y); ictx.stroke();
   }
 }
@@ -2105,6 +2259,10 @@ function rebuildInk(){
     for(let i=2;i<=s.pts.length;i++) drawLiveSegment(s.pts.slice(0,i));
     finishStrokeInk(s.pts);
   }
+  /* 描いている最中の線も描き直す。これが無いと、線を引きながらズーム／リサイズ
+     したときに引きかけの線が消えて二度と戻らない（末端のキャップは描画中なので付けない） */
+  if(cur && cur.pts.length>1)
+    for(let i=2;i<=cur.pts.length;i++) drawLiveSegment(cur.pts.slice(0,i));
 }
 function pushHistory(){
   history.push(strokes.map(s=>({pts:s.pts})));
@@ -2164,7 +2322,7 @@ function applyErase(a,b){
     let run=[], removedAny=false;
     const runs=[];
     for(const p of s.pts){
-      if(distToSeg(p.x,p.y,a.x,a.y,b.x,b.y)<=ERASER_R){
+      if(distToSeg(p.x,p.y,a.x,a.y,b.x,b.y)<=eraserR()){
         removedAny=true;
         if(run.length){ runs.push(run); run=[]; }
       }else run.push(p);
@@ -2183,18 +2341,93 @@ function applyErase(a,b){
 function evPoint(e){
   const r=cv.getBoundingClientRect();
   const pr = e.pressure || 0.5;
-  return { x:e.clientX-r.left, y:e.clientY-r.top, w:2.6*(0.45+0.9*pr),
+  // 画面座標 → ワールド座標。太さは画面基準のまま保存し、塗る側で倍率を吸収する
+  const p = toWorld(e.clientX-r.left, e.clientY-r.top);
+  return { x:p.x, y:p.y, w:2.6*(0.45+0.9*pr),
            t: performance.now()-roundStart };
 }
+/* ---- 2本指のピンチで拡大縮小（スマホ・タブレット用）----
+   お題も採点もワールド座標のままなので、拡大しても点数は1点も動かない。
+   ペンで描いている最中は手のひらでズームしてしまわないよう、
+   パームリジェクションを通過したタッチだけを数える。 */
+const touchPts=new Map();      // pointerId → 画面座標
+let pinch=null;                // {ids,d0,cx0,cy0,s0,x0,y0}
+let activeType="";             // いま描いているポインタの種別（手のひら対策で使う）
+function abortStroke(){
+  if(erasing){ const snap=history.pop(); if(snap) strokes=snap; erasing=false; erasePrev=null; }
+  cur=null; activeId=null; activeType=""; captureOk=false;
+  rebuildInk(); render();
+}
+const pinchInfo=()=>{
+  const [a,b]=[...touchPts.values()];
+  return {d:Math.hypot(b.x-a.x,b.y-a.y), cx:(a.x+b.x)/2, cy:(a.y+b.y)/2};
+};
+/* 追跡している指の組が変わったら基準を取り直す。
+   3本目を足した／2本のうち片方だけ離した、で倍率が飛ばないようにするため
+   （2本でない間はピンチを休止する） */
+function syncPinch(){
+  if(touchPts.size!==2){ pinch=null; return; }
+  const ids=[...touchPts.keys()].sort().join(",");
+  if(pinch && pinch.ids===ids) return;
+  const g=pinchInfo();
+  pinch={ids, d0:Math.max(1,g.d), cx0:g.cx, cy0:g.cy, s0:viewS, x0:viewX, y0:viewY};
+}
+// ペンで描いている（直後も含む）間は、手のひらをズームにも描画にも使わせない
+const penBusy = () => activeType==="pen" || performance.now()-lastPenAt<1500;
+function dropTouches(){ if(touchPts.size){ touchPts.clear(); } pinch=null; }
+
+/* 答え合わせ中もピンチできるようにするため、タッチの追跡だけは
+   roundResult でも動かす（描画は従来どおり draw のときだけ） */
+function trackTouch(e){
+  if(e.pointerType!=="touch") return false;
+  if(penBusy()){
+    // 手のひらが触れた。進行中のタッチ描画があれば巻き添えを断ち切る
+    if(activeType==="touch") abortStroke();
+    dropTouches();
+    return true;
+  }
+  const r=cv.getBoundingClientRect();
+  touchPts.set(e.pointerId,{x:e.clientX-r.left, y:e.clientY-r.top});
+  if(touchPts.size>=2){
+    // 2本目が触れた＝ズーム操作。1本目で描きかけていた線は取り消す
+    if(cur||erasing) abortStroke();
+    syncPinch();
+    return true;
+  }
+  return false;
+}
+
 cv.addEventListener("pointerdown", e=>{
+  // タッチの追跡は答え合わせ中も行う（消失点の図をピンチで見られるように）
+  if((state==="draw"||state==="roundResult") && !inputFrozen() && e.pointerType==="touch"){
+    if(trackTouch(e)){ e.preventDefault(); return; }
+  }
   if(state!=="draw" || inputFrozen()) return;   // ポーズ中・復帰カウントダウン中は描かせない
-  if(e.pointerType==="pen") lastPenAt=performance.now();
-  /* palm rejection: ペンの「接触」から1.5秒だけ指を無視する。
-     8秒は長すぎて「ペンを置いたあと指で描けない」時間が生まれていた */
-  if(e.pointerType==="touch" && performance.now()-lastPenAt<1500) return;
-  if(activeId!==null) return;
+  if(e.pointerType==="pen"){ lastPenAt=performance.now(); dropTouches(); }
+  /* 前のストロークが「終わったことになっていない」場合の復帰。
+     画面の端でペンが範囲外に出たり、ウィンドウの外で指を離したりすると
+     pointerup が届かず activeId を握ったままになり、そのラウンド中ずっと
+     何も描けなくなる（ユーザー報告のバグ）。
+     ポインタキャプチャが生きていれば本当に描画中なので従来どおり無視し（手のひら対策）、
+     キャプチャが切れていれば取り残しとみなして確定させ、新しいストロークを受け付ける。 */
+  if(activeId!==null){
+    let live;
+    if(captureOk){
+      // キャプチャが取れている環境では、それが生きているか＝描画中かの正確な判定になる
+      live=false;
+      try{ live = cv.hasPointerCapture(activeId); }catch(_){}
+    }else{
+      // キャプチャが使えない環境では時間で見る（手のひらは描いている最中に触れるため）
+      live = performance.now()-lastActiveAt < 900;
+    }
+    if(live) return;
+    endStroke({pointerId:activeId});
+  }
   activeId=e.pointerId;
-  try{ cv.setPointerCapture(e.pointerId); }catch(_){}
+  activeType=e.pointerType||"mouse";
+  lastActiveAt=performance.now();
+  captureOk=false;
+  try{ cv.setPointerCapture(e.pointerId); captureOk=true; }catch(_){}
   const p=evPoint(e);
   if(tool==="eraser"){
     pushHistory();
@@ -2211,11 +2444,28 @@ window.addEventListener("pointermove", e=>{
   /* ペンの「接触中」だけ記録する。ホバーでも更新すると、Apple Pencilを
      浮かせて近づけているだけで指入力が拒否され続けるバグになる（保留していた対策E） */
   if(e.pointerType==="pen" && e.buttons>0) lastPenAt=performance.now();
+  // ピンチ中は指の位置を追いかけて表示倍率と位置を更新する（描画はしない）
+  if(e.pointerType==="touch" && touchPts.has(e.pointerId)){
+    // ペンが動き出したら、追跡中の指（手のひら）は全部捨てる
+    if(penBusy()){ dropTouches(); return; }
+    const r=cv.getBoundingClientRect();
+    touchPts.set(e.pointerId,{x:e.clientX-r.left, y:e.clientY-r.top});
+    if(pinch && touchPts.size===2){
+      const g=pinchInfo();
+      const ns=clamp(pinch.s0*(g.d/pinch.d0), VIEW_MIN, VIEW_MAX);
+      // つまんだ2本指の中心にあるワールド座標が、指の中心に貼りついたまま動くようにする
+      const wx=(pinch.cx0-pinch.x0)/pinch.s0, wy=(pinch.cy0-pinch.y0)/pinch.s0;
+      setView(ns, g.cx-wx*ns, g.cy-wy*ns);
+      e.preventDefault();
+      return;
+    }
+  }
   // hover indicator for eraser (even when not pressing)
   if(state==="draw" && tool==="eraser" && e.target===cv && activeId===null){
     hoverPos=evPoint(e); render();
   }
   if(activeId!==e.pointerId) return;
+  lastActiveAt=performance.now();
   let evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
   if(!evs.length) evs=[e];
   if(erasing){
@@ -2239,14 +2489,19 @@ window.addEventListener("pointermove", e=>{
   }
 });
 function endStroke(e){
+  // 指を離したらピンチの追跡から外す（合成呼び出しには pointerType が無いので素通り）
+  if(e.pointerType==="touch" && touchPts.has(e.pointerId)){
+    touchPts.delete(e.pointerId);
+    syncPinch();          // 残った指で基準を取り直す（倍率が飛ばない）
+  }
   if(activeId!==e.pointerId) return;
   if(erasing){
     erasing=false; erasePrev=null;
     if(!eraseChanged) history.pop(); // no-op erase → drop snapshot
-    activeId=null;
+    activeId=null; activeType="";
     return;
   }
-  if(!cur){ activeId=null; return; }
+  if(!cur){ activeId=null; activeType=""; return; }
   if(state==="draw"){
     finishStrokeInk(cur.pts);
     pushHistory();
@@ -2257,7 +2512,7 @@ function endStroke(e){
     inputPts[it]=(inputPts[it]||0)+cur.pts.length;
     maybeShowJudgeHint();
   }
-  cur=null; activeId=null;
+  cur=null; activeId=null; activeType="";
   render();
 }
 window.addEventListener("pointerup", endStroke);
@@ -2265,6 +2520,10 @@ window.addEventListener("pointerup", endStroke);
    途切れた線がそのまま採点に混ざるのを防ぐ（保留していた対策F）。
    消しゴム中に奪われた場合は、消しはじめ時点のスナップショットへ巻き戻す */
 window.addEventListener("pointercancel", e=>{
+  if(e.pointerType==="touch" && touchPts.has(e.pointerId)){
+    touchPts.delete(e.pointerId);
+    syncPinch();          // 残った指で基準を取り直す（倍率が飛ばない）
+  }
   if(activeId!==e.pointerId) return;
   if(erasing){
     const snap=history.pop();
@@ -2276,6 +2535,20 @@ window.addEventListener("pointercancel", e=>{
   cur=null; activeId=null;
   rebuildInk(); render();
 });
+/* ポインタキャプチャを失ったのに pointerup も pointercancel も来なかった場合
+   （画面端でペンが範囲外に出た等）は、その時点で描けていた線を確定して解放する。
+   pointerup 経由の正常終了では endStroke が先に activeId を消すので二重確定はしない。 */
+cv.addEventListener("lostpointercapture", e=>{
+  if(activeId!==e.pointerId) return;
+  endStroke(e);
+});
+/* PC・ペンタブはホイールで拡大縮小（カーソルの位置を固定して寄り引きする） */
+cv.addEventListener("wheel", e=>{
+  if(state!=="draw" && state!=="roundResult") return;
+  e.preventDefault();
+  const r=cv.getBoundingClientRect();
+  zoomAt(e.clientX-r.left, e.clientY-r.top, viewS*(e.deltaY<0 ? 1.12 : 1/1.12));
+}, {passive:false});
 cv.addEventListener("pointerout", ()=>{ if(activeId===null){ hoverPos=null; render(); } });
 cv.addEventListener("contextmenu", e=>e.preventDefault());
 
@@ -2333,7 +2606,8 @@ function startTimer(){
      練習ラウンドで早期returnする前に必ず通すこと */
   timerGen++; clearResume(); pausedLeft=null;
   timedOut=false;
-  if(round.practice){ $("#timerWrap").classList.add("hidden"); return; }
+  // ガイドなぞりの練習ラウンドと、れんしゅうモードは時間無制限
+  if(round.practice || studyRun){ $("#timerWrap").classList.add("hidden"); return; }
   $("#timerWrap").classList.remove("hidden");
   curLimit = round.timeLimit || TIME_LIMIT;
   warnAt = warnFor(curLimit);
@@ -2427,6 +2701,9 @@ const MODES={
         hint:tr("かくれてる辺も、ぜんぶかこう！","Draw every edge — even the hidden ones!")},
   double:{name:tr("🧊🧊 ダブル","🧊🧊 Double"),
           hint:tr("2つともかんせいさせよう！消失点はおなじかな…？","Finish both cubes! Same vanishing points… or not?")},
+  study:{name:tr("🎓 れんしゅう","🎓 Study"),
+          hint:tr("じかんむせいげん。すきなだけどうぞ（きろくには のこりません）",
+                  "No time limit, practise as long as you like (nothing is recorded)")},
   endless:{name:tr("♾️ 無限モード","♾️ Endless"),
           hint:tr("時間はどんどんみじかくなる！合格ラインを下回ったら終わりだよ",
                   "Time keeps shrinking — drop below the pass line and it's over!")},
@@ -2457,6 +2734,8 @@ const endPass = r => (r+1<=15 ? 20+5*Math.floor(r/3) : 40+5*(r+1-15)) + 1;
 let state="menu", mode="normal", roundIdx=0, round=null, scores=[];
 /* ラン単位の可変値。チャレンジは「練習なし・無限ラウンド」になる */
 let totalRounds=TOTAL_ROUNDS, practiceRounds=PRACTICE_ROUNDS, endlessRun=false;
+/* れんしゅうモード: 制限時間なし・記録対象外。判定すると消失点とパース線が見える */
+let studyRun=false;
 let endDead=false, endDeadReason="";   // ランを終わらせたか／死因（"time"|"score"）
 let roundsInfo=[];   // {shot,baseShot,shotScale,strokes,score,practice,timedOut} per round
 let lastFinal=null;  // {avg,g,isBest,ttl}
@@ -2485,6 +2764,8 @@ function updateHud(){
   // エンドレスは分母を出さず、代わりに今の合格ラインを見せる（時間とは別軸の緊張）
   $("#roundChip").textContent = endlessRun
     ? tr(`R${roundIdx+1}・ごうかく ${endPass(roundIdx)}点`,`R${roundIdx+1} · pass ${endPass(roundIdx)}`)
+    : studyRun
+    ? tr(`ラウンド ${roundIdx+1}`,`Round ${roundIdx+1}`)     // れんしゅうは終わりがないので分母なし
     : tr(`ラウンド ${roundIdx+1} / ${totalRounds}`,`Round ${roundIdx+1} / ${totalRounds}`);
   $("#practiceChip").classList.toggle("hidden", !round.practice);
   $("#hint").textContent = round.practice
@@ -2509,6 +2790,7 @@ function newRound(){
   // チャレンジはラウンドごとに制限時間が縮む（変化球の60秒などと衝突しないよう後から上書き）
   if(endlessRun) round.timeLimit = endTime(roundIdx);
   roundStart = performance.now();
+  resetView(); touchPts.clear(); pinch=null;   // ズームはラウンドごとに等倍へ戻す
   strokes=[]; cur=null; activeId=null; history=[]; erasing=false; hoverPos=null;
   eraseUses=0; undoKeyUses=0; undoBtnUses=0; clearUses=0;
   setTool("pen", true);   // 消しゴムのまま白紙ラウンドが始まって描けない事故を防ぐ
@@ -2719,17 +3001,20 @@ function startGame(m, opts){
   /* チャレンジ＝エンドレス・サバイバル。練習ラウンドは置かない
      （練習はタイマー自体が出ないので、ラダー先頭が「無制限の練習」に食われる） */
   endlessRun = (m==="endless");
-  totalRounds  = endlessRun ? Infinity : TOTAL_ROUNDS;
-  practiceRounds = endlessRun ? 0 : PRACTICE_ROUNDS;
+  studyRun   = (m==="study");
+  // れんしゅうは終わりなし＝結果画面を出さない（やめるまで好きなだけ描ける）
+  totalRounds  = (endlessRun||studyRun) ? Infinity : TOTAL_ROUNDS;
+  // れんしゅうは全ラウンドが本物のお題（ガイドなぞりの練習ラウンドは置かない）
+  practiceRounds = (endlessRun||studyRun) ? 0 : PRACTICE_ROUNDS;
   endDead=false; endDeadReason="";
   gameSeed = opts.seed || randomSeed();
   seededRun = !!opts.seed;
   // 変化球はシードの日付から決まる（デイリー本番も、共有された?seed=での再挑戦も同じお題になる）。
   // opts.twist は変化球セレクト（かくしメニュー）からの指名。この回は記録対象外にする。
   // チャレンジは純粋な腕試しなので変化球を混ぜない（?seed=で日付を渡されても無効）
-  gameTwist = endlessRun ? null
+  gameTwist = (endlessRun||studyRun) ? null
     : (TWISTS[opts.twist] && opts.twist) || twistForDailySeed(gameSeed) || null;
-  twistSelRun = !!(TWISTS[opts.twist] && opts.twist) && !endlessRun;
+  twistSelRun = !!(TWISTS[opts.twist] && opts.twist) && !endlessRun && !studyRun;
   isDaily = !!opts.daily;
   dailyDate = isDaily ? (opts.seed||todaySeedStr()) : "";
   $("#menuOverlay").classList.add("hidden");
@@ -2752,7 +3037,7 @@ function startGame(m, opts){
    （難しい回を粘って時間切れになった人は対象にしない） */
 function gaveUpNow(res, elapsedSec, auto){
   // チャレンジは「速く判定する」のが正しい遊び方なので、投げやり判定（12秒以内＝あきらめ）は使わない
-  if(encouraged || round.practice || endlessRun) return false;
+  if(encouraged || round.practice || endlessRun || studyRun) return false;
   const R=roundsInfo.filter(r=>!r.practice);
   // もともとちゃんと描いていた回が2回以上あることが前提
   if(R.filter(r=>r.strokeCount>=3 && r.score>=45).length<2) return false;
@@ -2765,6 +3050,32 @@ function gaveUpNow(res, elapsedSec, auto){
 }
 
 /* ラウンドの一言。上から優先で最大3つ。数値から言えることだけを言う。 */
+/* 手で立方体を描くときのワンポイント。れんしゅうモードで毎ラウンド1つずつ出す。
+   どれも「言われてみれば当たり前だが、知らないと一生気づかない」たぐいの話にしてある。 */
+const TIP_KEY="cube-challenge-tip";
+let tipStart=(()=>{ try{ return (+localStorage.getItem(TIP_KEY))||0; }catch(_){ return 0; } })();
+const CUBE_TIPS=[
+  tr("⊞ 面の中心は対角線の交点。まんなかを目分量でとらないこと",
+     "⊞ A face's centre is where its diagonals cross — never eyeball it"),
+  tr("📐 平行な辺はかならず同じ消失点に集まる。2本のばせば見つかる",
+     "📐 Parallel edges always meet at one vanishing point — extend two to find it"),
+  tr("👁 手前の角に集まる3つの角は、どれも90°より大きく見える。鋭角ができたら描きすぎ",
+     "👁 The three angles at the near corner all look wider than 90° — an acute one means you overdid it"),
+  tr("📏 手前の辺ほど長く、奥の辺ほど短い。同じ長さで描くと絵が固まる",
+     "📏 Near edges read longer, far edges shorter — equal lengths kill the depth"),
+  tr("🌅 横向きの消失点2つを結んだ線が「目線の高さ」。上の面が見えるなら目線は上",
+     "🌅 The line joining the two side vanishing points is your eye level"),
+  tr("🧊 上の面が見えている＝立方体は目線より下。下の面が見えたら目線より上にある",
+     "🧊 Seeing the top face means the cube sits below your eye line"),
+  tr("✂️ 奥行きは思っているより短く見える。迷ったら短めが正解に近い",
+     "✂️ Depth compresses more than you expect — when unsure, go shorter"),
+  tr("🔺 上下どちらかの面が見えている回なら、立方体は3つの消失点がつくる三角形の内側に収まる",
+     "🔺 When a top or bottom face shows, the cube fits inside the triangle of its three vanishing points"),
+  tr("🪞 まず箱の手前の角（Y字）から3本引くと、形が崩れにくい",
+     "🪞 Start from the near corner's three edges — the shape holds together better"),
+  tr("⊞ よつわりの十字を引くと、奥ほど詰まっていくのが目で見える",
+     "⊞ Quartering a face makes the depth compression visible"),
+];
 function roundNotes(res, auto, oneStroke, giveUp){
   const n=[];
   const push=s=>{ if(s && n.length<3 && !n.includes(s)) n.push(s); };
@@ -2779,6 +3090,14 @@ function roundNotes(res, auto, oneStroke, giveUp){
   let sh=0; for(let i=0;i<gameSeed.length;i++) sh=(sh*31+gameSeed.charCodeAt(i))|0;
   const quiet = !round.practice && ((roundIdx + (sh>>>0)) % 2 === 0);
   const pushLoud=s=>{ if(!quiet) push(s); };
+  /* れんしゅうのワンポイントは先に出す（あとから足すと上限3件で捨てられる）。
+     ランをまたいで続きから出すので、10種すべてが順に一巡する */
+  if(studyRun){
+    const ti=(tipStart+roundIdx) % CUBE_TIPS.length;
+    push(CUBE_TIPS[ti]);
+    // 結果画面が無いモードなので、続きの位置はラウンドごとに保存しておく
+    try{ localStorage.setItem(TIP_KEY,(ti+1) % CUBE_TIPS.length); }catch(_){}
+  }
   const R=roundsInfo.filter(r=>!r.practice);       // まだ今回はpushされていない＝前回まで
   const prev=R.length?R[R.length-1]:null;
   /* 時間切れは「合否」ではなく事実の通知。描けていた分で合格ラインを超えていれば生き残る */
@@ -2870,7 +3189,7 @@ function roundNotes(res, auto, oneStroke, giveUp){
       B:[tr("🧊 かたちになってきた","🧊 It's taking shape"), tr("🧊 立方体に見える","🧊 Reads as a cube"), tr("🧊 あと一歩","🧊 One step away")],
       C:[tr("🌱 つぎはもうすこし","🌱 A little closer next time"), tr("🌱 おしい","🌱 So close"), tr("🌱 かたちは見えてる","🌱 The shape is there")],
       D:[tr("🌱 ゆっくりでいいよ","🌱 Take your time"), tr("🌱 つぎの1回で","🌱 Next one's yours"),
-         endlessRun ? tr("🌱 つぎで取りかえそう","🌱 Win it back next round")
+         (endlessRun||studyRun) ? tr("🌱 つぎで取りかえそう","🌱 Win it back next round")
                       : tr("🌱 まだ6回ある","🌱 Plenty of rounds left")],
     }[gradeOf(res.score)];
     push(vv[roundIdx % vv.length]);
@@ -2921,11 +3240,15 @@ function submit(auto){
   $("#btnNext").textContent = (endlessRun ? endDead : roundIdx===totalRounds-1)
     ? tr("🏁 けっかをみる","🏁 See results") : tr("➡️ つぎへ","➡️ Next");
   if(auto) Sound.timeup(); else Sound.score(g);
+  /* スナップショットは必ず等倍で撮る。ズームしたまま撮ると、結果画面のサムネイルも
+     シェア画像もリプレイ（ワールド座標のストロークを重ねる）もズレる */
+  resetView();
   // 答え合わせスナップショット（最終画面グリッド＆シェア用）と
-  // インクなしベース画像（リプレイ用）を撮っておく
+  // インクなしベース画像（リプレイ用）を撮っておく。
+  // れんしゅうは結果画面自体が無いので、撮らない（メモリも時間も使わない）
   drawScene();
   let shot=null, baseShot=null, shotScale=1;
-  try{
+  if(!studyRun) try{
     const k=Math.min(1, 1000/cv.width);
     const cw=Math.round(cv.width*k), ch=Math.round(cv.height*k);
     shotScale=cw/W;
@@ -2941,7 +3264,8 @@ function submit(auto){
   }catch(_){ hideInk=false; }
   roundsInfo.push({
     shot, baseShot, shotScale,
-    strokes: strokes.map(s=>({pts:s.pts.map(p=>({x:p.x,y:p.y,w:p.w,t:p.t||0}))})),
+    // れんしゅうはリプレイもシェアもしないのでストローク座標も残さない
+    strokes: studyRun ? [] : strokes.map(s=>({pts:s.pts.map(p=>({x:p.x,y:p.y,w:p.w,t:p.t||0}))})),
     score:res.score, practice:round.practice, timedOut:!!auto, doodle:res.doodle||null,
     oneStroke, mirrored:!!res.mirrored, gridish:res.gridish||null,
     farInk:res.farInk||0, erased:eraseUses, strokeCount:strokes.length,
@@ -2950,7 +3274,7 @@ function submit(auto){
     tilted: Math.abs(round.cubes[0].rot.pitch)>=45*DEG,
     firstAt: strokes.length ? (strokes[0].pts[0].t||0)/1000 : null,
     // 残り時間（本番のみ）とそのラウンドの制限時間。早撃ち／ギリギリ職人の判定に使う
-    secLeft: round.practice ? null : Math.max(0,(deadline-performance.now())/1000),
+    secLeft: (round.practice||studyRun) ? null : Math.max(0,(deadline-performance.now())/1000),
     limit: round.timeLimit || TIME_LIMIT,
   });
   /* エンドレスでは roundsInfo が際限なく膨らむ（1ラウンドあたりJPEG2枚＋全ストローク座標）。
@@ -2959,6 +3283,12 @@ function submit(auto){
   if(endlessRun && roundsInfo.length>END_KEEP_SHOTS){
     const drop=roundsInfo[roundsInfo.length-1-END_KEEP_SHOTS];
     if(drop){ drop.shot=null; drop.baseShot=null; drop.strokes=[]; }
+  }
+  /* れんしゅうは終わりが無いので、集計用の軽い記録も貯め続けない。
+     直近20回だけ残す（「まえより+○点」「このランで一番」の比較にはこれで足りる） */
+  if(studyRun){
+    if(roundsInfo.length>20) roundsInfo.splice(0, roundsInfo.length-20);
+    if(scores.length>20) scores.splice(0, scores.length-20);
   }
   if(!round.practice && g==="S") fx.burst(70);
   render();
@@ -3037,12 +3367,15 @@ function showFinal(){
     }
     // 押せなくはせず薄く見せる（押すと「また明日ね！」と理由が出る方が親切）
     $("#btnRetry").style.opacity = left===0 ? .55 : 1;
-  }else if(seededRun && !endlessRun){
+  }else if(seededRun && !endlessRun && !studyRun){
     $("#finalBest").textContent = best[mode]!==undefined
       ? tr(`自己ベスト：${(+best[mode]).toFixed(2)}点（シード戦は記録対象外）`,`Personal best: ${(+best[mode]).toFixed(2)} (seed runs aren't recorded)`)
       : tr("シード戦は自己ベスト対象外","Seed runs don't count toward your best");
   }else if(twistSelRun){
     $("#finalBest").textContent = tr("変化球セレクトは記録対象外（れんしゅう）","Twist-select runs aren't recorded (practice)");
+  }else if(studyRun){
+    // 通常はここに来ない（れんしゅうは結果画面を出さない）。保険の表示だけ残す
+    $("#finalBest").textContent = tr("れんしゅうは記録対象外","Study runs aren't recorded");
   }else if(endlessRun){
     const reason = endDeadReason==="cap"
       ? tr("👑 かんぜんせいは！","👑 Perfect run!")
@@ -3118,7 +3451,7 @@ function showFinal(){
   let owned=[]; try{ const v=JSON.parse(localStorage.getItem(COLLECT_KEY)); if(Array.isArray(v)) owned=v; }catch(_){}
   // チャレンジは条件が特殊（短時間・少ラウンド）でバッジが取りやすいので、
   // コレクションには加算しない（16種の価値を守る。表示はする）
-  if(!endlessRun)
+  if(!endlessRun && !studyRun)
     specials.forEach(s=>{ if(COLLECTIBLES.includes(s.key) && !owned.includes(s.key)) owned.push(s.key); });
   owned=owned.filter(k=>COLLECTIBLES.includes(k));
   try{ localStorage.setItem(COLLECT_KEY, JSON.stringify(owned)); }catch(_){}
@@ -3278,7 +3611,8 @@ async function rankFetch(path, opts){
    チャレンジだけは単位が「点」ではなく「ラウンド数」なので、盤の接頭辞から分ける
    （mode: の盤を点スケール前提で集計している既存SQLを汚さないため） */
 const boardKey = () => isDaily ? "daily:"+(dailyDate||todaySeedStr())
-  : (seededRun || twistSelRun) ? null
+  // れんしゅうは時間無制限なので、時間つきモードと同じ板には載せられない
+  : (seededRun || twistSelRun || studyRun) ? null
   : endlessRun ? "rounds:endless" : "mode:"+mode;
 /* 端末ごとの匿名プレイヤーID（同一ブラウザ=同一プレイヤーとしてベスト1行を維持） */
 function playerId(){
@@ -3627,6 +3961,7 @@ function toMenu(){
   round=null;
   $("#finalOverlay").classList.add("hidden");
   $("#modePopup").classList.add("hidden");
+  resetView(); touchPts.clear(); pinch=null;
   refreshMenuBest();
   refreshDaily();
   $("#menuOverlay").classList.remove("hidden");
@@ -3637,8 +3972,8 @@ function refreshMenuBest(){
   const f=(id,k)=>{ $(id).textContent = b[k]!==undefined ? tr(`ベスト ${(+b[k]).toFixed(2)}点`,`Best ${(+b[k]).toFixed(2)}`) : ""; };
   f("#bestNormal","normal"); f("#bestWire","wire"); f("#bestDouble","double");
   // チャレンジだけ単位がラウンド数
-  $("#bestEndless").textContent = b.challenge!==undefined
-    ? tr(`ベスト ${b.challenge}ラウンド`,`Best ${b.challenge} rounds`) : "";
+  $("#bestEndless").textContent = b.endless!==undefined
+    ? tr(`ベスト ${b.endless}ラウンド`,`Best ${b.endless} rounds`) : "";
 }
 
 /* ================= wiring ================= */
@@ -3792,6 +4127,7 @@ function refreshAudioButtons(){
   $("#btnSfx").classList.toggle("off", !Sound.prefs.sfx);
   $("#btnBgm").classList.toggle("off", !Sound.prefs.bgm);
 }
+$("#btnZoomReset").addEventListener("click",e=>{ resetView(); e.currentTarget.blur(); });
 $("#btnSfx").addEventListener("click",e=>{ Sound.toggleSfx(); refreshAudioButtons(); e.currentTarget.blur(); });
 $("#btnBgm").addEventListener("click",e=>{ Sound.toggleBgm(); refreshAudioButtons(); e.currentTarget.blur(); });
 refreshAudioButtons();
@@ -3834,6 +4170,9 @@ window.addEventListener("keydown",e=>{
 /* リサイズ・画面回転時はお題を作り直さず、一様スケール＋平行移動で安全域に収め直す。
    （作り直すと不利／チートになるため。相似変換なので採点条件は変わらない） */
 window.addEventListener("resize",()=>{
+  // ズームは解除する（お題側の相似変換と混ざると位置が合わなくなる）
+  viewS=1; viewX=0; viewY=0; touchPts.clear(); pinch=null;
+  $("#btnZoomReset").classList.add("hidden");
   resizeCanvases();
   if(round && (!Number.isFinite(round.cubes[0].P[0].x) || round.targets.length===0)){
     // 非表示タブ(0x0)などで壊れた状態で生成されたラウンドは作り直す
@@ -3936,6 +4275,8 @@ if(!JA){
   document.querySelector('#btnModes .mn').textContent="🎮 Choose a mode";
   $("#modePopTitle").textContent="🎮 Choose a mode";
   $("#btnModeClose").textContent="✕ Close";
+  document.querySelector('.modeBtn[data-mode="study"] .mn').textContent="🎓 Study";
+  document.querySelector('.modeBtn[data-mode="study"] .md').textContent="No time limit, nothing recorded — vanishing points revealed on judge";
   document.querySelector('.modeBtn[data-mode="endless"] .mn').textContent="♾️ Endless";
   document.querySelector('.modeBtn[data-mode="endless"] .md').textContent="Less time every round, and the pass line keeps rising";
   $("#twistSelLab").textContent="🎮 Twist Select (nothing is recorded)";
