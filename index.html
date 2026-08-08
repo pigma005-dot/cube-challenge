@@ -482,7 +482,6 @@
         <button class="twistSelBtn" data-twist="dice">⚀ サイコロ</button>
         <button class="twistSelBtn" data-twist="notch">🍫 かじられ</button>
         <button class="twistSelBtn" data-twist="wire">🩻 ハリガネ</button>
-        <button class="twistSelBtn" data-twist="maru">⭕ まんまる</button>
       </div>
     </div>
     <button id="btnModeClose" class="ghost small" style="width:100%;margin-top:4px;">✕ とじる</button>
@@ -565,7 +564,7 @@ const TIME_LIMIT = 30;   // 本番ラウンドの制限時間（秒）
 const ERASER_R   = 16;   // けしゴムの半径(画面px)
 // ズームしても「画面上の大きさ」は一定にする（拡大したら細かく消せる）
 const eraserR = () => ERASER_R/viewS;
-const GAME_VER = "1.25";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
+const GAME_VER = "1.26";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
                            // ※アップロード時にまとめて上げる運用。ローカル改修では触らない
 // ネイティブアプリ（Capacitor/App Store版）で動いているか
 const CAP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
@@ -2822,7 +2821,15 @@ function twistForDailySeed(seed){
      if(new Date(t+86400000).getUTCDate()===1) return "cross"; を戻すだけ */
   const dow=new Date(t).getUTCDay();          // 0=日 … 3=水 … 6=土
   if(dow!==3 && dow!==6) return null;
-  const pool=["ta","dice","dbl","notch","wire","maru"];
+  /* 「⭕ まんまる」（フリーハンドの正円）は封印した（2026-07-28 ユーザー判断）。
+     毎日のリピーターが付いていて離脱を焦る必要がなく、そして円を描くのは
+     このゲームの芯＝立方体のパースと関係がない唯一の変化球だったため。
+     ★枠は null で残すこと。配列を5個に詰めると割り当てのインデックスが
+     ずれて、公開済みクライアント（v1.25＝6個のプール）と同じデイリー板で
+     別のお題を出してしまう。null の枠は「変化球なしの普通のデイリー」になり、
+     ほかの日付の割り当ては v1.25 のままで一切動かない。
+     プールを詰めて整理するなら、v1.26 が全端末に行き渡ったあとの日付から。 */
+  const pool=["ta","dice","dbl","notch","wire",null];
   const week=Math.floor(t/(7*86400000));
   return pool[(week*2 + (dow===6?1:0)) % pool.length];
 }
@@ -2845,6 +2852,9 @@ const TWISTS={
   wire: { name:()=>tr("🩻 ハリガネ","🩻 Wireframe"),
           desc:()=>tr("きょうの立方体はスケスケ！おくにかくれて見えない辺まで、ぜんぶで8辺かこう",
                       "X-ray day! Draw all 8 edges — even the ones hidden behind the cube") },
+  /* 封印中（2026-07-28）。プールも変化球セレクトからも外してあるので到達しない。
+     復活させるなら (1)pool の null を "maru" に戻す (2)#twistSelRow にボタンを足す
+     (3)英語UIブロックの maru ラベル行を戻す (4)上の SEALED から "maru" を外す */
   maru: { name:()=>tr("⭕ まんまる","⭕ Perfect Circle"),
           desc:()=>tr("きょうは立方体はおやすみ！その直線は円の直径。フリーハンドでまんまるな正円をかこう",
                       "The cube takes a day off! That line is a diameter — draw a perfect circle freehand") },
@@ -3009,12 +3019,19 @@ function startGame(m, opts){
   endDead=false; endDeadReason="";
   gameSeed = opts.seed || randomSeed();
   seededRun = !!opts.seed;
-  // 変化球はシードの日付から決まる（デイリー本番も、共有された?seed=での再挑戦も同じお題になる）。
-  // opts.twist は変化球セレクト（かくしメニュー）からの指名。この回は記録対象外にする。
-  // チャレンジは純粋な腕試しなので変化球を混ぜない（?seed=で日付を渡されても無効）
-  gameTwist = (endlessRun||studyRun) ? null
-    : (TWISTS[opts.twist] && opts.twist) || twistForDailySeed(gameSeed) || null;
-  twistSelRun = !!(TWISTS[opts.twist] && opts.twist) && !endlessRun && !studyRun;
+  /* 変化球はシードの日付から決まる（デイリー本番も、共有された?seed=での再挑戦も同じお題になる）。
+     opts.twist は変化球セレクト（かくしメニュー）からの指名。この回は記録対象外にする。
+     ・チャレンジ／れんしゅうは純粋な腕試しなので混ぜない（?seed=で日付を渡されても無効）
+     ・**normal 以外のモードでも混ぜない**。ふたご・ハリガネの変化球は
+       「normalのラウンドだけモードを差し替える」設計なので、?seed=daily-…&mode=wire のような
+       URLで起動すると、お題見せ画面だけ「かじられキューブ」と説明して普通のハリガネが出る
+       という嘘になっていた（まんまる封印とは無関係の既存不整合。監査で発見）
+     ・SEALED は封印済みの変化球。デバッグAPI経由でも起動させない */
+  const SEALED=new Set(["maru","cross"]);
+  const pick = (TWISTS[opts.twist] && !SEALED.has(opts.twist)) ? opts.twist : null;
+  gameTwist = (endlessRun||studyRun||m!=="normal") ? null
+    : pick || twistForDailySeed(gameSeed) || null;
+  twistSelRun = !!pick && !endlessRun && !studyRun && m==="normal";
   isDaily = !!opts.daily;
   dailyDate = isDaily ? (opts.seed||todaySeedStr()) : "";
   $("#menuOverlay").classList.add("hidden");
@@ -3054,27 +3071,19 @@ function gaveUpNow(res, elapsedSec, auto){
    どれも「言われてみれば当たり前だが、知らないと一生気づかない」たぐいの話にしてある。 */
 const TIP_KEY="cube-challenge-tip";
 let tipStart=(()=>{ try{ return (+localStorage.getItem(TIP_KEY))||0; }catch(_){ return 0; } })();
+/* 手で立方体を描くときのワンポイント。れんしゅうモードで毎ラウンド1つ出す。
+   ★数を増やそうとして失敗した経緯あり（2026-07-28）。残せるのは
+   「その回に何を描くかに関係なく、いつでも正しくて、一文で言い切れる」ものだけ。
+   ・田や丸の作図に触れる話 → その回に十字も丸も無いと混乱する
+   ・「手前の角」のような言い方 → どの角か伝わらない（奥の角は鋭角になるので余計に混乱）
+   ・「奥行きは短めが正解」「Y字から描くと崩れにくい」→ 実測の裏づけが無い
+   ・アタリ線が無罰という話 → 大きくずれたアタリ線は実際には減点されるので誤解を生む
+   ・3消失点の三角形の話 → 正しいが、条件つきで一文にならない */
 const CUBE_TIPS=[
-  tr("⊞ 面の中心は対角線の交点。まんなかを目分量でとらないこと",
-     "⊞ A face's centre is where its diagonals cross — never eyeball it"),
   tr("📐 平行な辺はかならず同じ消失点に集まる。2本のばせば見つかる",
      "📐 Parallel edges always meet at one vanishing point — extend two to find it"),
-  tr("👁 手前の角に集まる3つの角は、どれも90°より大きく見える。鋭角ができたら描きすぎ",
-     "👁 The three angles at the near corner all look wider than 90° — an acute one means you overdid it"),
-  tr("📏 手前の辺ほど長く、奥の辺ほど短い。同じ長さで描くと絵が固まる",
-     "📏 Near edges read longer, far edges shorter — equal lengths kill the depth"),
-  tr("🌅 横向きの消失点2つを結んだ線が「目線の高さ」。上の面が見えるなら目線は上",
-     "🌅 The line joining the two side vanishing points is your eye level"),
-  tr("🧊 上の面が見えている＝立方体は目線より下。下の面が見えたら目線より上にある",
-     "🧊 Seeing the top face means the cube sits below your eye line"),
-  tr("✂️ 奥行きは思っているより短く見える。迷ったら短めが正解に近い",
-     "✂️ Depth compresses more than you expect — when unsure, go shorter"),
-  tr("🔺 上下どちらかの面が見えている回なら、立方体は3つの消失点がつくる三角形の内側に収まる",
-     "🔺 When a top or bottom face shows, the cube fits inside the triangle of its three vanishing points"),
-  tr("🪞 まず箱の手前の角（Y字）から3本引くと、形が崩れにくい",
-     "🪞 Start from the near corner's three edges — the shape holds together better"),
-  tr("⊞ よつわりの十字を引くと、奥ほど詰まっていくのが目で見える",
-     "⊞ Quartering a face makes the depth compression visible"),
+  tr("🧊 上の面が見えている＝立方体は目線より下。下の面が見えたら目線より上",
+     "🧊 If you can see the top face, the cube sits below your eye line"),
 ];
 function roundNotes(res, auto, oneStroke, giveUp){
   const n=[];
@@ -3127,22 +3136,79 @@ function roundNotes(res, auto, oneStroke, giveUp){
   /* 何を直せば伸びるかの診断。「描き落とし」と「位置ずれ」は
      引いた線の総長で見分ける（本数だと一筆書きの人を誤診する）。
      グリッド／点描の回は🕸️🌅の一言が原因を言っているので診断は出さない */
+  let drewEnough=false, saidOffset=false, saidSteep=false;
   if(!res.doodle && !res.gridish){
     const needLen=round.targets.reduce((a,t)=>a+(t.len||Math.hypot(t.pb.x-t.pa.x,t.pb.y-t.pa.y)),0);
     let drawnLen=0;
     for(const s of strokes){ const p=s.pts;
       for(let i=1;i<p.length;i++) drawnLen+=Math.hypot(p[i].x-p[i-1].x,p[i].y-p[i-1].y); }
-    const drewEnough = needLen>0 && drawnLen>=needLen*0.7;
+    drewEnough = needLen>0 && drawnLen>=needLen*0.7;
     if(res.cov<0.60 && !drewEnough)     pushLoud(round.twist==="maru"
       ? tr("🧩 円がとぎれているよ。さいごまでつなげよう","🧩 The circle has gaps — close the loop")
       : v([tr("🧩 かけていない辺があるよ","🧩 Some edges are still missing"),
            tr("🧩 まだ描いてない辺がある","🧩 There are edges left undrawn"),
            tr("🧩 辺が足りてないかも","🧩 Looks like a few edges short")]));
     // 「位置がずれてる」は抽象的なので、気づかせる1回だけにする
-    else if(res.cov<0.75 && drewEnough && !quiet) pushOnce("offset", tr("📏 ぜんぶ描けてる！あとは位置","📏 All there — just off position"));
+    else if(res.cov<0.75 && drewEnough && !quiet){
+      saidOffset=true;
+      pushOnce("offset", tr("📏 ぜんぶ描けてる！あとは位置","📏 All there — just off position"));
+    }
     else if(res.eff<0.95)               pushLoud(v([tr("✏️ 辺からはずれた線が多いです","✏️ Too many lines off the edges"),
                                                  tr("✏️ よけいな線がおおいかも","✏️ A lot of stray lines"),
                                                  tr("✏️ 線をへらすと伸びるよ","✏️ Fewer lines would score better")]));
+  }
+  /* ---- 寄り添う一言 ----
+     このゲームは採点がきびしく、真面目に描いても50点台で止まる。
+     「下手なのではなく、採点がきびしいだけ」だと伝えるための一言。
+     ★具体的な統計値（最高記録・中央値・○%）は絶対に書かないこと。
+       記録は破られ中央値も動くのに、配布したクライアントは直せないので、
+       いずれ嘘になる。書けるのは「時間とともに変わらないこと」だけ。
+     どれも1ランに1回だけ（くり返すと逆に鬱陶しい）。静かな回でも出す＝
+     困っている人には黙っていないのが、このブロックの存在意義。 */
+  if(!round.practice && !res.doodle && !res.gridish && !giveUp){
+    const lows=R.slice(-3).map(r=>r.score);
+    // ①形はできているのに点が伸びない＝いちばん報われない状態
+    if(res.score<55 && res.cov>=0.75)
+      pushOnce("kindStrict", tr("🥲 採点はけっこうきびしめ。形はちゃんと立方体になってるよ",
+        "🥲 The scoring is strict — your shape really does read as a cube"));
+    // ②全部描いたのに低い（📏の診断と同じことを二度言わないようにする）
+    else if(res.score<45 && drewEnough && !saidOffset)
+      pushOnce("kindDrew", tr("💪 手は動いてる。あとはパースの読みだけだよ",
+        "💪 Your hand is fine — it's only the perspective read left"));
+    // ③3回つづけて低い＝そろそろ心が折れるころ。実際の分布を教える
+    if(lows.length>=3 && lows.every(s=>s<40))
+      pushOnce("kindHard", tr("🫂 これ、かなりむずかしいゲームだよ。うまくいかない回があって当たり前",
+        "🫂 This is a genuinely hard game — off rounds come with the territory"));
+    else if(res.score>=30 && res.score<50)
+      pushOnce("kindMedian", tr("📊 50点あれば、じつはうまいほうだよ",
+        "📊 Fifty points is already good, honestly"));
+    // ④時間が足りなかっただけ
+    if(auto && res.score<50 && strokes.length>0)
+      pushOnce("kindTime", tr("⏰ 時間が足りなかっただけ。形はつかめてるよ",
+        "⏰ Just ran out of time — you had the shape"));
+    // ⑤アオリ／フカンの回（20%しか出ない難問）
+    if(Math.abs(round.cubes[0].rot.pitch)>=45*DEG && res.score<55 && !noteOnce.has("kindSteep")){
+      saidSteep=true;
+      pushOnce("kindSteep", tr("⛰️ この角度は本当にむずかしい。落としても気にしないで",
+        "⛰️ This angle is brutal — don't let it get to you"));
+    }
+    // ⑥じっくり見てから描いた人（描き出しまで8秒以上）
+    if(strokes.length && (strokes[0].pts[0].t||0)/1000>=8 && res.score<55)
+      pushOnce("kindLook", tr("⏳ よく見てから描いてるのは伝わってるよ",
+        "⏳ It shows that you looked hard before drawing"));
+    // ⑦直して描き直した人
+    if((eraseUses+clearUses)>=2 && res.score<55)
+      pushOnce("kindFix", tr("🧽 なおしながら描けるのは強い。じわじわ効いてくるよ",
+        "🧽 Reworking as you go is a real skill — it pays off"));
+    // ⑧最初の本番ラウンド
+    if(R.length===0 && res.score<45)
+      pushOnce("kindFirst", tr("🌱 1回目はこんなもの。目が慣れると変わってくるよ",
+        "🌱 First one's always like this — your eye adjusts fast"));
+    // ⑨あと少しでグレードが上がる（前向きな一押し）
+    const nx=[35,55,72,88].find(t=>t>res.score);
+    if(nx!==undefined && nx-res.score<=3)
+      pushOnce("kindNear", tr(`✨ あと${(nx-res.score).toFixed(2)}点でグレード${gradeOf(nx)}だった！`,
+        `✨ Just ${(nx-res.score).toFixed(2)} more for grade ${gradeOf(nx)}!`));
   }
   // 伸びをほめる（本番だけ）
   if(!round.practice){
@@ -3176,7 +3242,7 @@ function roundNotes(res, auto, oneStroke, giveUp){
   if(round.twist==="maru") pushOnce("twistMaru",
     tr("⭕ 外に接する正方形を作図すると、まるが安定するよ","⭕ A circumscribed square keeps your circle honest"));
   if(round.mode==="double") push(tr(`消失点は「${round.shared?"共通":"別々"}」でした！`,`Vanishing points were ${round.shared?"shared":"different"}!`));
-  if(Math.abs(round.cubes[0].rot.pitch)>=45*DEG)
+  if(Math.abs(round.cubes[0].rot.pitch)>=45*DEG && !saidSteep)
     push(v([tr("⛰️ アオリ／フカンの回でした","⛰️ That was a worm's/bird's-eye one"),
             tr("⛰️ 上下のパースが強い回","⛰️ Strong vertical perspective"),
             tr("⛰️ むずかしい角度の回でした","⛰️ A tricky angle, that one")]));
@@ -4086,7 +4152,7 @@ $("#btnSeedPlay").addEventListener("click",()=>{
 
 /* ---- かくしメニュー解放：コナミコマンド／タイトル7連打（スマホ用） ----
    もとは封印中のハリガネモードを解放していたが、ハリガネは変化球入りしたので
-   いまは「変化球セレクト」（5種から選んで遊べる・記録対象外のれんしゅう枠）を解放する。
+   いまは「変化球セレクト」（記録対象外のれんしゅう枠）を解放する。
    キー名は当時のまま＝過去に解放した人はそのまま引き継がれる */
 const WIRE_KEY="cube-challenge-wire";
 const twistSelUnlocked = () => { try{ return localStorage.getItem(WIRE_KEY)==="1"; }catch(_){ return false; } };
@@ -4284,7 +4350,6 @@ if(!JA){
   document.querySelector('.twistSelBtn[data-twist="dice"]').textContent="⚀ Die";
   document.querySelector('.twistSelBtn[data-twist="notch"]').textContent="🍫 Bitten";
   document.querySelector('.twistSelBtn[data-twist="wire"]').textContent="🩻 Wireframe";
-  document.querySelector('.twistSelBtn[data-twist="maru"]').textContent="⭕ Circle";
   $("#btnSeedPlay").textContent="🔗 Enter a seed to play the same puzzles";
   $("#menuOverlay .foot").innerHTML="<span style='opacity:.85'>made by <a href='https://x.com/daromeon' target='_blank' rel='noopener' style='color:#e86f9e;text-decoration:none;font-weight:800;'>@daromeon</a></span><span id='verLab' style='opacity:.6'></span>";
   $("#finalOverlay .foot").innerHTML = (RANK_ENABLED
