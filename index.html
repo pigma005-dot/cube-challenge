@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="utf-8">
@@ -54,6 +54,9 @@
   #cv.pen{cursor:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28'><g transform='rotate(45 14 14)'><rect x='10' y='1' width='8' height='4' rx='1.4' fill='%23a5d8ff' stroke='%237fb1dd' stroke-width='1'/><rect x='10' y='5' width='8' height='13' fill='%23ff9fbf' stroke='%23d6899f' stroke-width='1'/><polygon points='10,18 18,18 14,25.5' fill='%23f7c982' stroke='%23c99b55' stroke-width='1'/><polygon points='12.8,22.4 15.2,22.4 14,25.5' fill='%23555061'/></g></svg>") 6 22, crosshair;}
   /* eraser cursor: hotspot center */
   #cv.eraser{cursor:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26'><g transform='rotate(-18 13 13)'><rect x='4' y='7' width='18' height='12' rx='3.5' fill='%23ffb3c7' stroke='%23d6899f' stroke-width='1.4'/><rect x='4' y='13' width='18' height='6' rx='3' fill='%23fff4f8' stroke='%23d6899f' stroke-width='1'/></g></svg>") 13 13, cell;}
+  /* Spaceを押している間は、一般的なペイントソフトと同じ一時パンカーソル */
+  #cv.pan-ready{cursor:grab;}
+  #cv.panning{cursor:grabbing;}
 
   /* ---- top bar ---- */
   #topbar{
@@ -92,6 +95,9 @@
   }
 
   /* ---- bottom toolbar ---- */
+  /* 縦画面の描画中だけ、カメラ情報とツールを同じ通常フローへ入れる。
+     それ以外（横画面・結果表示）は display:contents で従来のfixed配置を保つ。 */
+  #bottomControls{display:contents;}
   #toolbar{
     position:fixed;bottom:16px;left:50%;transform:translateX(-50%);
     display:flex;gap:8px;z-index:5;align-items:center;
@@ -141,6 +147,37 @@
   #audioDock{position:fixed;left:12px;bottom:14px;display:flex;flex-direction:column;gap:8px;z-index:30;}
   #audioDock button{width:46px;height:46px;padding:0;font-size:20px;border-radius:50%;}
   #audioDock button.off{filter:grayscale(1);opacity:.55;}
+  #cameraDock{
+    position:fixed;left:70px;bottom:18px;z-index:30;pointer-events:none;
+    color:rgba(84,69,90,.38);font-size:10.5px;font-weight:600;line-height:1.35;
+    white-space:nowrap;letter-spacing:.01em;
+  }
+  body[data-state="menu"] #cameraDock,body[data-state="final"] #cameraDock{display:none;}
+  @media (max-width:700px) and (orientation:portrait){
+    #cameraDock{left:66px;bottom:116px;max-width:calc(100vw - 82px);white-space:normal;font-size:9.5px;}
+  }
+  @media (max-width:700px) and (orientation:landscape){
+    #cameraDock{
+      left:70px;right:194px;bottom:18px;max-width:none;
+      white-space:normal;font-size:9.5px;
+    }
+  }
+  @media (orientation:portrait){
+    body[data-state="draw"] #bottomControls{
+      position:fixed;left:0;right:0;bottom:16px;z-index:5;
+      display:flex;flex-direction:column;align-items:center;gap:5px;
+      pointer-events:none;
+    }
+    body[data-state="draw"] #toolbar{
+      position:static;left:auto;right:auto;top:auto;bottom:auto;
+      transform:none;pointer-events:auto;
+    }
+    body[data-state="draw"] #cameraDock{
+      position:static;left:auto;right:auto;top:auto;bottom:auto;
+      width:calc(100vw - 150px);max-width:calc(100vw - 150px);
+      box-sizing:border-box;text-align:center;white-space:normal;
+    }
+  }
 
   /* ---- round result (frameless & minimal — keep the drawing visible) ---- */
   #scoreFloat{
@@ -172,6 +209,7 @@
   }
   .card h1{margin:0 0 4px;font-size:29px;letter-spacing:.02em;color:var(--plum-dark);}
   .card .sub{color:#b39aa8;font-size:14px;margin:0 0 12px;font-weight:600;}
+  #cameraRule{font-size:10.5px;line-height:1.45;margin:5px 0 -3px;color:#9a8a9e;font-weight:600;opacity:.55;text-align:left;}
   #howtoBox{margin:0 0 12px;text-align:center;}
   #howtoBox img{max-width:92%;max-height:175px;display:inline-block;border-radius:18px;}
   @media (max-height:660px){
@@ -316,6 +354,9 @@
     #scoreFloat{top:calc(12px + env(safe-area-inset-top));}
     #hint{top:calc(60px + env(safe-area-inset-top));}
     #toolbar{bottom:calc(16px + env(safe-area-inset-bottom));}
+    @media (orientation:portrait){
+      body[data-state="draw"] #bottomControls{bottom:calc(16px + env(safe-area-inset-bottom));}
+    }
     #nextBar{bottom:calc(16px + env(safe-area-inset-bottom));}
     #audioDock{bottom:calc(14px + env(safe-area-inset-bottom));left:calc(12px + env(safe-area-inset-left));}
     #toast{bottom:calc(76px + env(safe-area-inset-bottom));}
@@ -409,14 +450,17 @@
 
 <div id="judgeHint" class="hidden">👉</div>
 
-<div id="toolbar">
-  <span class="tgroup">
-    <button id="btnPen" class="tool active" title="ペン">✏️ ぺん</button>
-    <button id="btnEraser" class="tool" title="けしゴム">🧽 けしごむ</button>
-  </span>
-  <button id="btnUndo" title="ひとつ戻す (Ctrl+Z)">↩️ もどす</button>
-  <button id="btnClear" title="ぜんぶ消す">🗑️ ぜんぶけす</button>
-  <button id="btnSubmit" class="primary" title="判定！ (Enter)">✨ はんてい！</button>
+<div id="bottomControls">
+  <div id="cameraDock"></div>
+  <div id="toolbar">
+    <span class="tgroup">
+      <button id="btnPen" class="tool active" title="ペン（Xで切替）">✏️ ぺん</button>
+      <button id="btnEraser" class="tool" title="けしゴム（Xで切替）">🧽 けしごむ</button>
+    </span>
+    <button id="btnUndo" title="ひとつ戻す (Ctrl+Z)">↩️ もどす</button>
+    <button id="btnClear" title="ぜんぶ消す">🗑️ ぜんぶけす</button>
+    <button id="btnSubmit" class="primary" title="判定！ (Enter)">✨ はんてい！</button>
+  </div>
 </div>
 
 <div id="audioDock">
@@ -449,6 +493,7 @@
     </button>
     <button id="btnSeedPlay" style="display:none;width:100%;background:#f2fbff;border-color:#bfe3ff;font-size:13.5px;">🔗 シードを入力して同じお題であそぶ</button>
     <div class="foot"><span style="opacity:.85">つくったひと：<a href="https://x.com/daromeon" target="_blank" rel="noopener" style="color:#e86f9e;text-decoration:none;font-weight:800;">@daromeon</a></span><span id="verLab" style="opacity:.6"></span></div>
+    <div id="cameraRule">立方体は1辺1.00m（体積1m³）　カメラ：正方形画角65.3° / f=0.780 / 主点中央 / ロール0°</div>
   </div>
 </div>
 
@@ -564,7 +609,7 @@ const TIME_LIMIT = 30;   // 本番ラウンドの制限時間（秒）
 const ERASER_R   = 16;   // けしゴムの半径(画面px)
 // ズームしても「画面上の大きさ」は一定にする（拡大したら細かく消せる）
 const eraserR = () => ERASER_R/viewS;
-const GAME_VER = "1.26";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
+const GAME_VER = "1.27";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
                            // ※アップロード時にまとめて上げる運用。ローカル改修では触らない
 // ネイティブアプリ（Capacitor/App Store版）で動いているか
 const CAP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
@@ -628,8 +673,10 @@ const rnd = (a,b) => a+rng()*(b-a);
 const rndSign = () => rng()<.5?-1:1;
 const randomSeed = () => Math.random().toString(36).slice(2,8);
 const todaySeedStr = () => {
-  const d=new Date();
-  return `daily-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  /* 世界中で同じデイリーを出すため、日本標準時（UTC+9、DSTなし）で日付を固定する。
+     端末のローカルタイムゾーンを使うと、同じ瞬間でも別の板へ分散してしまう。 */
+  const d=new Date(Date.now()+9*60*60*1000);
+  return `daily-${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
 };
 
 /* ============================================================
@@ -1144,7 +1191,7 @@ const mv = (m,v)=>[
 ];
 
 /* 立方体の「形」は (rot, D, tx, ty) だけで決まる正規化投影（画面サイズに無関係）。
-   これに一様スケールと平行移動を掛けて画面に置くので、角度・面の見え方は
+   固定カメラの正方形ステージへ一様変換するだけなので、角度・面の見え方は
    端末が違っても完全に同一になる＝同じシードなら必ず同じお題になる。 */
 function shapeOf(rot, D, tx, ty, extra){
   const R = rotMat(rot.yaw, rot.pitch);
@@ -1179,49 +1226,130 @@ function shapeOf(rot, D, tx, ty, extra){
     inShown: e.faces.includes(shown),
     visible: vis[e.faces[0]] || vis[e.faces[1]],
   }));
-  return { Q, vis, shown, edges, rot };
+  return { Q, vis, shown, edges, rot, D, tx, ty };
 }
 
-/* 正規化された形を画面に当てはめる。一様スケール＋画像平面の平行移動だけなので
-   角度は保存される（＝お題の中身は変わらない）。複数キューブは同じスケール・
-   同じ移動量で置くため相対配置も保たれる。 */
-function layoutCubes(shapes, appFrac, W, H){
+/* 全ラウンド共通の仮想カメラ。
+   1000×1000の正方形ステージ、中央が主点、焦点距離780、ロールなしで固定する。
+   端末ごとの差は、このステージ全体を安全域へ一様縮小する最後の相似変換だけ。
+   以前のように問題ごとにbboxへ合わせて拡大・移動しないため、同じ四角形から
+   推測すべき第3方向が「問題ごとに違う隠れレンズ」に左右されなくなる。 */
+const CAMERA_STAGE=1000, CAMERA_FOCAL=780, CAMERA_PAD=28;
+/* 1辺1m・体積1m³の立方体。内部頂点は±1なので1モデル単位=0.5m。 */
+const CUBE_EDGE_M=1.0, MODEL_UNIT_M=CUBE_EDGE_M/2;
+const CAMERA_FOV_DEG=2*Math.atan(CAMERA_STAGE/(2*CAMERA_FOCAL))*180/Math.PI;
+const CAMERA_FOCAL_NORM=CAMERA_FOCAL/CAMERA_STAGE;
+/* フェアネス基準: ヒント面の対角線交点を光軸へ置き、投影面積の平方根を
+   300/1000ステージに揃える。物体を3D空間で動かして合わせるので、投影後の
+   2D画像を都合よく拡大・移動する処理ではなく、固定カメラの幾何は保たれる。 */
+const HINT_FACE_SIZE=300;
+function hintFaceSize(s){
+  const ix=CUBE_FACES[s.shown].idx;
+  let a=0;
+  for(let i=0;i<4;i++){
+    const p=s.Q[ix[i]], q=s.Q[ix[(i+1)%4]];
+    a+=p.x*q.y-q.x*p.y;
+  }
+  return Math.sqrt(Math.abs(a)/2)*CAMERA_FOCAL;
+}
+function shapeWithHintCentered(rot, D, extra){
+  const R=rotMat(rot.yaw,rot.pitch);
+  let s=shapeOf(rot,D,0,0,extra), stable=false;
+  /* 中央へ動かすと「最も正面を向く面」の僅差判定が変わる可能性があるので、
+     面が安定するまで繰り返す。通常は1回、境界付近でも数回で止まる。 */
+  for(let i=0;i<6;i++){
+    const shown=s.shown, fc=mv(R,CUBE_FACES[shown].n);
+    s=shapeOf(rot,D,-fc[0],-fc[1],extra);
+    if(s.shown===shown){ stable=true; break; }
+  }
+  s.hintCentered=stable;
+  s.hintSize=hintFaceSize(s);
+  return s;
+}
+function centeredShapeAtFairSize(rot, extra){
+  let lo=2.8, hi=20;
+  for(let i=0;i<28;i++){
+    const mid=(lo+hi)/2, s=shapeWithHintCentered(rot,mid,extra);
+    if(s.hintSize>HINT_FACE_SIZE) lo=mid; else hi=mid;
+  }
+  return shapeWithHintCentered(rot,(lo+hi)/2,extra);
+}
+/* 1000×1000論理ステージを端末の安全域へ表示する相似変換。
+   採点ではこの逆変換を使うため、端末サイズ・画面回転・リサイズ後も同じ座標へ戻る。 */
+function cameraScreenLayout(W, H){
   // 横画面はツールバーが右側の縦列、縦画面は下（折返しあり）なので空ける
   const landscape = W>=H;
   const mL=24, mR=landscape?195:24, mT=70, mB=landscape?40:175;
   const availW=Math.max(60, W-mL-mR), availH=Math.max(60, H-mT-mB);
-  const all=shapes.reduce((a,s)=>a.concat(s.Q),[]);
-  const xs=all.map(p=>p.x), ys=all.map(p=>p.y);
-  const ql=Math.min(...xs), qr=Math.max(...xs), qt=Math.min(...ys), qb=Math.max(...ys);
-  const qw=Math.max(qr-ql,1e-6), qh=Math.max(qb-qt,1e-6);
-  // 見かけの大きさを指定しつつ、安全域に必ず収まるよう上限を掛ける
-  let K=appFrac*Math.min(W,H)/Math.max(qw,qh);
-  K=Math.min(K, availW/qw*0.98, availH/qh*0.98);
-  // 余白の偏りから答えの方向を推測されにくくしつつ、極端な端寄せは避ける:
-  // 安全域の中心から、置ける余裕の±55%の範囲で「中央にピークを持つ分布」で散らす
-  const off=()=>(rng()+rng()-1);                       // -1..1（中央ピークの三角分布）
+  const K=Math.min(availW,availH)/CAMERA_STAGE;
   const cxT=(mL+(W-mR))/2, cyT=(mT+(H-mB))/2;
-  const slackX=Math.max(0,(availW-qw*K)/2), slackY=Math.max(0,(availH-qh*K)/2);
-  let ax=cxT-((ql+qr)/2)*K + off()*slackX*0.55;
-  let ay=cyT-((qt+qb)/2)*K + off()*slackY*0.55;
-  // 安全域からはみ出さないよう最終クランプ（平行移動なので形は不変）
-  const l=ql*K+ax, r=qr*K+ax, t=qt*K+ay, b=qb*K+ay;
-  if(l<mL) ax+=mL-l; else if(r>W-mR) ax+=W-mR-r;
-  if(t<mT) ay+=mT-t; else if(b>H-mB) ay+=H-mB-b;
+  return {k:K, cx:cxT, cy:cyT};
+}
+function layoutCubes(shapes, W, H){
+  const {k:K,cx:cxT,cy:cyT}=cameraScreenLayout(W,H);
   return shapes.map(s=>{
-    const P=s.Q.map(p=>({x:p.x*K+ax, y:p.y*K+ay}));
+    const L=s.Q.map(p=>({x:CAMERA_STAGE/2+p.x*CAMERA_FOCAL,
+                          y:CAMERA_STAGE/2+p.y*CAMERA_FOCAL}));
+    const frameOk=L.every(p=>p.x>=CAMERA_PAD && p.x<=CAMERA_STAGE-CAMERA_PAD &&
+                              p.y>=CAMERA_PAD && p.y<=CAMERA_STAGE-CAMERA_PAD);
+    const P=L.map(p=>({x:cxT+(p.x-CAMERA_STAGE/2)*K,
+                       y:cyT+(p.y-CAMERA_STAGE/2)*K}));
     const pxs=P.map(p=>p.x), pys=P.map(p=>p.y);
     const bw=Math.max(...pxs)-Math.min(...pxs), bh=Math.max(...pys)-Math.min(...pys);
+    const lxs=L.map(p=>p.x), lys=L.map(p=>p.y);
+    const lbw=Math.max(...lxs)-Math.min(...lxs), lbh=Math.max(...lys)-Math.min(...lys);
+    const fc=mv(rotMat(s.rot.yaw,s.rot.pitch),CUBE_FACES[s.shown].n);
+    const hintDistanceM=Math.hypot(fc[0]+s.tx,fc[1]+s.ty,fc[2]+s.D)*MODEL_UNIT_M;
     return { P, vis:s.vis, shown:s.shown, edges:s.edges, rot:s.rot,
-             tol: clamp(0.06*Math.max(bw,bh), 10, 26) };
+             D:s.D, tx:s.tx, ty:s.ty, hintCentered:s.hintCentered,
+             hintSize:s.hintSize, hintDistanceM, frameOk,
+             tol: clamp(0.06*Math.max(bw,bh), 10, 26),
+             scoreTol: clamp(0.06*Math.max(lbw,lbh), 10, 26) };
   });
 }
 
 const randRot = () => ({ yaw: rndSign()*rnd(10,38)*DEG, pitch: rndSign()*rnd(7,26)*DEG });
-/* アオリ（見上げ）／フカン（見下ろし）: 上面または下面がヒントになる強めのピッチ。
-   45°を超えると上下面が「最もカメラを向いた面」になる。急すぎると読みにくいので60°まで。 */
-const randRotTilted = () => ({ yaw: rndSign()*rnd(10,32)*DEG, pitch: rndSign()*rnd(47,60)*DEG });
-const TILTED_RATE = 0.20;
+/* 位置とサイズを揃えても問題が単調にならないよう、8ラウンドを角度帯で層化する。
+   左右・見上げ／見下ろしの符号はシードごとに反転するが、必ず4回ずつになる。 */
+/* ★帯は「可読性フィルタを実際に通る領域」の中から選ぶこと。
+   固定カメラでヒント面を光軸中心・投影300に揃えると、立方体は約2.5mに置かれる。
+   死角は **pitch 13.0〜18.0°**（yawをどれだけ振っても全滅。18.5°からは通る）。
+   主因は MIN_EDGE_RATIO ではなく、3面目が現れた直後は紙のように薄く
+   MIN_FACE_RATIO と yCornerMinAngle に落ちること（監査で実測済み）。
+   旧版はこの死角に band0(y10-17,p7-12→合格率0%) と band4(y12-20,p18-26→4.9%) を
+   置いていたため、genRound が40回とも失敗して不合格お題をそのまま出していた。
+   下の8帯の幾何フィルタ合格率は実測94〜100%。ただしこれは通常お題の数字で、
+   **かじられ(notch)は可視面3枚が必要**なので、2面ビューの帯0/1/2/6では成立しない
+   （twistOk落ち→relax再抽選でRELAX_BANDSへ移る。設計どおりの挙動）。
+   変更するときは必ず合格率を測り直すこと。 */
+const ROTATION_BANDS=[
+  {y:[24,30],p:[ 6,10]}, {y:[28,34],p:[ 7,11]},
+  {y:[30,36],p:[ 8,12]}, {y:[32,38],p:[20,24]},
+  {y:[26,32],p:[21,25]}, {y:[28,34],p:[22,26]},
+  {y:[ 8,12],p:[24,29]}, {y:[30,38],p:[24,28]},
+];
+/* 再抽選用の安全帯。1本だけに固定すると変化球のお題が同じ姿勢へ集中するため、
+   可読性フィルタを安定して通った6帯を使い分ける（いずれも可視面3枚＝notch成立）。
+   ★並び順に意味がある: bandIdx%6 の折返しで先頭2帯だけ2倍の重みが掛かるため、
+   最弱の帯 {y25-30,p20-24}（yCornerフィルタ脱落 約12%）を先頭に置かないこと。 */
+const RELAX_BANDS=[
+  {y:[30,35],p:[20,24]}, {y:[35,40],p:[20,24]}, {y:[25,30],p:[20,24]},
+  {y:[25,30],p:[24,28]}, {y:[30,35],p:[24,28]}, {y:[35,40],p:[24,28]},
+];
+function roundRotation(tilted, relax){
+  const slot=((roundIdx%ROTATION_BANDS.length)+ROTATION_BANDS.length)%ROTATION_BANDS.length;
+  const phase=hashSeed(`${gameSeed}#pose-balance`);
+  const sy=(slot&1 ? 1 : -1) * (phase&1 ? -1 : 1);
+  /* 全8回で4:4、採点対象のR3〜R8だけでも3:3になる並び。 */
+  const pitchSigns=[-1,1,1,-1,-1,1,1,-1];
+  const sp=pitchSigns[slot] * (phase&2 ? -1 : 1);
+  /* 帯の順番もシードで巡回させる。符号の4:4バランスはslot側に残るため崩れない。 */
+  const bandIdx=(slot+((phase>>>2)%ROTATION_BANDS.length))%ROTATION_BANDS.length;
+  const b=relax ? RELAX_BANDS[bandIdx%RELAX_BANDS.length] : ROTATION_BANDS[bandIdx];
+  return (tilted && !relax)
+    ? {yaw:sy*rnd(10,32)*DEG, pitch:sp*rnd(47,60)*DEG}
+    : {yaw:sy*rnd(b.y[0],b.y[1])*DEG, pitch:sp*rnd(b.p[0],b.p[1])*DEG};
+}
 
 /* ================= round generation ================= */
 /* 立方体の平行な辺を3方向にグループ分けしたもの（読みやすさ判定に使う） */
@@ -1281,25 +1409,55 @@ function yCornerMinAngle(c){
    head-on cube ends up with zero visible non-shown edges → NaN scores)
    + Y字コーナーが90°未満（不自然パース）のお題も再抽選 */
 function genRound(mode, practice, W, H){
-  // アオリ／フカンにするかは再抽選をまたいで固定する（確率を正確に20%に保つため）
-  // 変化球の日はアオリを混ぜない（十字＋強ピッチは難しすぎるため）
-  /* チャレンジでは、時間に余裕のある序盤だけアオリ／フカンを混ぜる。
-     4〜7秒のラウンドで引くと実力ではなく運で即死するため（rng()は必ず消費して
-     お題の決定性を保つ） */
-  const tilted = mode!=="double" && !gameTwist && rng()<TILTED_RATE
-    && (!endlessRun || endTime(roundIdx)>=8);
-  let r=null;
+  /* 8回に1回（slot 6）を強いアオリ／フカンに固定する。抽選運による難易度差をなくす。
+     変化球とは重ねない。★エンドレスでは slot6 の到達時点で endTime が常に最短の
+     8秒なので、`endTime>8` は一度も真にならない＝エンドレスに強傾斜は出ない
+     （時間が短いラウンドに難姿勢を重ねない、を最も強い形で満たす）。 */
+  const tilted = mode!=="double" && !gameTwist && roundIdx%8===6
+    && (!endlessRun || endTime(roundIdx)>8);
+  /* ★不合格のまま返してはいけない。
+     旧版は40回失敗すると「最後の失敗作」をそのまま出題していた。可視面が1枚しか
+     ないお題（描くべき辺が0本）まで通り、その回は12辺を完璧に描いても
+     cov=0 → score=0.00 に固定される（エンドレスでは即死）。
+     いまは (1)帯の中で40回 → (2)帯を無視した安全姿勢で20回 → (3)それでも駄目なら
+     「違反の少なかった候補」を返す、の3段構えにして、最低でも描ける辺があることを保証する。 */
+  const okOf=r=>{
+    const minT = r.twist==="maru" ? 1 : 3;   // まんまるはターゲットが円1本だけ
+    return r.twistOk && r.cubes.every((c,ci)=>c.frameOk &&
+      (mode==="double" || (c.hintCentered && Math.abs(c.hintSize-HINT_FACE_SIZE)<0.05)) &&
+      r.targets.filter(t=>t.cube===ci).length>=minT && yCornerMinAngle(c)>=90 && readableView(c));
+  };
+  // 落第の重さ。描ける辺が無いのは致命的なので最優先で避ける
+  const badness=r=>{
+    const minT = r.twist==="maru" ? 1 : 3;
+    let s=0;
+    if(!r.twistOk) s+=50;
+    for(const c of r.cubes){
+      const tn=r.targets.filter(t=>t.cube===r.cubes.indexOf(c)).length;
+      if(tn<minT) s+=1000*(minT-tn);          // ← これだけは絶対に避ける
+      if(!c.frameOk) s+=40;
+      if(mode!=="double" && !c.hintCentered) s+=30;
+      if(yCornerMinAngle(c)<90) s+=10;
+      if(!readableView(c)) s+=10;
+    }
+    return s;
+  };
+  let r=null, best=null, bestBad=Infinity;
   for(let i=0;i<40;i++){
     r=buildRound(mode, practice, W, H, tilted);
-    const minT = r.twist==="maru" ? 1 : 3;   // まんまるはターゲットが円1本だけ
-    const ok=r.twistOk && r.cubes.every((c,ci)=>
-      r.targets.filter(t=>t.cube===ci).length>=minT && yCornerMinAngle(c)>=90 && readableView(c));
-    if(ok) break;
+    if(okOf(r)) return r;
+    const b=badness(r);
+    if(b<bestBad){ bestBad=b; best=r; }
   }
-  return r;
+  for(let i=0;i<20;i++){                       // 帯を捨てて安全姿勢で引き直す
+    r=buildRound(mode, practice, W, H, tilted, true);
+    if(okOf(r)) return r;
+    const b=badness(r);
+    if(b<bestBad){ bestBad=b; best=r; }
+  }
+  return best||r;
 }
-function buildRound(mode, practice, W, H, tilted){
-  const minWH = Math.min(W,H);
+function buildRound(mode, practice, W, H, tilted, relax){
   const cubes = [];
   let shared = null, crossCtx = null;
 
@@ -1322,25 +1480,10 @@ function buildRound(mode, practice, W, H, tilted){
     const a = stacked ? {tx:j1, ty: sep} : {tx:-sep, ty:j1};
     const b = stacked ? {tx:j2, ty:-sep} : {tx: sep, ty:j2};
     cubes.push(...layoutCubes(
-      [shapeOf(rotA,D1,a.tx,a.ty,TWIST_EXTRA3D), shapeOf(rotB,D2,b.tx,b.ty,TWIST_EXTRA3D)],
-      rnd(0.60,0.72), W, H));
+      [shapeOf(rotA,D1,a.tx,a.ty,TWIST_EXTRA3D), shapeOf(rotB,D2,b.tx,b.ty,TWIST_EXTRA3D)], W, H));
   }else{
     const isCross = mode==="normal" && gameTwist==="cross";
-    /* りったい十字は形が3倍大きいので、透視のきつさを立方体1個と合わせるため
-       視点も遠くに置く（D=3.8〜8 のままだと遠い腕が極端に潰れて読めない） */
-    const D = isCross ? rnd(8.5,12) : rnd(3.8,8);
-    /* 配置オフセットは小さく保つ（v1.22）。消失点は回転だけで決まり、tx/tyを大きくすると
-       立方体だけが3消失点の三角形の外へ滑っていき、「近い辺のほうが短く見える」
-       感覚に反するお題になる。±0.35/±0.25なら重心が三角形の外に出る率は実測0%。 */
-    const tx = rnd(-0.35,0.35), ty = rnd(-0.25,0.25);
-    // 大きめの画面では少し小さく出題して余白の自由度を上げる（スマホは描きやすさ優先）。
-    // まんまるは円が主役なので少し大きめに出す
-    const isMaru = mode==="normal" && gameTwist==="maru";
-    const appFrac = isCross ? rnd(0.66,0.78)
-      : isMaru ? rnd(0.34,0.46)
-      : (minWH>=560 ? rnd(0.26,0.34) : rnd(0.30,0.40));
-    // 変化球の日は追加の3D点も一緒に投影しておく（c.P の 8番以降に入る）。
-    const rot = tilted?randRotTilted():randRot();
+    const rot = roundRotation(tilted, relax);
     /* 中点(TWIST_EXTRA3D)はどのモードでも投影しておく。十字の作図線を
        無罰にするのに要るため。凸包の内側の点なので bbox も採点も変わらない */
     let wantExtra = TWIST_EXTRA3D;
@@ -1348,15 +1491,19 @@ function buildRound(mode, practice, W, H, tilted){
       if(gameTwist==="dice")       wantExtra=DICE_EXTRA3D;
       else if(gameTwist==="notch") wantExtra=NOTCH_EXTRA3D;
     }
+    let shaped=centeredShapeAtFairSize(rot,wantExtra);
     if(isCross){
       /* 縦の1個をどちら側に付けるかを先に決める（shapeOfのvis[+y面]と同じ式）。
          上下でEXTRA3Dの頂点リストが変わるため、投影の前に選ぶ必要がある */
+      const {D,tx,ty}=shaped;
       const nR=mv(rotMat(rot.yaw,rot.pitch),[0,1,0]);
       const up = nR[0]*(nR[0]+tx)+nR[1]*(nR[1]+ty)+nR[2]*(nR[2]+D) < 0;
       crossCtx={rot, D, tx, ty, G: up?CROSS_GEOM.up:CROSS_GEOM.down};
       wantExtra=crossCtx.G.extra;
+      shaped=centeredShapeAtFairSize(rot,wantExtra);
+      crossCtx.D=shaped.D; crossCtx.tx=shaped.tx; crossCtx.ty=shaped.ty;
     }
-    cubes.push(...layoutCubes([shapeOf(rot,D,tx,ty,wantExtra)], appFrac, W, H));
+    cubes.push(...layoutCubes([shaped], W, H));
   }
 
   const targets = [];
@@ -1369,17 +1516,19 @@ function buildRound(mode, practice, W, H, tilted){
       const n = clamp(Math.round(len/8), 8, 40);
       const samples = [];
       for(let i=0;i<=n;i++) samples.push({x:pa.x+(pb.x-pa.x)*i/n, y:pa.y+(pb.y-pa.y)*i/n});
-      targets.push({cube:ci, pa, pb, hidden:!e.visible, tol:c.tol, samples, score:0});
+      targets.push({cube:ci, pa, pb, hidden:!e.visible,
+                    tol:c.tol, scoreTol:c.scoreTol, samples, score:0});
     });
   });
   /* 的中率の判定に使う線。消失点をとる「アタリ線」は正しい技法なので罰しないよう、
-     各辺を自分の長さの2.5倍だけ両側へ延長した線分として保持する。 */
+     各辺を自分の長さの EXT 倍（=1.0倍）だけ両側へ延長した線分として保持する。 */
   const EXT=1.0;
   const allSegs = [];
   cubes.forEach(c=>c.edges.forEach(e=>{
     const pa=c.P[e.a], pb=c.P[e.b];
     const dx=(pb.x-pa.x)*EXT, dy=(pb.y-pa.y)*EXT;
-    allSegs.push({pa:{x:pa.x-dx, y:pa.y-dy}, pb:{x:pb.x+dx, y:pb.y+dy}, tol:c.tol});
+    allSegs.push({pa:{x:pa.x-dx, y:pa.y-dy}, pb:{x:pb.x+dx, y:pb.y+dy},
+                  tol:c.tol, scoreTol:c.scoreTol});
   }));
   /* 面の中心をとる作図線（対角線と、辺の中点どうしを結ぶ十字）は
      **どのモードでも**引いて減点されない。ゲーム内のワンポイントで
@@ -1390,7 +1539,8 @@ function buildRound(mode, practice, W, H, tilted){
     const hasMid = c.P.length>=20;      // 中点が投影されているか
     const MM=(a,b)=>c.P[8+EDGE_IDX[Math.min(a,b)+"_"+Math.max(a,b)]];
     const push=(pa,pb)=>{ const dx=(pb.x-pa.x)*EXT, dy=(pb.y-pa.y)*EXT;
-      allSegs.push({pa:{x:pa.x-dx,y:pa.y-dy}, pb:{x:pb.x+dx,y:pb.y+dy}, tol:c.tol}); };
+      allSegs.push({pa:{x:pa.x-dx,y:pa.y-dy}, pb:{x:pb.x+dx,y:pb.y+dy},
+                    tol:c.tol, scoreTol:c.scoreTol}); };
     for(let fi=0;fi<6;fi++){
       if(!c.vis[fi]) continue;
       const ix=CUBE_FACES[fi].idx;
@@ -1414,7 +1564,8 @@ function buildRound(mode, practice, W, H, tilted){
     const c=cubes[0];
     const M=(a,b)=>c.P[8+EDGE_IDX[Math.min(a,b)+"_"+Math.max(a,b)]];
     const addSeg=(pa,pb,ext)=>{ const dx=(pb.x-pa.x)*ext, dy=(pb.y-pa.y)*ext;
-      allSegs.push({pa:{x:pa.x-dx,y:pa.y-dy}, pb:{x:pb.x+dx,y:pb.y+dy}, tol:c.tol}); };
+      allSegs.push({pa:{x:pa.x-dx,y:pa.y-dy}, pb:{x:pb.x+dx,y:pb.y+dy},
+                    tol:c.tol, scoreTol:c.scoreTol}); };
     // まんまるは立方体を使わないので面のループを飛ばす
     // （対角線・十字は下の共通処理ですでに無罰登録されている）
     if(twist!=="maru") for(let fi=0;fi<6;fi++){
@@ -1429,7 +1580,8 @@ function buildRound(mode, practice, W, H, tilted){
           const n=clamp(Math.round(len/8),8,40);
           const samples=[];
           for(let i=0;i<=n;i++) samples.push({x:pa.x+(pb.x-pa.x)*i/n, y:pa.y+(pb.y-pa.y)*i/n});
-          targets.push({cube:0, pa, pb, hidden:false, tol:c.tol, samples, score:0, len});
+          targets.push({cube:0, pa, pb, hidden:false,
+                        tol:c.tol, scoreTol:c.scoreTol, samples, score:0, len});
         }
       }else if(twist==="dice"){
         // サイコロの1の目（投影済みの円＝楕円ポリライン）。閉ループとして扱う
@@ -1443,9 +1595,9 @@ function buildRound(mode, practice, W, H, tilted){
         }
         extraLen+=len;
         if(fi===c.shown){ hintLines.push(pts); continue; }         // ヒント面はお手本
-        const samples=pts.slice(0,DICE_N).map(p=>({x:p.x,y:p.y}));  // 約len/20間隔≒既存の8px方針
+        const samples=pts.slice(0,DICE_N).map(p=>({x:p.x,y:p.y}));  // 固定点数。採点時に論理座標へ戻す
         targets.push({cube:0, pa:pts[0], pb:pts[pts.length-1], hidden:false,
-                      tol:c.tol, samples, score:0, pts, len});
+                      tol:c.tol, scoreTol:c.scoreTol, samples, score:0, pts, len});
       }
     }
     if(twist==="notch"){
@@ -1464,7 +1616,8 @@ function buildRound(mode, practice, W, H, tilted){
           const n=clamp(Math.round(len/8),8,40);
           const samples=[];
           for(let i=0;i<=n;i++) samples.push({x:pa.x+(pb.x-pa.x)*i/n, y:pa.y+(pb.y-pa.y)*i/n});
-          targets.push({cube:0, pa, pb, hidden:false, tol:c2.tol, samples, score:0, len});
+          targets.push({cube:0, pa, pb, hidden:false,
+                        tol:c2.tol, scoreTol:c2.scoreTol, samples, score:0, len});
         }
       }
       cubes[0].notchOk=!!np;
@@ -1486,7 +1639,8 @@ function buildRound(mode, practice, W, H, tilted){
           const n=clamp(Math.round(len/8),8,40);
           const samples=[];
           for(let i=0;i<=n;i++) samples.push({x:pa.x+(pb.x-pa.x)*i/n, y:pa.y+(pb.y-pa.y)*i/n});
-          targets.push({cube:0, pa, pb, hidden:false, tol:c2.tol, samples, score:0, len});
+          targets.push({cube:0, pa, pb, hidden:false,
+                        tol:c2.tol, scoreTol:c2.scoreTol, samples, score:0, len});
         }
         // 隠れた折り目も正規の線量に数える（ハリガネ式に全部描く人を守る）
         for(const h of cp.hidden) extraLen+=Math.hypot(h.pb.x-h.pa.x, h.pb.y-h.pa.y);
@@ -1522,20 +1676,34 @@ function buildRound(mode, practice, W, H, tilted){
                 {x:cx+CR*(-ux+uy),y:cy+CR*(-uy-ux)},{x:cx+CR*(ux+uy),y:cy+CR*(uy-ux)}];
       for(let k=0;k<4;k++) addSeg(sq[k],sq[(k+1)%4],EXT);            // 外接する正方形（作図の定番）
       extraLen+=len;
-      targets.push({cube:0, pa:pts[0], pb:pts[N2], hidden:false, tol:c2.tol,
+      targets.push({cube:0, pa:pts[0], pb:pts[N2], hidden:false,
+                    tol:c2.tol, scoreTol:c2.scoreTol,
                     samples:pts.slice(0,N2).map(p=>({x:p.x,y:p.y})), score:0, pts, len});
     }
   }
+  /* ★変化球が成立しなかったラウンドは、普通の立方体として出す。
+     かじられキューブは3面が見える構図でしか作れないが、再抽選が尽きると
+     そのまま返ってしまい、ヒント面もヒント線も無い真っ白なキャンバスで
+     採点される（何を描いても0点）。ここで変化球を降ろして成立させる。 */
+  let okTwist = twist;
+  if(twist==="notch" && !cubes[0].notchOk) okTwist=null;
+  if(twist==="cross" && !cubes[0].crossOk) okTwist=null;
+  if(okTwist!==twist && (twist==="notch"||twist==="cross")){
+    hintLines=null; crossHidden=null;
+  }
   return { mode, practice, cubes, targets, allSegs, shared, result:null,
-           twist, hintLines, extraLen, crossHidden,
-           timeLimit: twist==="cross" ? 60 : TIME_LIMIT,   // 月末スペシャルだけ60秒
-           noCube: twist==="notch" || twist==="cross" || twist==="maru",   // 素の正方形ヒント面を描かない日
-           twistOk: (twist!=="notch" || !!cubes[0].notchOk) &&
-                    (twist!=="cross" || !!cubes[0].crossOk) };
+           twist:okTwist, hintLines, extraLen, crossHidden,
+           scoreLayout: cameraScreenLayout(W,H),
+           timeLimit: okTwist==="cross" ? 60 : TIME_LIMIT,   // 月末スペシャルだけ60秒
+           noCube: okTwist==="notch" || okTwist==="cross" || okTwist==="maru",
+           /* 変化球が成立したかは正直に返す。genRound はこれを見て再抽選し、
+              本物の変化球を優先する。尽きた場合も上で普通の立方体へ降ろしてあるので、
+              返ってくるお題は必ず成立している。 */
+           twistOk: okTwist===twist };
 }
 
 /* ================= scoring ================= */
-/* ガウシアン減衰: d=0 のときだけ 1.0 → 100.00点は事実上出ない */
+/* ガウシアン減衰: d=0 で 1.0（インクを線分で測るv1.25以降、完璧なトレースは100.00になる） */
 function falloff(d, tol){
   const s=0.6*tol;
   return Math.exp(-0.5*(d/s)*(d/s));
@@ -1551,28 +1719,46 @@ function resampleStrokes(strokes, step){
   const pts=[];
   let si=0;
   for(const s of strokes){
-    const os=[];
+    const os=[], raw=[];
     si++;
-    let prev=null, acc=0;
     for(const p0 of s.pts){
       const p={x:p0.x, y:p0.y};
-      if(!prev){ os.push({x:p.x,y:p.y}); prev=p; continue; }
-      let d=Math.hypot(p.x-prev.x, p.y-prev.y);
-      while(acc+d>=step){
-        const t=(step-acc)/d;
-        prev={x:prev.x+(p.x-prev.x)*t, y:prev.y+(p.y-prev.y)*t};
-        os.push({x:prev.x, y:prev.y});
-        d=Math.hypot(p.x-prev.x, p.y-prev.y);
-        acc=0;
-      }
-      acc+=d; prev=p;
+      const prev=raw[raw.length-1];
+      if(!prev || prev.x!==p.x || prev.y!==p.y) raw.push(p);
     }
-    /* ストロークの最後の生点も必ず出力する（4px刻みの端数で末端が欠けると、
-       完璧になぞっても端のサンプルだけ減衰が残ってしまう） */
-    if(prev && os.length &&
-       (os[os.length-1].x!==prev.x || os[os.length-1].y!==prev.y))
-      os.push({x:prev.x, y:prev.y});
-    /* 各点に「線の局所的な向き」を付ける（±2点＝約8pxの窓で手ぶれを均す）。
+    /* 同じ折れ線は描いた向きにかかわらず同じ側から補間する。両端が同じ
+       場合も全点列を辞書順比較するので、閉じた線以外は一意に決まる。 */
+    for(let i=0;i<raw.length;i++){
+      const a=raw[i], b=raw[raw.length-1-i];
+      if(a.x===b.x && a.y===b.y) continue;
+      if(a.x>b.x || (a.x===b.x && a.y>b.y)) raw.reverse();
+      break;
+    }
+    /* 全長を ceil(全長/step) 等分する。始点からstep刻みにすると、端数が
+       始点側か終点側のどちらに寄るかで同じ線の逆描きが別サンプルになり、
+       閾値付近の採点を変えていた。等分なら両端を必ず含み、逆描きでも
+       同じ点集合になる。 */
+    if(raw.length===1) os.push({x:raw[0].x,y:raw[0].y});
+    else if(raw.length>1){
+      const cum=[0];
+      for(let i=1;i<raw.length;i++)
+        cum.push(cum[i-1]+Math.hypot(raw[i].x-raw[i-1].x,raw[i].y-raw[i-1].y));
+      const total=cum[cum.length-1];
+      if(total<=1e-9) os.push({x:raw[0].x,y:raw[0].y});
+      else{
+        const intervals=Math.max(1,Math.ceil(total/step));
+        let seg=0;
+        for(let k=0;k<=intervals;k++){
+          const d=total*k/intervals;
+          while(seg+1<cum.length-1 && d>cum[seg+1]) seg++;
+          const span=cum[seg+1]-cum[seg];
+          const u=span>0 ? (d-cum[seg])/span : 0;
+          os.push({x:raw[seg].x+(raw[seg+1].x-raw[seg].x)*u,
+                   y:raw[seg].y+(raw[seg+1].y-raw[seg].y)*u});
+        }
+      }
+    }
+    /* 各点に「線の局所的な向き」を付ける（±2点＝論理約8単位の窓で手ぶれを均す）。
        covの判定で使う: 辺と同じ向きの線だけがその辺を描いたことになる。
        タップ（1点だけのストローク）は向きを持たない＝どの辺の得点にもならない */
     for(let i=0;i<os.length;i++){
@@ -1586,13 +1772,9 @@ function resampleStrokes(strokes, step){
   }
   return pts;
 }
-/* 「立方体の辺から外れたところに引かれた線の量」÷「立方体の全辺の長さ」。
-   面積を塗りつぶして再現率だけ稼ぐのを防ぐための指標。
-   量ではなく“外れ具合”で測るので、次のような正しい描き方は一切減点されない:
-   ・ハリガネのように隠れ線まで全部描く
-   ・消失点をとるためのアタリ線を遠くまで伸ばす（立方体の周辺の外は集計対象外）
-   ・下描きしてから線を重ねてなぞる（辺の上なら何周描いてもよい）
-   逆に塗りつぶしは辺から外れた線が大量に出るため、超えた分だけ比例して減点する。 */
+/* 「立方体から外れた線」と「正解量を大幅に超えた重ね描き」を合わせたインク指標。
+   ハリガネの隠れ線、普通の下描き、消失点補助線には十分な無料幅と軽減を残しつつ、
+   面の塗りつぶしや正解線上への候補総当たりだけが量に応じて下がる。 */
 const WASTE_ALLOW = 0.6;
 function inkBoxes(round){
   return round.cubes.map(c=>{
@@ -1726,9 +1908,167 @@ const DOODLE_NOTES={
 };
 const doodleNote = (k,i) => { const a=DOODLE_NOTES[k]||DOODLE_NOTES.any; return a[(i||0)%a.length]; };
 
+/* 採点・ゴースト保存の唯一の座標系。
+   画面上の点を、固定カメラの1000×1000論理ステージへ戻す。画面サイズや
+   リサイズ回数が違っても同じ論理ストロークなら同じ数値列になる。 */
+function logicalStrokes(round, strokes){
+  const m=round&&round.scoreLayout;
+  if(!m || !(m.k>0)) return strokes.map(s=>({
+    ...s, pts:s.pts.map(p=>({...p}))
+  }));
+  return strokes.map(s=>({...s, pts:s.pts.map(p=>({
+    ...p,
+    x:CAMERA_STAGE/2+(p.x-m.cx)/m.k,
+    y:CAMERA_STAGE/2+(p.y-m.cy)/m.k,
+    w:Number.isFinite(p.w)?p.w/m.k:p.w,
+  }))}));
+}
+function logicalScoreInputs(round, strokes){
+  const m=round&&round.scoreLayout;
+  if(!m || !(m.k>0)) return {round,strokes};
+  const pt=p=>({x:CAMERA_STAGE/2+(p.x-m.cx)/m.k,
+                y:CAMERA_STAGE/2+(p.y-m.cy)/m.k});
+  const cubes=round.cubes.map(c=>({
+    ...c, P:c.P.map(pt), tol:c.scoreTol||(c.tol/m.k),
+  }));
+  const targets=round.targets.map(t=>{
+    const pa=pt(t.pa), pb=pt(t.pb), pts=t.pts?t.pts.map(pt):null;
+    let samples;
+    if(pts){
+      // 円・楕円は生成時から固定点数。点数を変えず論理座標だけへ戻す。
+      samples=t.samples.map(pt);
+    }else{
+      // 直線ターゲットのサンプル密度も画面pxではなく論理8単位刻みに固定する。
+      const len=Math.hypot(pb.x-pa.x,pb.y-pa.y);
+      const n=clamp(Math.round(len/8),8,40);
+      samples=[];
+      for(let i=0;i<=n;i++) samples.push({x:pa.x+(pb.x-pa.x)*i/n,
+                                         y:pa.y+(pb.y-pa.y)*i/n});
+    }
+    return {...t, pa, pb, samples, pts:pts||undefined,
+            tol:t.scoreTol||(t.tol/m.k),
+            len:Number.isFinite(t.len)?t.len/m.k:t.len,
+            score:0, endScore:0};
+  });
+  const allSegs=round.allSegs.map(g=>({
+    ...g, pa:pt(g.pa), pb:pt(g.pb), tol:g.scoreTol||(g.tol/m.k),
+  }));
+  return {
+    round:{...round, cubes, targets, allSegs,
+           extraLen:(round.extraLen||0)/m.k,
+           scoreLayout:{k:1,cx:CAMERA_STAGE/2,cy:CAMERA_STAGE/2}},
+    strokes:logicalStrokes(round,strokes),
+  };
+}
 function scoreRound(round, strokes){
+  const logical=logicalScoreInputs(round,strokes);
+  const res=scoreLogicalRound(logical.round,logical.strokes);
+  /* 答え合わせの色分けは表示用ターゲットに残す。採点計算そのものは論理側だけ。 */
+  if(logical.round!==round) round.targets.forEach((t,i)=>{
+    const lt=logical.round.targets[i];
+    t.score=lt?lt.score:0; t.endScore=lt?lt.endScore:0;
+  });
+  return res;
+}
+/* 正解投影との距離だけでは拾えない低得点帯の「立方体として読める形」を評価する。
+   これは最大24点の認識下限であり、通常の厳密採点を押し上げる加点ではない。
+   全ターゲット辺を、別々の直線ストロークが一貫して担当し、共有頂点どうしも
+   まとまっている場合だけ働く。1本の線を複数辺へ使う／候補線を重ねる攻略は
+   1対1割当と全辺完成条件で下限を得られない。 */
+function recognitionFloor(round,strokes,eff){
+  if(!round.targets.length || round.targets.some(t=>t.pts)) return {score:0};
+  const sm=(a,b,x)=>{ const u=clamp((x-a)/(b-a),0,1); return u*u*(3-2*u); };
+  const reps=[];
+  for(let si=0;si<strokes.length;si++){
+    const pts=strokes[si].pts||[];
+    if(pts.length<2) continue;
+    let pathLen=0;
+    for(let i=1;i<pts.length;i++)
+      pathLen+=Math.hypot(pts[i].x-pts[i-1].x,pts[i].y-pts[i-1].y);
+    const a=pts[0],b=pts[pts.length-1];
+    const dx=b.x-a.x,dy=b.y-a.y,chord=Math.hypot(dx,dy);
+    if(!(pathLen>0&&chord>0)) continue;
+    const straight=sm(0.78,0.96,chord/pathLen);
+    if(straight>0) reps.push({si,a,b,dx,dy,chord,straight});
+  }
+  const pairs=[];
+  for(let ti=0;ti<round.targets.length;ti++){
+    const t=round.targets[ti],ex=t.pb.x-t.pa.x,ey=t.pb.y-t.pa.y;
+    const edgeLen=Math.hypot(ex,ey),tol=Math.max(1,t.tol);
+    if(!(edgeLen>0)) continue;
+    for(const r of reps){
+      const d00=Math.hypot(r.a.x-t.pa.x,r.a.y-t.pa.y);
+      const d11=Math.hypot(r.b.x-t.pb.x,r.b.y-t.pb.y);
+      const d01=Math.hypot(r.a.x-t.pb.x,r.a.y-t.pb.y);
+      const d10=Math.hypot(r.b.x-t.pa.x,r.b.y-t.pa.y);
+      const reverse=d01+d10<d00+d11;
+      const da=reverse?d10:d00,db=reverse?d01:d11;
+      const mean=(da+db)/(2*tol),maxEnd=Math.max(da,db)/tol;
+      const distFit=(1-sm(1.35,3.35,mean))*(1-sm(2.5,4.0,maxEnd));
+      const dot=Math.abs(r.dx*ex+r.dy*ey)/(r.chord*edgeLen);
+      const dirFit=sm(Math.cos(Math.PI/6),Math.cos(Math.PI/12),dot);
+      const ratio=r.chord/edgeLen;
+      const lenFit=sm(0.55,0.82,ratio)*(1-sm(1.25,1.60,ratio));
+      const q=distFit*dirFit*lenFit*r.straight;
+      if(q>0.08) pairs.push({ti,si:r.si,q,
+        pa:reverse?r.b:r.a,pb:reverse?r.a:r.b,t});
+    }
+  }
+  pairs.sort((a,b)=>b.q-a.q||a.ti-b.ti||a.si-b.si);
+  const usedTargets=new Set(),usedStrokes=new Set(),matches=[];
+  for(const p of pairs){
+    if(usedTargets.has(p.ti)||usedStrokes.has(p.si)) continue;
+    usedTargets.add(p.ti); usedStrokes.add(p.si); matches.push(p);
+  }
+  const completion=sm(0.72,0.98,matches.length/round.targets.length);
+  if(completion<=0) return {score:0,matches:matches.length,completion};
+  const quality=matches.reduce((sum,m)=>sum+m.q,0)/round.targets.length;
+
+  /* 同じ真の頂点を共有する辺について、描いた端点どうしのまとまりを測る。 */
+  const key=p=>p.x.toFixed(5)+","+p.y.toFixed(5),byVertex=new Map();
+  for(const m of matches){
+    for(const [truePoint,drawnPoint] of [[m.t.pa,m.pa],[m.t.pb,m.pb]]){
+      const k=key(truePoint),list=byVertex.get(k)||[];
+      list.push({p:drawnPoint,tol:m.t.tol}); byVertex.set(k,list);
+    }
+  }
+  let sharedSum=0,sharedN=0;
+  for(const list of byVertex.values()){
+    if(list.length<2) continue;
+    let cx=0,cy=0,tol=0;
+    for(const x of list){cx+=x.p.x;cy+=x.p.y;tol+=x.tol;}
+    cx/=list.length;cy/=list.length;tol/=list.length;
+    let rms=0;
+    for(const x of list) rms+=(x.p.x-cx)**2+(x.p.y-cy)**2;
+    rms=Math.sqrt(rms/list.length)/tol;
+    sharedSum+=1-sm(0.45,2.0,rms);sharedN++;
+  }
+  const shared=sharedN?sharedSum/sharedN:0;
+
+  /* 与えられたヒント面の頂点へ接する辺は、そこから大きく離れすぎないことも見る。 */
+  let anchorSum=0,anchorN=0;
+  for(let ci=0;ci<round.cubes.length;ci++){
+    const c=round.cubes[ci],anchors=CUBE_FACES[c.shown].idx.map(i=>c.P[i]);
+    for(let ti=0;ti<round.targets.length;ti++){
+      const t=round.targets[ti]; if(t.cube!==ci) continue;
+      const m=matches.find(x=>x.ti===ti);
+      for(const [truePoint,field] of [[t.pa,"pa"],[t.pb,"pb"]]){
+        if(!anchors.some(a=>Math.hypot(a.x-truePoint.x,a.y-truePoint.y)<1e-5)) continue;
+        anchorN++;
+        if(m){
+          const d=Math.hypot(m[field].x-truePoint.x,m[field].y-truePoint.y)/Math.max(1,t.tol);
+          anchorSum+=1-sm(1.0,3.2,d);
+        }
+      }
+    }
+  }
+  const anchor=anchorN?anchorSum/anchorN:0;
+  const shape=completion*(0.45+0.30*quality+0.15*shared+0.10*anchor);
+  return {score:24*shape*eff,matches:matches.length,completion,quality,shared,anchor,shape};
+}
+function scoreLogicalRound(round, strokes){
   let sp = resampleStrokes(strokes, 4);
-  let step = 4;                       // spの点間隔[px]（外れた線の長さを出すのに使う）
+  let step = 4;                  // spの点間隔[論理単位]（外れた線の長さを出すのに使う）
   if(sp.length>3500){
     const k=Math.ceil(sp.length/3500);
     sp = sp.filter((_,i)=>i%k===0);
@@ -1736,14 +2076,26 @@ function scoreRound(round, strokes){
   }
   if(sp.length===0){
     round.targets.forEach(t=>t.score=0);
-    return {score:0, cov:0, prec:0, eff:1, inkRatio:0, doodle:null, mirrored:false};
+    return {score:0, cov:0, structure:0, modelFit:0, prec:0, eff:1,
+            inkRatio:0, doodle:null, mirrored:false};
   }
+  /* 回廊インクは「サンプル数×step」ではなく、各点が受け持つ実際の線分長で
+     積分する。固定stepだと長さ8.000±εで点が3→4個に増え、同じ見た目の線が
+     12→16単位（+33%）へ跳ねて候補線課金に大きな崖を作っていた。
+     端点は隣接線分の半分、内部点は前後線分の半分ずつを受け持つため、
+     ストローク内の合計は常にそのポリラインの実長になる。 */
+  const sampleInk=sp.map((p,i)=>{
+    let w=0;
+    if(i>0 && sp[i-1].si===p.si) w+=0.5*Math.hypot(p.x-sp[i-1].x,p.y-sp[i-1].y);
+    if(i+1<sp.length && sp[i+1].si===p.si) w+=0.5*Math.hypot(sp[i+1].x-p.x,sp[i+1].y-p.y);
+    return w;
+  });
   /* cov: 「辺と同じ向きの線」だけがその辺を描いたことになる（v1.25）。
      グリッドや点打ちで面を覆うと近さだけでcovが稼げてしまう穴（レビュー報告）への対策。
      なぞり・ハリガネ描き・アタリ線は向きが一致するので従来どおり満点になる。
      25°までは満点扱い（手ぶれ幅）、60°以上ずれた線は0点。
      さらにインクは「点の集まり」ではなく「点をつないだ線分」として測る:
-     リサンプル4px刻みの量子化誤差（最大2px）が消え、完璧になぞれば理論上100.00になる。
+     リサンプル論理4単位刻みの量子化誤差（最大2単位）が消え、完璧になぞれば理論上100.00になる。
      タップ（1点だけのストローク）は線分にならないので引き続き無得点。 */
   const DIR_COS0=0.5, DIR_NORM=1/(0.9063-0.5);   // cos60°〜cos25°をなだらかに
   const segs=[];
@@ -1753,11 +2105,204 @@ function scoreRound(round, strokes){
     let dx=a.dx+b.dx, dy=a.dy+b.dy, L=Math.hypot(dx,dy);
     if(L<1e-6){ dx=b.x-a.x; dy=b.y-a.y; L=Math.hypot(dx,dy); }   // Uターンの縮退は弦の向きで
     if(L<1e-6) continue;
-    segs.push({ax:a.x,ay:a.y,bx:b.x,by:b.y,
+    segs.push({ax:a.x,ay:a.y,bx:b.x,by:b.y,si:a.si,
                mx:(a.x+b.x)/2,my:(a.y+b.y)/2, dx:dx/L, dy:dy/L});
   }
+  /* 各ストロークの始点・終点。「どこで線を止めたか」は端点を伝える唯一の情報なので、
+     はみ出し減点の免罪符に使う（本線を角で止めていれば、アタリ線を足しても満点のまま）。 */
+  /* ストロークごとの長さ[論理単位]。免罪符の資格判定に使う（下の termAt 参照）。 */
+  const strokeLen=new Map();
+  for(let j=1;j<sp.length;j++){
+    if(sp[j].si!==sp[j-1].si) continue;
+    strokeLen.set(sp[j].si, (strokeLen.get(sp[j].si)||0)+
+      Math.hypot(sp[j].x-sp[j-1].x,sp[j].y-sp[j-1].y));
+  }
+  const termini=[];
+  for(let j=0;j<sp.length;j++){
+    const prev=j>0?sp[j-1]:null, next=j<sp.length-1?sp[j+1]:null;
+    if(!prev || prev.si!==sp[j].si || !next || next.si!==sp[j].si)
+      termini.push({x:sp[j].x, y:sp[j].y, dx:sp[j].dx, dy:sp[j].dy,
+                    si:sp[j].si, len:strokeLen.get(sp[j].si)||0});
+  }
+  /* 正解辺そのものを端から端までなぞったストローク。
+     透視投影で別の平行辺の回廊に重なる構図があり、そのときには
+     「通過線」に見える。正解の2〜3回なぞりを重複作図線と誤判定しないよう
+     元の端点対にコミットしている線を先に識別する。 */
+  const strokeEnds=new Map();
+  for(let pi=0;pi<sp.length;pi++){
+    const p=sp[pi];
+    if(!strokeEnds.has(p.si)) strokeEnds.set(p.si,{first:p,last:p});
+    else strokeEnds.get(p.si).last=p;
+  }
+  const committedStroke=new Set(), strictCommittedStroke=new Set();
+  /* 部分ストロークは最も近い正解辺1本だけへ割り当てる。
+     遠近で別方向の辺がほぼ重なる構図では、複数辺の回廊へ同時に入ることがある。
+     その全部を所有先にすると、正しい分割描画が隣の辺の候補線として二重計上される。 */
+  const strokeOwners=new Map();       // si → {ti,cost}: 最も自然な所有先
+  for(const [si,e] of strokeEnds){
+    for(let ti=0;ti<round.targets.length;ti++){
+      const t=round.targets[ti];
+      if(t.pts) continue;
+      const edgeLen=t.len||Math.hypot(t.pb.x-t.pa.x,t.pb.y-t.pa.y);
+      const drawnLen=strokeLen.get(si)||0;
+      const ex=t.pb.x-t.pa.x, ey=t.pb.y-t.pa.y, eL2=ex*ex+ey*ey;
+      if(eL2>1e-9 && drawnLen>=0.07*edgeLen){
+        const ownPt=p=>{
+          const rx=p.x-t.pa.x, ry=p.y-t.pa.y;
+          const proj=(rx*ex+ry*ey)/eL2;
+          const lateral=Math.abs(rx*ey-ry*ex)/Math.sqrt(eL2);
+          return lateral<=t.tol && proj>=-0.08 && proj<=1.08
+            ? {proj,lateral} : null;
+        };
+        const first=ownPt(e.first), last=ownPt(e.last);
+        if(first&&last){
+          const overflow=p=>Math.max(0,-p, p-1);
+          const cost=(first.lateral+last.lateral)/Math.max(1,t.tol)
+                    +4*(overflow(first.proj)+overflow(last.proj));
+          const prev=strokeOwners.get(si);
+          if(!prev || cost<prev.cost) strokeOwners.set(si,{ti,cost});
+        }
+      }
+      /* 端点の手ぶれは認めるが、90/110%の長さ候補まで「正解辺」に
+         昇格させない。端点と長さの両方が合うことを要求する。 */
+      if(!(edgeLen>0) || drawnLen<0.92*edgeLen || drawnLen>1.08*edgeLen) continue;
+      const tol=0.75*t.tol;
+      const direct=Math.hypot(e.first.x-t.pa.x,e.first.y-t.pa.y)<=tol &&
+                   Math.hypot(e.last.x-t.pb.x,e.last.y-t.pb.y)<=tol;
+      const reverse=Math.hypot(e.first.x-t.pb.x,e.first.y-t.pb.y)<=tol &&
+                    Math.hypot(e.last.x-t.pa.x,e.last.y-t.pa.y)<=tol;
+      if(direct||reverse){
+        committedStroke.add(si);
+        /* candidateEvidence では、端点だけでなく長さもほぼ答えた線を
+           「別候補」から除外する。通常の committed (92〜108%) を丸ごと
+           除外すると95%長の候補攻撃まで無料になるため、96〜104%に限定し、
+           他辺の回廊へ誤って免除を貸さないよう対象辺ごとのキーで保持する。 */
+        if(drawnLen>=0.96*edgeLen && drawnLen<=1.04*edgeLen)
+          strictCommittedStroke.add(ti+":"+si);
+        break;
+      }
+    }
+  }
+  /* はみ出し減点。辺を通り過ぎて描くと「辺がどこで終わるか」を答えていないので、
+     はみ出した長さ（辺長比）に応じて端点評価を下げる。
+     ・角で折り返す一筆書きははみ出さないので影響なし
+     ・本線＋アタリ線は、本線の終点が角にあるので termini 側で満点になる
+     8%までは手のブレとして無料。 */
+  const OVER_FREE=0.08, OVER_K=1.2;
+  const overDamp=e=>Math.exp(-OVER_K*Math.max(0,e-OVER_FREE));
+  const smooth=(a,b,x)=>{ const u=clamp((x-a)/(b-a),0,1); return u*u*(3-2*u); };
+  /* ▼アタリ線らしさ(guideScore)は、はみ出し測定より前に必要になったのでここで計算する。
+     （認定済みアタリ線のインクを「本線のはみ出し」に数えないため。
+     旧配置では、辺の延長方向へ引いた正しいアタリ線が本線のはみ出し扱いになり、
+     本線を分割して描く癖の人が termAt の資格を失って -2.5〜-5.5点を受けていた） */
+  const boxes=inkBoxes(round);
+  const inBox=p=>boxes.some(b=>p.x>=b.l&&p.x<=b.r&&p.y>=b.t&&p.y<=b.b);
+  const GUIDE_W=0.35, GUIDE_WASTE_W=0.20;
+  const guideScore=new Map();
+  let guideBudget=0;
+  {
+    /* 補助線らしさを0〜1の連続値で評価する。生のpointer event点数は使わず、
+       論理4単位へリサンプル済みのspだけを見るため、端末の報告頻度や
+       no-op消しゴムによる点の増減で判定が反転しない。 */
+    const insideBoxLen=(a,b,box)=>{
+      const dx=b.x-a.x,dy=b.y-a.y,L=Math.hypot(dx,dy); let lo=0,hi=1;
+      for(const [p0,q0] of [[-dx,a.x-box.l],[dx,box.r-a.x],[-dy,a.y-box.t],[dy,box.b-a.y]]){
+        if(Math.abs(p0)<1e-9){ if(q0<0) return 0; continue; }
+        const z=q0/p0;
+        if(p0<0) lo=Math.max(lo,z); else hi=Math.min(hi,z);
+        if(lo>hi) return 0;
+      }
+      return L*Math.max(0,hi-lo);
+    };
+    const maxTL=round.targets.reduce((a,t)=>
+      Math.max(a, t.len||Math.hypot(t.pb.x-t.pa.x,t.pb.y-t.pa.y)), 0);
+    /* ★アタリ線の物差しは「そのラウンドの最長ターゲット」ではなく立方体のスケールで測る。
+       2面ビューの回はターゲットが短い奥行き辺だけになり、maxTL基準だと
+       同じ長さの正しい作図線が「長すぎ」判定で予算超過し、5辺の回では無料の
+       8本作図が3辺の回では-40点になっていた（実測59.4点）。ヒント面の辺は
+       全ラウンド共通で約HINT_FACE_SIZEに正規化されているのでこれを下限にする。 */
+    const guideRuler=Math.max(maxTL, HINT_FACE_SIZE);
+    const groups=new Map();
+    for(const p of sp){ if(!groups.has(p.si)) groups.set(p.si,[]); groups.get(p.si).push(p); }
+    for(const [si,p] of groups){
+      if(p.length<2 || !(guideRuler>0)){ guideScore.set(si,0); continue; }
+      let L=0, inL=0;
+      for(let i=1;i<p.length;i++){
+        const dl=Math.hypot(p[i].x-p[i-1].x,p[i].y-p[i-1].y);
+        L+=dl;
+        inL+=Math.min(dl,boxes.reduce((sum,box)=>sum+insideBoxLen(p[i-1],p[i],box),0));
+      }
+      const a=p[0], b=p[p.length-1], dx=b.x-a.x, dy=b.y-a.y;
+      const chord=Math.hypot(dx,dy);
+      if(L<1e-6 || chord<1e-6){ guideScore.set(si,0); continue; }
+      const ux=dx/chord, uy=dy/chord;
+      let axisDot=0, vertexNear=Infinity, nearTol=20;
+      for(const c of round.cubes){
+        for(const e of c.edges){
+          const q0=c.P[e.a], q1=c.P[e.b], ex=q1.x-q0.x, ey=q1.y-q0.y;
+          const el=Math.hypot(ex,ey);
+          if(el>1e-6) axisDot=Math.max(axisDot,Math.abs((ux*ex+uy*ey)/el));
+        }
+        for(const v of c.P.slice(0,8)){
+          const d=Math.abs(dx*(v.y-a.y)-dy*(v.x-a.x))/chord;
+          if(d<vertexNear){ vertexNear=d; nearTol=c.tol; }
+        }
+      }
+      /* 1.8倍で十分な補助線として飽和させる（旧2.2倍。中途半端な飽和位置だと
+         短めの正しい作図線が fit≈0.66 になり、34%の残額×本数が小さな baseLen を
+         押し流して3辺ラウンドだけアタリ線が重罰になっていた）。 */
+      /* 頂点を通り、立方体軸に沿い、十分まっすぐで外へ伸びている線は、
+         1.1〜1.8倍の実用長でも補助線である。旧窓(1.10〜1.80)は認定が
+         追いつく前に線量だけ増やし、8本の補助線が長くなるほど100→67→100点と
+         非単調に落ちた。長さは補助条件の一つに留め、0.8〜1.1倍で滑らかに確定する。 */
+      const lengthFit=smooth(0.80,1.10,L/guideRuler);
+      /* 固定カメラでも奥行き方向に投影シルエットが長い構図があり、正しい2.5辺長の
+         作図線でも枠外部分が20%前後になる。長さ・直線性・立方体軸・頂点通過をすべて
+         別に要求しているため、枠外率は5%から認め20%で飽和させる。 */
+      const outsideFit=smooth(0.05,0.20,1-inL/Math.max(1,L));
+      const straightFit=smooth(0.88,0.985,chord/L);
+      const axisFit=smooth(0.90,0.985,axisDot);
+      const vertexFit=1-smooth(1.0,2.2,vertexNear/Math.max(1,nearTol));
+      guideScore.set(si,lengthFit*outsideFit*straightFit*axisFit*vertexFit);
+    }
+    /* 補助線軽減の全体予算（20×物差し ≒ 8本×2.5辺長）。
+       ★予算は「インク量の免除の上限」としてだけ効かせる（下の overdraw 参照）。
+       旧実装のように guideScore 自体を縮めると、超過した瞬間に
+       (1-0.9g) の残額課金と箱外waste課金が同時に跳ね上がる二重罰になり、
+       正しい作図線の5→6本目で100点→58点の壁ができていた。 */
+    guideBudget=20*guideRuler;
+  }
+  /* 一筆書き保護は「ストロークが長い」だけでは認めず、同じストロークが
+     実際に別の正解辺も描いていることを確認する。各サンプルは最も近い
+     一つの正解辺だけへ割り当て、交点付近の二重計上を避ける。 */
+  const strokeTargetInk=new Map();
+  for(let pi=0;pi<sp.length;pi++){
+    const p=sp[pi];
+    let bestTi=-1, bestNorm=Infinity;
+    for(let tj=0;tj<round.targets.length;tj++){
+      const t2=round.targets[tj];
+      if(t2.pts) continue;
+      const dx=t2.pb.x-t2.pa.x, dy=t2.pb.y-t2.pa.y, l2=dx*dx+dy*dy;
+      if(l2<=1e-9) continue;
+      const len=Math.sqrt(l2), rx=p.x-t2.pa.x, ry=p.y-t2.pa.y;
+      const proj=(rx*dx+ry*dy)/l2;
+      if(proj<-0.1 || proj>1.1) continue;
+      if(Math.abs(p.dx*dx+p.dy*dy)/len<=DIR_COS0) continue;
+      const norm=Math.abs(rx*dy-ry*dx)/(len*Math.max(1e-6,t2.tol));
+          /* 回廊境界ちょうどの点を一方の所有判定だけへ入れると、最下位bitで
+             候補課金が発火した。境界は両方とも圏外にして同着を安定させる。 */
+          if(norm>=1 || norm>=bestNorm) continue;
+      bestNorm=norm; bestTi=tj;
+    }
+    if(bestTi>=0){
+      let byTarget=strokeTargetInk.get(p.si);
+      if(!byTarget){ byTarget=new Float64Array(round.targets.length); strokeTargetInk.set(p.si,byTarget); }
+      byTarget[bestTi]+=sampleInk[pi];
+    }
+  }
   let covSum=0;
-  for(const t of round.targets){
+  for(let ti=0;ti<round.targets.length;ti++){
+    const t=round.targets[ti];
     // サンプルごとの「辺の向き」: 線分は一律、ポリライン（円など）は各点の接線
     const dirs=[];
     if(t.pts){
@@ -1773,8 +2318,94 @@ function scoreRound(round, strokes){
       for(let k=0;k<t.samples.length;k++) dirs.push(d0);
     }
     t._dirs=dirs;               // 鏡像判定でも同じ向きデータを使う
+    /* 距離falloffだけでは、tolより細かい周期の極短点線が隙間を埋めて
+       ほぼ満点になる。直線辺では、回廊内に実在する同方向線分を辺軸へ
+       投影し、区間unionの実線率と各採点点を支える連続区間長を測る。
+       全体率だけでは「中央の長い線＋残りを極短点線」で水増しできるため、
+       最寄り区間が1単位以下なら支えなし、6単位以上なら通常線として扱う。
+       8:4・6:4点線、普通の分割、同じ線の重ね描きは維持される。斜線は
+       ±tol回廊へparametric clipし、回廊外の長さで率を水増しさせない。 */
+    const dutyMerged=[],dutySupport=new Map();
+    let dutyEx=0,dutyEy=0,dutyEL=0,dutyEL2=0,dutyGlobalW=1;
+    if(!t.pts){
+      dutyEx=t.pb.x-t.pa.x; dutyEy=t.pb.y-t.pa.y;
+      dutyEL2=dutyEx*dutyEx+dutyEy*dutyEy; dutyEL=Math.sqrt(dutyEL2);
+      /* duty は「その場所に実線が存在するか」だけを支える補助ゲートで、
+         距離得点そのものは直後の falloff(t.tol) が決める。ここまで±tolで切ると、
+         tolを僅かに外れた普通の手描きが falloffで滑らかに減る前に0へ落ちる。
+         存在判定だけ2tolへ広げる。境界では距離得点が約0.4%まで減衰済みなので、
+         極短点線のduty防御を保ったまま切替えの実害をほぼゼロにできる。 */
+      const dutyTol=2.0*t.tol;
+      const intervals=[];
+      if(dutyEL2>1e-9) for(const g2 of segs){
+        const dot=Math.abs(g2.dx*dutyEx+g2.dy*dutyEy)/dutyEL;
+        if(dot<=DIR_COS0) continue;
+        const p0=((g2.ax-t.pa.x)*dutyEx+(g2.ay-t.pa.y)*dutyEy)/dutyEL2;
+        const p1=((g2.bx-t.pa.x)*dutyEx+(g2.by-t.pa.y)*dutyEy)/dutyEL2;
+        const l0=((g2.ax-t.pa.x)*dutyEy-(g2.ay-t.pa.y)*dutyEx)/dutyEL;
+        const l1=((g2.bx-t.pa.x)*dutyEy-(g2.by-t.pa.y)*dutyEx)/dutyEL;
+        let ta=0,tb=1;
+        const dl=l1-l0;
+        if(Math.abs(dl)<1e-12){ if(Math.abs(l0)>dutyTol) continue; }
+        else{
+          const x0=(-dutyTol-l0)/dl, x1=(dutyTol-l0)/dl;
+          ta=Math.max(0,Math.min(x0,x1)); tb=Math.min(1,Math.max(x0,x1));
+          if(tb<=ta) continue;
+        }
+        const cp0=p0+(p1-p0)*ta, cp1=p0+(p1-p0)*tb;
+        const rawLo=Math.min(cp0,cp1),rawHi=Math.max(cp0,cp1);
+        const lo=Math.max(0,rawLo),hi=Math.min(1,rawHi);
+        if(hi>lo) intervals.push({lo,hi,rawLo,rawHi,g:g2,si:g2.si});
+      }
+      intervals.sort((a,b)=>a.lo-b.lo||a.hi-b.hi||a.si-b.si);
+      for(const iv of intervals){
+        const last=dutyMerged[dutyMerged.length-1];
+        /* 同じストロークの隣接resample区間は投影丸め誤差だけ離れることがある。 */
+        if(!last || iv.lo>last[1]+1e-9) dutyMerged.push([iv.lo,iv.hi]);
+        else if(iv.hi>last[1]) last[1]=iv.hi;
+      }
+      const duty=dutyMerged.reduce((sum,iv)=>sum+iv[1]-iv[0],0);
+      dutyGlobalW=smooth(0.20,0.65,duty);
+      /* 支え長は候補を採点した線分と同じストローク内だけで連結する。
+         横へずれた長い線を一本足し、その実線率・長さを正解位置のmicrodashへ
+         貸す攻撃を防ぐ。 */
+      const byStroke=new Map();
+      for(const iv of intervals){
+        let list=byStroke.get(iv.si); if(!list){ list=[]; byStroke.set(iv.si,list); }
+        list.push(iv);
+      }
+      const finishSupport=(rawLo,rawHi,members)=>{
+        /* clip後に端へ触れたかで固定長を与えると、極短線を8e-6動かすだけで
+           6〜9点変わった。回廊clip前の実投影長を使えば、端の短線・長線・
+           overshootがすべて座標に対して連続になる。 */
+        const support=Math.max(0,rawHi-rawLo)*dutyEL;
+        const w=smooth(1.0,6.0,support);
+        for(const iv of members) dutySupport.set(iv.g,w);
+      };
+      for(const list of byStroke.values()){
+        list.sort((a,b)=>a.lo-b.lo||a.hi-b.hi);
+        let lo=0,hi=0,rawLo=0,rawHi=0,members=[];
+        for(const iv of list){
+          if(!members.length || iv.lo<=hi+1e-9){
+            if(!members.length){
+              lo=iv.lo; hi=iv.hi; rawLo=iv.rawLo; rawHi=iv.rawHi;
+            }else{
+              if(iv.hi>hi) hi=iv.hi;
+              if(iv.rawLo<rawLo) rawLo=iv.rawLo;
+              if(iv.rawHi>rawHi) rawHi=iv.rawHi;
+            }
+            members.push(iv);
+          }else{
+            finishSupport(rawLo,rawHi,members);
+            lo=iv.lo; hi=iv.hi; rawLo=iv.rawLo; rawHi=iv.rawHi; members=[iv];
+          }
+        }
+        if(members.length) finishSupport(rawLo,rawHi,members);
+      }
+    }
+    const dutyAt=g=>t.pts ? 1 : dutyGlobalW*(dutySupport.get(g)||0);
     const cutM=3*t.tol+step, cutM2=cutM*cutM;   // 中点での粗い足切り（線分長ぶんの余裕込み）
-    let q=0;
+    let q=0, end0=0, end1=0;
     for(let si2=0;si2<t.samples.length;si2++){
       const s=t.samples[si2], sd=dirs[si2];
       let best=0;
@@ -1784,68 +2415,505 @@ function scoreRound(round, strokes){
         const dot=Math.abs(g2.dx*sd.x + g2.dy*sd.y);
         if(dot<=DIR_COS0) continue;
         const w=Math.min(1,(dot-DIR_COS0)*DIR_NORM);
-        const c=falloff(distToSeg(s.x,s.y,g2.ax,g2.ay,g2.bx,g2.by), t.tol)*w;
+        const c=falloff(distToSeg(s.x,s.y,g2.ax,g2.ay,g2.bx,g2.by), t.tol)*w*dutyAt(g2);
         if(c>best){ best=c; if(best>=0.9995) break; }
       }
       q+=best;
+      if(!t.pts){
+        if(si2===0) end0=best;
+        if(si2===t.samples.length-1) end1=best;
+      }
     }
     t.score = q/t.samples.length;
+    if(t.pts){
+      t.endScore = t.score;      // 円は閉曲線なので端点を持たない
+    }else{
+      /* 辺の直線に沿って、両端をどれだけ通り過ぎているかを測る。
+         あわせて、辺の回廊（±10%）にある同方向インクをストローク別に集める。 */
+      let tMin=0, tMax=1;
+      const corMap=new Map();   // si → {ink, minP, maxP, minPt, maxPt}: 回廊内の同方向インク
+      const ex=t.pb.x-t.pa.x, ey=t.pb.y-t.pa.y, eL2=ex*ex+ey*ey;
+      const eL=Math.sqrt(eL2);
+      if(eL2>1e-9){
+        for(let pi=0;pi<sp.length;pi++){
+          const p=sp[pi];
+          const rx=p.x-t.pa.x, ry=p.y-t.pa.y;
+          const proj=(rx*ex+ry*ey)/eL2;
+          if(proj<-2 || proj>3) continue;                 // 遠すぎる点は無関係
+          const lat=Math.abs(rx*ey-ry*ex)/eL;
+          /* 回廊境界ちょうどの線だけがcandidate runへ入り、0.0001tolの差で
+             正解へ描き直した点が約20点変わっていた。丸め余裕を持たせ、
+             境界は一貫して圏外として扱う。距離coverage側の連続減衰は別に残る。 */
+          if(lat >= t.tol*(1-1e-9)) continue;
+          /* 交差する別方向の辺や補助線を「この辺のはみ出し」に数えない。
+             同じ向きのインクだけが、その辺をどこまで延ばしたかを決める。 */
+          if(Math.abs(p.dx*ex+p.dy*ey)/eL<=DIR_COS0) continue;
+          /* ★他のターゲット辺の本体を、この辺の回廊・はみ出しに数えない。
+             浅い角度（60°未満）で接続する隣の辺は、方向ゲートも横tolも
+             すり抜けて [1, 1.3] のような偽のはみ出し・偽の回廊runを作り、
+             一筆書きや隣接辺の分割描きを構図依存で45〜58点へ落としていた。
+             その点が別のターゲット辺の線分により近いなら、そちらの辺の
+             絵の一部とみなしてこの辺では無視する（同距離ならこの辺に残す）。
+             論理座標化の最下位ビット差（約1e-13）で共有角の同着が逆転しないよう、
+             関連座標の浮動小数精度だけ比較に余裕を持たせる。 */
+          let foreign=false;
+          for(const t2 of round.targets){
+            if(t2===t || t2.pts) continue;
+            const foreignTieEps=64*Number.EPSILON*Math.max(1,
+              Math.abs(p.x),Math.abs(p.y),
+              Math.abs(t.pa.x),Math.abs(t.pa.y),Math.abs(t.pb.x),Math.abs(t.pb.y),
+              Math.abs(t2.pa.x),Math.abs(t2.pa.y),Math.abs(t2.pb.x),Math.abs(t2.pb.y));
+            if(distToSeg(p.x,p.y,t2.pa.x,t2.pa.y,t2.pb.x,t2.pb.y)+foreignTieEps < lat){
+              foreign=true; break;
+            }
+          }
+          if(foreign) continue;
+          let c2=corMap.get(p.si);
+          if(!c2){
+            c2={ink:0,minP:proj,maxP:proj,
+                minPt:{x:p.x,y:p.y},maxPt:{x:p.x,y:p.y}};
+            corMap.set(p.si,c2);
+          }
+          if(proj>=-0.1 && proj<=1.1) c2.ink+=sampleInk[pi];
+          if(proj<c2.minP){ c2.minP=proj; c2.minPt={x:p.x,y:p.y}; }
+          if(proj>c2.maxP){ c2.maxP=proj; c2.maxPt={x:p.x,y:p.y}; }
+          if(proj<tMin) tMin=proj;
+          if(proj>tMax) tMax=proj;
+        }
+      }
+      /* 「その端で線を止めた」証拠があれば、はみ出し減点を免除する。
+         ★免罪符には「その辺を描くに足る長さの、同方向の線の終点」を要求する。
+         角に点や極小の線を置くだけでは資格が無い（旧実測: この条件なしだと
+         突き抜け200%が 87.3点 → 99.6点 に化けた）。長さ資格は二値ではなく
+         smoothstepで連続化し、1辺を3〜4分割して描く正直な癖に崖を作らない。 */
+      const edgeLen=t.len||Math.hypot(t.pb.x-t.pa.x, t.pb.y-t.pa.y);
+      const termAt=pt=>{ let b=0;
+        for(const tm of termini){
+          const lenW=smooth(0.07,0.25,edgeLen>0 ? tm.len/edgeLen : 0);
+          if(lenW<=0) continue;
+          const dot=Math.abs(tm.dx*ex+tm.dy*ey)/eL;
+          if(dot<=DIR_COS0) continue;
+          const dirW=Math.min(1,(dot-DIR_COS0)*DIR_NORM);
+          const c=falloff(Math.hypot(tm.x-pt.x,tm.y-pt.y), t.tol)*dirW*lenW;
+          if(c>b){ b=c; if(b>=0.999) break; }
+        } return b; };
+      const e0=Math.max(end0*overDamp(Math.max(0,-tMin)), termAt(t.pa));
+      const e1=Math.max(end1*overDamp(Math.max(0,tMax-1)), termAt(t.pb));
+      t.endScore=(e0+e1)/2;
+      /* ★重ね描き（ヘッジ）課金の材料。「長さ違いの候補線を重ねて、どれかが角に
+         当たるのを狙う」総当たりは、距離・方向・インク総量のどれでも正直な
+         下描きと区別できない。唯一の違いは線の「終わり方」。
+         ★判定はストロークの物理的な終端ではなく「回廊内の走行区間(run)の両端」で行う。
+         物理終端を見ると、終端の向きを曲げるだけの偽装（フック）で判定から
+         消えてしまう（実測: フック5%で課金ゼロ・97点）。runの途切れ位置は
+         フックでは動かせない。各ストロークの run [minP,maxP] の両端がそれぞれ
+           (a) 角へのコミット: 端の位置がどちらかの角の近く
+               （falloff窓 1.5×tol の連続窓。8%の読み違えは6割方免除される）
+           (b) 継ぎ目: その端のすぐ先から先へ続く別ストローク（辺の1/4以上）がある
+               ＝分割描きの関節。自分の run に重なって戻る複製・ヘッジ仲間は相棒にならない
+           (c) 圏外への抜け: 端が回廊圏外（proj≤-0.3/≥1.3）＝通り抜け・大はみ出し。
+               こちらは既存のはみ出し減点系（overDamp）が清算する
+         のどれかで説明できれば免除（両端の min を採る）。正直な一本描き・分割描き・
+         なぞり直し・作図線はほぼ全額免除され、「角の位置を答えない、
+         中途半端な長さの同方向の線」だけが積み上がる。 */
+      let hedged=0,strongHedged=0;
+      {
+        const endMiss=function(p){
+          if(p<=-0.3 || p>=1.3) return 0;                       // (c)
+          return Math.min(Math.abs(p),Math.abs(p-1));
+        };
+        const endW=p=>falloff(endMiss(p)*eL,1.5*t.tol);         // (a)
+        /* ★方向つきミス（断片課金用）。角の外側で止まった端（描き通し）は
+           overDamp（はみ出し減点）が既に清算しているので半減重みにする。
+           一本描きなら5%の描き通しが無料（OVER_FREE経済）なのに、分割描きだと
+           断片課金で殺される非対称を避ける。内側で止まった端は満額。 */
+        const endMissDir=function(p){
+          if(p<=-0.3 || p>=1.3) return 0;
+          const nearPb=Math.abs(p-1)<Math.abs(p);
+          const miss=nearPb?Math.abs(p-1):Math.abs(p);
+          const outward=nearPb ? p>1 : p<0;
+          return outward ? 0.5*miss : miss;
+        };
+        /* 継ぎ目は「辺長の15%以内に別ストロークがある」だけでは認めない。
+           その方式だと1本の補助線を、70/90/110/130%の複数候補の継続先として
+           使い回し、ヘッジを0にできた。ここで実際の端点距離が近い組を一対一で
+           マッチし、連結したrun全体の外端だけを判定する。 */
+        /* ★流入runの隔離。隣接辺のストロークは共有角の近くで回廊に入り込み、
+           [1, 1.26] のような「角の外へ伸びるrun」になる。インクを answerInk で
+           免除しても、継ぎ目グラフに参加させると正直なチェーンと共有角（距離0）で
+           連結し、成分の外端を角の外へ引きずって角免除を壊していた
+           （実測: 2分割×2周が構図依存で54〜78点、12シード中5つで発生）。
+           所有先が別の辺のストロークのrunは、ペアにも外端にも一切参加させない。
+           そのインクの申し開きは所有先の辺で行われるため二重評価にもならない。 */
+        const runs=[...corMap].filter(([si,c])=>{
+            if(!(c.ink>0)) return false;
+            const owner=strokeOwners.get(si);
+            return !(owner && owner.ti!==ti);
+          })
+          .map(([si,c])=>({si,...c,guide:guideScore.get(si)||0}));
+        /* ★横断コミット（一筆書き・重ねなぞりの保護）。両角を濃いインクで覆い、
+           かつストロークの4割以上が回廊の外（＝他の辺を描いている）run は
+           「この辺を通り抜けながら描いた答え」として committed と同格に扱う。
+           一筆書きは角で折れる際に方向ブレンドで run の端が角の外へ滲み、
+           成分の外端評価では構図依存で角免除を失っていた（実測: ×2周で58点）。
+           長さ候補（回廊内にストロークの9割がある）や、角の先で曲げるフック偽装は
+           「他の辺を実際に描く」条件を満たせない。偽装するには本当に他の辺を
+           描くしかなく、その場合は偽装ではなく作画になる。 */
+        /* 判定は投影窓ではなく「runの境界点が両方の真の角の近くにあるか」で行う。
+           一筆書きは角で折れる際の方向ブレンドで run が角の手前で途切れるが、
+           途切れる位置は角の近傍（構図によって深さが変わる）なので、
+           物理距離 1.2×tol ならどの構図でも安定して掴める。
+           縮小相似のアウトライン（候補立方体の重ね描き）は角が内側へ
+           ずれるため、tol解像度を超えた縮小はここで自然に弾かれる。 */
+        for(const rn of runs){
+          const byTarget=strokeTargetInk.get(rn.si);
+          const drawsAnother=byTarget && round.targets.some((t2,tj)=>{
+            if(tj===ti || t2.pts) return false;
+            const len=t2.len||Math.hypot(t2.pb.x-t2.pa.x,t2.pb.y-t2.pa.y);
+            return byTarget[tj]>=0.8*len;
+          });
+          rn.traversal = !!drawsAnother && rn.ink>=0.8*eL &&
+            Math.hypot(rn.minPt.x-t.pa.x,rn.minPt.y-t.pa.y)<=1.2*t.tol &&
+            Math.hypot(rn.maxPt.x-t.pb.x,rn.maxPt.y-t.pb.y)<=1.2*t.tol &&
+            (strokeLen.get(rn.si)||0) >= 1.67*rn.ink;
+          /* greedy の同着順を描画順ではなく量子化済みの幾何で固定する。
+             1/8論理単位未満は採点上同一とし、端末の丸め誤差も吸収する。 */
+          rn.orderKey=[
+            Math.round(rn.minP*eL*8),Math.round(rn.maxP*eL*8),
+            Math.round(rn.minPt.x*8),Math.round(rn.minPt.y*8),
+            Math.round(rn.maxPt.x*8),Math.round(rn.maxPt.y*8),
+            Math.round(rn.ink*8),Math.round((strokeLen.get(rn.si)||0)*8),
+            Math.round(rn.guide*1024),committedStroke.has(rn.si)?1:0,rn.traversal?1:0,
+          ];
+        }
+        const compareRun=(a,b)=>{
+          for(let k=0;k<a.orderKey.length;k++){
+            const d=a.orderKey[k]-b.orderKey[k]; if(d) return d;
+          }
+          return 0;
+        };
+        runs.sort(compareRun);
+        const parent=runs.map((_,i)=>i);
+        const root=i=>{ while(parent[i]!==i){ parent[i]=parent[parent[i]]; i=parent[i]; } return i; };
+        const unite=(a,b)=>{ a=root(a); b=root(b); if(a!==b) parent[b]=a; };
+        const joinGap=Math.min(8,Math.max(3,0.75*t.tol));        // 論理座標。普通の分割描画は保護
+        const joinProj=eL>1e-6 ? joinGap/eL+1e-9 : 0;
+        const pairs=[];
+        for(let i=0;i<runs.length;i++) for(let j=0;j<runs.length;j++){
+          if(i===j) continue;
+          const a=runs[i], b=runs[j];                           // aの高い側 → bの低い側
+          if(Math.abs(a.maxP-b.minP)>joinProj) continue;
+          const d=Math.hypot(a.maxPt.x-b.minPt.x,a.maxPt.y-b.minPt.y);
+          if(d<=joinGap) pairs.push({i,j,d});
+        }
+        /* ★距離を1/8論理単位へ量子化してからソートする。浮動小数の同着(±1e-13)が
+           端末間で greedy の組み方を変え、採点の端末非依存を破っていた
+           （実測: 同一入力で mobile 4.46 / desktop 5.73）。同着は列挙順で確定。 */
+        pairs.sort((a,b)=>(Math.round(a.d*8)-Math.round(b.d*8)) || (a.i-b.i) || (a.j-b.j));
+        /* greedy接続のhard境界を断片課金へ直接伝えない。joinGapの近傍で
+           0→1に切り替わると、同じ3分割のノイズ差0.001%で60点落ちた。
+           接続に選ばれなかった端も「近くに継続先がある」度合いを連続値で残す。 */
+        const lowJoinW=runs.map(()=>0), highJoinW=runs.map(()=>0);
+        for(let i=0;i<runs.length;i++) for(let j=0;j<runs.length;j++){
+          if(i===j) continue;
+          const a=runs[i],b=runs[j];
+          const projGap=Math.abs(a.maxP-b.minP)*eL;
+          const pointGap=Math.hypot(a.maxPt.x-b.minPt.x,a.maxPt.y-b.minPt.y);
+          const gap=Math.max(projGap,pointGap);
+          const w=1-smooth(0.75*joinGap,1.75*joinGap,gap);
+          if(w>highJoinW[i]) highJoinW[i]=w;
+          if(w>lowJoinW[j]) lowJoinW[j]=w;
+        }
+        const highUsed=new Set(), lowUsed=new Set();
+        for(const q of pairs){
+          if(highUsed.has(q.i)||lowUsed.has(q.j)) continue;     // 同じ端点の使い回しを禁止
+          highUsed.add(q.i); lowUsed.add(q.j); unite(q.i,q.j);
+        }
+        const comps=new Map();
+        for(let i=0;i<runs.length;i++){
+          const r=root(i); if(!comps.has(r)) comps.set(r,{ink:0,guideInk:0,answerInk:0,
+            strictAnswerInk:0,
+            frag:0,ends:[],minP:Infinity,maxP:-Infinity,minPt:null,maxPt:null});
+          const c=comps.get(r), q=runs[i];
+          c.ink+=q.ink; c.guideInk+=q.ink*q.guide;
+          if(q.minP<c.minP){ c.minP=q.minP; c.minPt=q.minPt; }
+          if(q.maxP>c.maxP){ c.maxP=q.maxP; c.maxPt=q.maxPt; }
+          if(committedStroke.has(q.si)||q.traversal) c.answerInk+=q.ink;
+          else if(q.ink>=0.07*eL) c.frag+=1-0.5*(lowJoinW[i]+highJoinW[i]);
+          if(strictCommittedStroke.has(ti+":"+q.si)) c.strictAnswerInk+=q.ink;
+          if(!lowUsed.has(i))  c.ends.push({p:q.minP, pt:q.minPt});
+          if(!highUsed.has(i)) c.ends.push({p:q.maxP, pt:q.maxPt});
+        }
+        let fragUnexplained=0;
+        /* ★同じ答えのなぞり直しは一回分に近づける。
+           従来は成分ごとに未コミット課金を合算したため、同じ線を3周なぞる
+           正直な癖が3倍の課金になった。下流で端点・横位置の類似度を連続量にし、
+           同じ経路は割り引き、長さや位置が違う候補は滑らかに合算へ戻す。 */
+        const records=[];
+        for(const c of comps.values()){
+          const chargeInk=Math.max(0,c.ink-c.answerInk);
+          /* 一対一接続なので成分はpath（外端2つ）かcycle（外端0）になる。
+             cycleを二値で全額課金すると、線長がjoinGapを最小量だけ跨いだ瞬間に
+             pathへ変わり大きな点差が出る。cycleにも全runの物理的な最小・最大端を
+             仮想外端として与え、pathと同じ連続式へ流す。その他の不整合だけ全額。 */
+          let lo,hi;
+          if(c.ends.length===2){
+            c.ends.sort((a,b)=>a.p-b.p); lo=c.ends[0]; hi=c.ends[1];
+          }else if(c.ends.length===0 && c.minPt && c.maxPt){
+            lo={p:c.minP,pt:c.minPt}; hi={p:c.maxP,pt:c.maxPt};
+          }else{
+            hedged+=chargeInk; fragUnexplained+=c.frag;
+            continue;
+          }
+          const w=Math.min(endW(lo.p),endW(hi.p));
+          /* 断片の重みはミス比で連続化（ランプ幅と方向扱いはクラスタ集計後に決める）。
+             missDir=外方向半減（正直な描き通し用）、missRaw=方向無差別（ヘッジ用）。 */
+          const span=hi.p-lo.p;
+          records.push({lo:lo.p, hi:hi.p, loPt:lo.pt, hiPt:hi.pt, ink:c.ink,
+                         charge:chargeInk*(1-w), frag:c.frag, span,
+                         guide:c.ink>0?c.guideInk/c.ink:0,
+                         strictAnswer:c.ink>0&&c.strictAnswerInk>=0.95*c.ink,
+                        /* 両角を一つの答えとして結ぶ成分ほど、なぞり直し類似度の
+                           割引対象にする。中央で切れた候補片まで強く割り引くと、
+                           少しずつ長さを変えた候補を何本置いても一回分に近づく。 */
+                        redrawW:smooth(0.60,0.78,span),
+                        loLat:((lo.pt.x-t.pa.x)*ey-(lo.pt.y-t.pa.y)*ex)/Math.max(1e-6,eL),
+                        hiLat:((hi.pt.x-t.pa.x)*ey-(hi.pt.y-t.pa.y)*ex)/Math.max(1e-6,eL),
+                        missDir:Math.max(endMissDir(lo.p),endMissDir(hi.p)),
+                        missRaw:Math.max(endMiss(lo.p),endMiss(hi.p))});
+        }
+        /* なぞり直しの連続集計。
+           旧クラスタは「近い/別」を hard な距離比較で決めたため、端点を0.01%動かす
+           だけで3周が1群→3群となり、約80点落ちる境界を作った。ここでは各組の
+           近さを0〜1の similarity にし、各成分の寄与を近い仲間の実効数で割る。
+           N本が完全一致なら合計は一回分、離れるほど滑らかにN回分へ戻る。
+           投影方向と横方向を分離するのは、縦の止め位置ノイズを物理距離でも二重に
+           数えず、別の平行経路だけは確実に区別するため。 */
+        let candidateEvidence=0;
+        {
+          records.sort((a,b)=>(a.lo-b.lo)||(a.hi-b.hi)||(a.loLat-b.loLat)||(a.hiLat-b.hiLat));
+          const projUnit=Math.max(1e-6,Math.min(0.8*t.tol,0.08*eL));
+          const latUnit=Math.max(1e-6,Math.min(0.35*t.tol,0.05*eL));
+          const redundancy=records.map(()=>1);
+          for(let i=0;i<records.length;i++) for(let j=i+1;j<records.length;j++){
+            const a=records[i], b=records[j];
+            const projD=Math.max(Math.abs(a.lo-b.lo),Math.abs(a.hi-b.hi))*eL/projUnit;
+            const latD=Math.max(Math.abs(a.loLat-b.loLat),Math.abs(a.hiLat-b.hiLat))/latUnit;
+            const d=Math.max(projD,latD);
+            const similarity=Math.exp(-2*d*d*d*d)*Math.min(a.redrawW,b.redrawW);
+            redundancy[i]+=similarity; redundancy[j]+=similarity;
+          }
+          /* ★答えの多様性は hard な D=2/3 ではなく連続量で扱う。
+             旧 D は missRaw=1.5% または回廊インク55%を最下位bitだけ跨いでも、
+             全クラスタのランプを一斉に切り替え、100点→0点級の崖を作った。
+             ここでは「十分なspanを持ち、角を外した答え」の証拠を smoothstep で
+             足し合わせ、正直ランプとヘッジランプを連続補間する。 */
+          const diversity=records.reduce((sum,rec,i)=>sum+
+            smooth(0.45,0.65,rec.span)*smooth(0.005,0.035,rec.missRaw)/redundancy[i],0);
+          const hedgeMix=smooth(2.0,2.8,diversity);
+          /* 実効質量は、完全一致した正当ななぞり直しを一群として数えつつ、
+             少しずつ位置・長さを変えた候補は連続的に追加質量へ戻す。 */
+          const redrawMass=records.reduce((sum,rec,i)=>sum+
+            rec.redrawW*(0.60+0.40/redundancy[i]),0);
+          candidateEvidence=records.reduce((sum,rec,i)=>sum+
+            smooth(0.45,0.65,rec.span)*(rec.strictAnswer?0:1)*
+            (1-0.90*rec.guide)/redundancy[i],0);
+          /* 近接した長い成分を重ね、pairwise割引の分母だけを増やす攻撃を防ぐ。
+             正当な数回のなぞり直しは質量予算3で保護し、実効質量の超過分を課金する。 */
+          hedged+=1.50*eL*Math.max(0,redrawMass-3);
+          for(let i=0;i<records.length;i++){ const rec=records[i];
+            /* spanの短い候補片は redrawW≈0 なので割引されず全て合算される。
+               これにより中央gapで候補数を近接群へ隠す抜け道を塞ぐ。 */
+            hedged+=rec.charge/redundancy[i];
+            const honestW=clamp((rec.missDir-0.02)/0.08,0,1);
+            const hedgeW=clamp((rec.missRaw-0.01)/0.025,0,1);
+            fragUnexplained += rec.frag/redundancy[i]*
+              ((1-hedgeMix)*honestW+hedgeMix*hedgeW);
+          }
+          /* 3つ目以降の独立した長さ候補には、分割数に依存しない最低費用を置く。
+             frag>6だけに頼ると、各候補を一本で描くK3が無罰になっていた。 */
+          /* 3候補以上に相当する多様性は、描き直しとは区別できる強い証拠。 */
+          { const v=1.70*hedgeMix*eL; hedged+=v; strongHedged+=v; }
+        }
+        /* 端点を答えず回廊を通過する線は、位置クラスタや本数のhard gateではなく
+           実効インク総量で連続課金する。ストローク内のrun量を合算して物理長を
+           上限にするため、隣接辺への流入を抑えつつ継ぎ足しも証拠として残せる。
+           補助線らしさは90%控除し、正当な通過線2本程度までは保護する。 */
+        const rawPass=runs.filter(r=>
+          !committedStroke.has(r.si) && !r.traversal && r.ink>=0.07*eL &&
+          (r.minP<=-0.3 || r.maxP>=1.3));
+        /* 一つのストロークが辺の外で継ぎ足され、同じ回廊へ複数runとして戻る
+           攻撃もあるため、runを単純maxにしない。ストローク内はrun量を合算し、
+           物理的なストローク長を上限にする。これなら隣接辺流入の二重計上を抑えつつ、
+           gap6/gap8の枠外継ぎ足しは証拠として残る。 */
+        const passByStroke=new Map();
+        for(const r of rawPass){
+          const effective=r.ink*(1-0.90*r.guide);
+          passByStroke.set(r.si,(passByStroke.get(r.si)||0)+effective);
+        }
+        let passEvidence=0;
+        for(const [si,ink] of passByStroke)
+          passEvidence+=Math.min(ink,strokeLen.get(si)||ink);
+        /* 通過線の通常課金は従来どおり2.2本分から。ただし二度なぞる癖まで
+           「明白」とは扱わず、強証拠は2.6本分を越えた量（ほぼ3本以上）だけ。 */
+        { const v=1.40*Math.max(0,passEvidence-2.2*eL);
+          const strongV=1.40*Math.max(0,passEvidence-2.6*eL);
+          hedged+=v; strongHedged+=strongV; }
+        /* gap攻撃は各候補の中央run自体が枠内に残るため、pass量だけでは
+           捕まらない。二つ目以降の独立候補から連続的に最低費用を立ち上げる。
+           K3 gridの最小evidenceは約1.91で、2から開始する旧案には抜けがあった。 */
+        hedged+=eL*(1.70*smooth(1.0,2.0,candidateEvidence)
+                     +0.70*Math.max(0,candidateEvidence-3));
+        /* 同じ辺の中央を、長さだけ変えて何本も重ねる「候補線」は、端点を答えずに
+           当たりを待つ描き方になる。連続した分割描画とは違い、区間同士が大きく重なるので
+           長い重複ペアだけを小さく加算する。正解辺を端から端まで引いた線（committed）と、
+           枠外まで伸ばす通常のアタリ線（pass）は対象外。2本程度の描き直しでは最終的な
+           無料域をほぼ越えず、70/90/110/130%の4択だけを確実に識別できる。 */
+        const candidates=runs.filter(r=>{
+          const span=r.maxP-r.minP;
+          return !committedStroke.has(r.si) &&
+                 r.ink>=0.5*eL && span>=0.5 && r.minP>-0.3 && r.maxP<1.3;
+        });
+        let overlapPairs=0;
+        for(let i=0;i<candidates.length;i++) for(let j=i+1;j<candidates.length;j++){
+          const a=candidates[i], b=candidates[j];
+          const overlap=Math.min(a.maxP,b.maxP)-Math.max(a.minP,b.minP);
+          const shorter=Math.min(a.maxP-a.minP,b.maxP-b.minP);
+          if(shorter>0 && overlap>=0.7*shorter) overlapPairs++;
+        }
+        hedged+=0.030*overlapPairs*eL;
+        /* ★断片課金は「端の説明がつかない成分」の断片だけを数える（fragUnexplained、
+           上の成分ループで集計）。旧実装は raw のrun数>6 を課金したため、
+           3分割×3周（9本/辺）のような正直な重ね描きが死んでいた。
+           両端が角か継ぎ目で説明できた成分の断片は正当な分割チェーンなので数えない。
+           K4の各候補へ継ぎ目用の別線を添える攻撃（12本/辺）は、成分の端が
+           宙に浮いたままなので従来どおりここで捕まる。7%辺長未満のノイズは対象外。 */
+        /* 断片無料枠もhardな折れ点にしない。旧式はfragが6を最小量だけ跨ぐと、
+           後段のhedge無料枠と指数減衰が重なり60点級の崖を再構成した。
+           5.5〜7.0の滑らかな立ち上がりへ広げ、十分多い断片では旧式と同じ
+           0.75/fragの傾きへ戻す。 */
+        const fragExcess=Math.max(0,fragUnexplained-6);
+        hedged+=0.75*eL*(fragExcess*smooth(5.5,7.0,fragUnexplained)
+                        +0.25*smooth(5.5,7.0,fragUnexplained));
+      }
+      t.hedgedMult = eL>1e-6 ? hedged/eL : 0;   // 「答えない線」の実効なぞり回数
+      t.strongHedgedMult = eL>1e-6 ? strongHedged/eL : 0;
+    }
     covSum += t.score;
   }
   const cov = round.targets.length ? covSum/round.targets.length : 0;
+  /* 固定カメラから投影した「真の立方体モデル」への構造適合。
+     辺の途中をなぞるだけでなく、両端の頂点まで接続できているかを幾何平均で見る。
+     消失点だけが合う短い／長い直方体は、端点が合わないのでここで下がる。 */
+  const structure = round.targets.length
+    ? round.targets.reduce((a,t)=>a+Math.sqrt(Math.max(0,t.score*t.endScore)),0)/round.targets.length
+    : 0;
   /* 的中率は「立方体の周辺に引かれた線」だけで評価する。
-     消失点をとるために遠くまで伸ばしたアタリ線は、加点も減点もしない。 */
-  const boxes=inkBoxes(round);
-  const inBox=p=>boxes.some(b=>p.x>=b.l&&p.x<=b.r&&p.y>=b.t&&p.y<=b.b);
-  /* アタリ線ストロークの判定: 辺の2.5倍以上の長さで、半分以上が立方体の外
-     ＝消失点へ引く線の性質そのもの。こうした線が立方体の近くを通る区間は、
-     従来まるまる的中率に混ざって大減点だった（10°ずれ4本で実測-10.9点）。
-     GUIDE_W だけ残して緩める。全額無罪にはしない（ユーザー方針:
-     アタリ線を消した人・使わなかった人のほうが上に来るべき）。
-     ※waste（線量ペナルティ）は満額のまま数える。ここも割り引くと、
-       線を画面外まで伸ばしたグリッドがeffをすり抜けて復活してしまう */
-  const GUIDE_W=0.35;
-  const guideSet=new Set();
-  {
-    const maxTL=round.targets.reduce((a,t)=>
-      Math.max(a, t.len||Math.hypot(t.pb.x-t.pa.x,t.pb.y-t.pa.y)), 0);
-    let gi=0;
-    for(const st of strokes){
-      gi++;
-      const p=st.pts; if(!p || p.length<2) continue;
-      let L=0;
-      for(let i=1;i<p.length;i++) L+=Math.hypot(p[i].x-p[i-1].x, p[i].y-p[i-1].y);
-      if(L<2.5*maxTL) continue;
-      let inB=0;
-      for(const q of p) if(inBox(q)) inB++;
-      /* 箱内率70%まで許す: 辺を両側へ延長したアタリ線は延長部も箱を斜めに
-         横切るので、実測の箱内率は47〜63%になる。グリッド線は90%超なので混ざらない */
-      if(inB<=p.length*0.7) guideSet.add(gi);
-    }
-  }
+     消失点をとるために遠くまで伸ばしたアタリ線は、加点も減点もしない。
+     （guideScore・boxes はターゲットループより前で計算済み） */
+  /* ★立方体の外へ出たインクの扱い。
+     消失点まで伸ばすアタリ線は「無罪」でよいが、それを無条件にすると
+     箱の外へ逃がしただけのインクが全部タダになる。実測: 各頂点から45°刻みで
+     8方向へ辺の長さだけ放射する「ばらまき」は、外へ出た分(2.67倍)が全額無視され
+     eff=0.91・76点で通っていた。
+     そこで補助線らしさに応じて連続的に軽減し、それ以外の箱外インクは半額で数える。
+     正直に描く人は箱外インクが0なので影響なし。 */
+  const FAR_W = 0.5;
   let pSum=0, pN=0, waste=0, farN=0;
   for(const p of sp){
-    if(!inBox(p)){ farN++; continue; }   // 立方体から離れた線＝補助線として別に数える
+    const g=guideScore.get(p.si)||0;
+    if(!inBox(p)){                       // 立方体から離れた線＝補助線として別に数える
+      farN++;
+      waste += FAR_W*(1-g);
+      continue;
+    }
     let best=Infinity, tol=20;
     for(const g of round.allSegs){
       const d=distToSeg(p.x,p.y,g.pa.x,g.pa.y,g.pb.x,g.pb.y);
       if(d<best){ best=d; tol=g.tol; }
     }
     const hit=falloff(best, tol);
-    const w=guideSet.has(p.si)?GUIDE_W:1;
+    const w=1-g*(1-GUIDE_W);
     pSum += hit*w; pN += w;
-    waste += 1-hit;                      // 辺から外れているぶんを積算（こちらは満額）
+    waste += (1-hit)*(1-g*(1-GUIDE_WASTE_W)); // 補助線らしさに応じて20〜100%
   }
   const prec = pN ? pSum/pN : 0;
-  const needLen = round.targets.reduce((a,t)=>a+Math.hypot(t.pb.x-t.pa.x, t.pb.y-t.pa.y), 0);
-  /* 基準は「立方体の全12辺の長さ」。ハリガネのように隠れ線まで全部描くのは
-     正しい描き方なので、辺の上に乗っている線は何本でも減点にならない。 */
-  const fullLen = round.cubes.reduce((a,c)=>a+c.edges.reduce(
-    (s,e)=>s+Math.hypot(c.P[e.b].x-c.P[e.a].x, c.P[e.b].y-c.P[e.a].y), 0), 0)
-    + (round.extraLen||0);   // 変化球の追加ターゲット（よつわりの十字）も正規の線量に数える
-  const inkRatio = fullLen>0 ? waste*step/fullLen : 0;   // 外れた線の長さの比
-  const eff = inkRatio>WASTE_ALLOW ? WASTE_ALLOW/inkRatio : 1;
-  const score = Math.round(100*Math.pow(cov,1.2)*(0.45+0.55*prec)*eff*100)/100;
+  const needLen = round.targets.reduce((a,t)=>
+    a+(t.len||Math.hypot(t.pb.x-t.pa.x, t.pb.y-t.pa.y)), 0);
+  /* ★基準は「そのラウンドで描くべき線の総長」。
+     以前は全12辺（＝描くべき量の3〜7倍）を基準にしていたため許容が緩すぎ、
+     「答えの候補を何通りもばらまいて、どれかが当たるのを狙う」やり方が
+     ほぼ無罰で通っていた（実測: 候補8〜10本ばらまきで88〜93点）。
+     waste は allSegs から外れたインクだけを数えるので、この変更をしても
+     ハリガネのように隠れ辺まで全部描く人・正しいアタリ線を引く人は減点されない
+     （どちらも allSegs の上に乗るため waste に入らない）。 */
+  const baseLen = needLen + (round.extraLen||0);
+  /* ★効率系（waste/overdraw/hedge）の分母は立方体スケールを下限にする。
+     2面ビューの回は描くべき辺が短く baseLen が半分以下になるため、同じ本数の
+     正しい作図線が3辺の回だけ2倍以上の比率で課金され、8本で-40点の格差が出ていた
+     （5辺の回では同じ絵が無料）。無駄インクの「多い・少ない」は課題の長さではなく
+     立方体の大きさに対する感覚なので、ヒント面スケール×2.4 を下限に敷く。
+     cov/structure/prec は従来どおり課題基準のまま。 */
+  const effBase = Math.max(baseLen, 2.4*HINT_FACE_SIZE);
+  /* 正解線上へ候補を大量に重ねる総当たりは、距離誤差だけでは見分けられない。
+     正解の1.6倍までは下描き・隠れ線として無料、それを超えた分だけ緩やかに加算する。
+     高確度の補助線は長さの90%を免除するので、通常の消失点作図はほぼ影響しない。 */
+  /* 免除は「補助線らしさ×長さ」の合計を、予算(guideBudget)を上限に90%まで。
+     予算内なら旧式の Σ L×(1-0.9g) と同値。予算超過は超過分だけが素通しになり、
+     なだらかに効き始める（guideScore 自体は縮めないので waste/prec 側は無傷）。 */
+  let inkTotal=0, guideDemand=0;
+  for(const [si,L] of strokeLen){ inkTotal+=L; guideDemand+=(guideScore.get(si)||0)*L; }
+  const effectiveInk=inkTotal-0.90*Math.min(guideDemand,guideBudget);
+  const overdraw=effBase>0 ? Math.max(0,effectiveInk/effBase-1.6)*0.12 : 0;
+  /* ★ヘッジ課金。各辺の回廊にたまった「角も答えず通り抜けもしない」同方向インク
+     （t.hedgedMult、上のターゲットループで算出）のうち、辺0.9本ぶんを超えた分に
+     0.5/辺長を課す。正直な描き方は run の端が角に付くか回廊を抜けるかのどちらかなので
+     ほぼ全額免除され、長さ違いの候補を並べる総当たりだけが積み上がる。
+     無料枠0.9は「角を大きく読み違えた一本描き」を必ず無傷で通すための保険
+     （25%短い一本描きでも charged≈0.73 で枠内）。 */
+  let hedgeExcess=0,strongHedgeMass=0;
+  for(const t of round.targets){
+    if(t.pts) continue;
+    const len=t.len||Math.hypot(t.pb.x-t.pa.x,t.pb.y-t.pa.y);
+    if(t.hedgedMult>0.9) hedgeExcess += (t.hedgedMult-0.9)*len;
+    strongHedgeMass += Math.max(0,t.strongHedgedMult||0)*len;
+  }
+  const hedgeRaw = effBase>0 ? 0.5*hedgeExcess/effBase : 0;
+  const strongHedgeRaw = effBase>0 ? 0.5*strongHedgeMass/effBase : 0;
+  /* honest-first 方針:
+     hedgeRaw 0.04〜0.40 は、描き直し・下描きと複数候補を入力結果だけでは
+     判別できない曖昧域である。旧式は 0.08 を指数減衰へ入れたため、意図した
+     「最大8%」ではなく最大約24%も点を落としていた。曖昧域は直接0〜8%だけ
+     減点し、0.40を越える明白な大量候補だけを従来どおり強く減衰させる。 */
+  const ambiguousHedgePenalty = 0.08*smooth(0.04,0.40,hedgeRaw);
+  /* 強証拠には小さな0.08の猶予だけを置く。総量側と二重課金せず、
+     どちらか強い方を採る。 */
+  const clearHedge = Math.max(Math.max(0,hedgeRaw-0.40),
+                              Math.max(0,strongHedgeRaw-0.08));
+  const hedge = ambiguousHedgePenalty+clearHedge;  // 検証・表示用の連続した総量
+  const inkRatio = effBase>0 ? waste*step/effBase+overdraw : 0;   // 外れ＋過剰インクの比
+  /* waste と候補量は別に扱う。ただし曖昧域は線形の小さな減点に限定し、
+     clearHedge だけを指数減衰させる。これにより普通の描き直しを誤って
+     大幅減点せず、明白な総当たりだけは候補を増やすほど急減する。 */
+  const eff = (inkRatio>WASTE_ALLOW ? WASTE_ALLOW/inkRatio : 1)
+            * (1-ambiguousHedgePenalty)
+            * Math.exp(-3.5*clearHedge);
+  /* 高得点帯は正解投影への厳密な一致を従来どおり評価する。一方、全辺を別々の
+     直線で一貫して結んだ「立方体として読める形」は recognitionFloor による
+     最大24点の下限だけを持つ。これにより同じ距離誤差の二重減点を低得点帯で止め、
+     中〜高得点や攻略防御の序列は変えない。 */
+  /* coverage と端点構造は同じ位置ずれを別方向から見るため、端を早めに止めた
+     一筆描きでは同じ誤差を二重に掛けていた。structure の実測値・結果表示は
+     保ったまま、採点用だけ coverage の80%を下限にする。8〜10%の止め癖は
+     ほぼそのまま、15〜20%の大きな止め癖だけ二重罰を4〜7点ほど緩和する。 */
+  const structureForScore=Math.max(structure,0.80*cov);
+  const modelFit = 0.55*cov + 0.30*structureForScore + 0.15*prec;
+  /* 0.65では一発描きの通常誤差がv1.26より中間帯で3〜8点低くなった。
+     0.50ならcareful/ordinary/looseの手描き分布が旧版とほぼ一致し、厳密一致・
+     攻略防御・recognition下限を変えずに、過剰な中間帯圧縮だけを戻せる。 */
+  const strictScore=100*Math.pow(cov,0.50)*modelFit*eff;
+  const recognition=recognitionFloor(round,strokes,eff);
+  const score=Math.round(100*Math.max(strictScore,recognition.score))/100;
   // まんまるの日は落書き判定を切る（「まるいね！でも今回は立方体だよ」が的外れになるため）
   const doodle = round.twist==="maru" ? null : doodleKind(round, strokes, cov, prec, needLen);
   /* 左右反転して描いてしまった人の検出（鏡の国の住人）。
@@ -1883,9 +2951,10 @@ function scoreRound(round, strokes){
     const mcov=msum/round.targets.length;
     mirrored = mcov>0.5 && mcov>cov+0.25;
   }
-  return {score, cov, prec, eff, inkRatio, doodle, mirrored,
+  return {score, cov, structure, modelFit, recognition, prec, eff, inkRatio, doodle, mirrored,
           gridish: gridKind(round, strokes, prec),      // グリッド／点打ちハックの検出（バッジ用）
-          farInk: fullLen>0 ? farN*step/fullLen : 0};   // 補助線の量（全辺長に対する比）
+          overdraw, hedge, hedgeRaw, strongHedgeRaw, ambiguousHedgePenalty, clearHedge,
+          farInk: baseLen>0 ? farN*step/baseLen : 0};   // 補助線の量（描くべき線の総長に対する比）
 }
 const gradeOf = s => s>=88?"S":s>=72?"A":s>=55?"B":s>=35?"C":"D";
 const gradeColor = g => ({S:"#f5b73d",A:"#4fbf7f",B:"#6f9df0",C:"#f0a24f",D:"#ef6e8a"})[g];
@@ -2270,14 +3339,15 @@ function pushHistory(){
 /* byKey=true はキーボード(Ctrl+Z)から。ボタンとキーの使い分けを数えて称号に使う。
    実際に戻せたときだけ数える（履歴が空の空振りは数えない） */
 function undo(byKey){
-  if(state!=="draw" || !history.length || activeId!==null) return;
+  // inputFrozen: 3・2・1カウントダウン中はキーボード(Ctrl+Z)からも編集させない
+  if(state!=="draw" || !history.length || activeId!==null || inputFrozen()) return;
   strokes=history.pop();
   if(byKey) undoKeyUses++; else undoBtnUses++;
   Sound.undo();
   rebuildInk(); render();
 }
 function clearAll(){
-  if(state!=="draw" || !strokes.length || activeId!==null) return;
+  if(state!=="draw" || !strokes.length || activeId!==null || inputFrozen()) return;
   pushHistory();
   strokes=[];
   clearUses++;                 // 実際に消せたときだけ数える
@@ -2352,6 +3422,22 @@ function evPoint(e){
 const touchPts=new Map();      // pointerId → 画面座標
 let pinch=null;                // {ids,d0,cx0,cy0,s0,x0,y0}
 let activeType="";             // いま描いているポインタの種別（手のひら対策で使う）
+let spacePanHeld=false;        // Spaceを押している間だけ一時的にパンへ切り替える
+let dragPan=null;              // {id,sx,sy,x0,y0}: Space+ドラッグ中の基準
+function refreshPanCursor(){
+  const ready=spacePanHeld && !dragPan && activeId===null &&
+    (state==="draw"||state==="roundResult") && !inputFrozen();
+  cv.classList.toggle("pan-ready", ready);
+  cv.classList.toggle("panning", !!dragPan);
+}
+function endDragPan(e){
+  if(!dragPan || (e && e.pointerId!==undefined && e.pointerId!==dragPan.id)) return false;
+  const id=dragPan.id;
+  dragPan=null;
+  try{ if(cv.hasPointerCapture(id)) cv.releasePointerCapture(id); }catch(_){}
+  refreshPanCursor();
+  return true;
+}
 function abortStroke(){
   if(erasing){ const snap=history.pop(); if(snap) strokes=snap; erasing=false; erasePrev=null; }
   cur=null; activeId=null; activeType=""; captureOk=false;
@@ -2371,8 +3457,20 @@ function syncPinch(){
   const g=pinchInfo();
   pinch={ids, d0:Math.max(1,g.d), cx0:g.cx, cy0:g.cy, s0:viewS, x0:viewX, y0:viewY};
 }
-// ペンで描いている（直後も含む）間は、手のひらをズームにも描画にも使わせない
-const penBusy = () => activeType==="pen" || performance.now()-lastPenAt<1500;
+function activePointerLive(){
+  if(activeId===null) return false;
+  /* hasPointerCapture を無期限には信用しない。ポインタ消滅時の解放処理が走らない
+     WebViewでは lostpointercapture が来ないまま true を返し続け、ペン・指とも
+     新規入力が全滅するデッドロックになる（監査指摘）。描いている限り
+     lastActiveAt は move のたびに更新されるので、20秒無音のキャプチャは死骸とみなす。 */
+  if(captureOk){ try{
+    return cv.hasPointerCapture(activeId) && performance.now()-lastActiveAt<20000;
+  }catch(_){} }
+  return performance.now()-lastActiveAt<900;
+}
+// ペンで描いている（直後も含む）間は、手のひらをズームにも描画にも使わせない。
+// activeTypeだけを信じるとpointerup欠落後に指入力を永久拒否するため、生存確認も行う。
+const penBusy = () => (activeType==="pen" && activePointerLive()) || performance.now()-lastPenAt<1500;
 function dropTouches(){ if(touchPts.size){ touchPts.clear(); } pinch=null; }
 
 /* 答え合わせ中もピンチできるようにするため、タッチの追跡だけは
@@ -2385,8 +3483,16 @@ function trackTouch(e){
     dropTouches();
     return true;
   }
+  /* ★幽霊指の時限削除。pointerupを取りこぼした指が touchPts に残ると、
+     以後1本指で触れるたびに「2本目」扱いになり、動かない幽霊点を支点にした
+     片手偽ピンチで描けなくなる（監査指摘。isPrimary=false の新指は
+     pointerdown側の復旧条件に掛からない）。8秒間moveが来ない指は死骸とみなす。
+     本物のピンチ中は両指ともmoveのたびに t が更新されるので誤爆しない。 */
+  const nowT=performance.now();
+  for(const [id,q] of touchPts){ if(nowT-(q.t||0)>8000) touchPts.delete(id); }
+  if(pinch && touchPts.size<2) syncPinch();
   const r=cv.getBoundingClientRect();
-  touchPts.set(e.pointerId,{x:e.clientX-r.left, y:e.clientY-r.top});
+  touchPts.set(e.pointerId,{x:e.clientX-r.left, y:e.clientY-r.top, t:nowT});
   if(touchPts.size>=2){
     // 2本目が触れた＝ズーム操作。1本目で描きかけていた線は取り消す
     if(cur||erasing) abortStroke();
@@ -2397,6 +3503,30 @@ function trackTouch(e){
 }
 
 cv.addEventListener("pointerdown", e=>{
+  /* PC・ペンタブ: Spaceを押しながらドラッグすると一時的に画面移動。
+     描画用のactiveIdとは別に持ち、線・消しゴム履歴へ一切混ぜない。 */
+  if((state==="draw"||state==="roundResult") && !inputFrozen() &&
+     spacePanHeld && e.button===0 && !dragPan && activeId===null){
+    dropTouches(); hoverPos=null;
+    dragPan={id:e.pointerId, sx:e.clientX, sy:e.clientY, x0:viewX, y0:viewY};
+    try{ cv.setPointerCapture(e.pointerId); }catch(_){}
+    refreshPanCursor();
+    e.preventDefault();
+    return;
+  }
+  /* 画面外で指を離したとき pointerup / pointercancel / lostpointercapture の
+     いずれも届かないWebViewがある。その後の新しいprimary touchは、物理的には
+     前のprimary touchがもう存在しないことの確実な証拠。古い線を確定し、残った
+     指IDを消してから通常処理へ進める。実際の2本目はisPrimary=falseなので、
+     ピンチ操作を誤って復旧扱いにはしない。 */
+  if(e.pointerType==="touch" && e.isPrimary && activeType==="touch" && activeId!==null){
+    endStroke({pointerId:activeId, pointerType:"touch"});
+    dropTouches();
+  }
+  /* ピンチの片方だけpointerupを取りこぼした場合、Mapに幽霊の指が1本残る。
+     新しいprimary touchは「以前の指はもう存在しない」証拠なので追跡を初期化する。 */
+  if(e.pointerType==="touch" && e.isPrimary && activeId===null &&
+     touchPts.size && !touchPts.has(e.pointerId)) dropTouches();
   // タッチの追跡は答え合わせ中も行う（消失点の図をピンチで見られるように）
   if((state==="draw"||state==="roundResult") && !inputFrozen() && e.pointerType==="touch"){
     if(trackTouch(e)){ e.preventDefault(); return; }
@@ -2413,14 +3543,15 @@ cv.addEventListener("pointerdown", e=>{
     let live;
     if(captureOk){
       // キャプチャが取れている環境では、それが生きているか＝描画中かの正確な判定になる
+      // （ただし20秒無音なら死骸とみなす。activePointerLive と同じ防御）
       live=false;
-      try{ live = cv.hasPointerCapture(activeId); }catch(_){}
+      try{ live = cv.hasPointerCapture(activeId) && performance.now()-lastActiveAt<20000; }catch(_){}
     }else{
       // キャプチャが使えない環境では時間で見る（手のひらは描いている最中に触れるため）
       live = performance.now()-lastActiveAt < 900;
     }
     if(live) return;
-    endStroke({pointerId:activeId});
+    endStroke({pointerId:activeId, pointerType:activeType});
   }
   activeId=e.pointerId;
   activeType=e.pointerType||"mouse";
@@ -2440,6 +3571,12 @@ cv.addEventListener("pointerdown", e=>{
   e.preventDefault();
 });
 window.addEventListener("pointermove", e=>{
+  if(inputFrozen()) return;       // ポーズ／3・2・1中は既存ポインタのmoveも描画させない
+  if(dragPan && dragPan.id===e.pointerId){
+    setView(viewS, dragPan.x0+e.clientX-dragPan.sx, dragPan.y0+e.clientY-dragPan.sy);
+    e.preventDefault();
+    return;
+  }
   /* ペンの「接触中」だけ記録する。ホバーでも更新すると、Apple Pencilを
      浮かせて近づけているだけで指入力が拒否され続けるバグになる（保留していた対策E） */
   if(e.pointerType==="pen" && e.buttons>0) lastPenAt=performance.now();
@@ -2448,7 +3585,7 @@ window.addEventListener("pointermove", e=>{
     // ペンが動き出したら、追跡中の指（手のひら）は全部捨てる
     if(penBusy()){ dropTouches(); return; }
     const r=cv.getBoundingClientRect();
-    touchPts.set(e.pointerId,{x:e.clientX-r.left, y:e.clientY-r.top});
+    touchPts.set(e.pointerId,{x:e.clientX-r.left, y:e.clientY-r.top, t:performance.now()});
     if(pinch && touchPts.size===2){
       const g=pinchInfo();
       const ns=clamp(pinch.s0*(g.d/pinch.d0), VIEW_MIN, VIEW_MAX);
@@ -2496,11 +3633,17 @@ function endStroke(e){
   if(activeId!==e.pointerId) return;
   if(erasing){
     erasing=false; erasePrev=null;
-    if(!eraseChanged) history.pop(); // no-op erase → drop snapshot
+    if(!eraseChanged){
+      /* densifyStrokesで増やした点も元へ戻す。見た目が同じなのに採点入力だけ
+         変わる状態を残さない。 */
+      const snap=history.pop(); if(snap) strokes=snap;
+      rebuildInk();
+    }
     activeId=null; activeType="";
+    refreshPanCursor();
     return;
   }
-  if(!cur){ activeId=null; activeType=""; return; }
+  if(!cur){ activeId=null; activeType=""; refreshPanCursor(); return; }
   if(state==="draw"){
     finishStrokeInk(cur.pts);
     pushHistory();
@@ -2512,13 +3655,15 @@ function endStroke(e){
     maybeShowJudgeHint();
   }
   cur=null; activeId=null; activeType="";
+  refreshPanCursor();
   render();
 }
-window.addEventListener("pointerup", endStroke);
+window.addEventListener("pointerup", e=>{ if(!endDragPan(e)) endStroke(e); });
 /* パンなどOSにジェスチャを奪われたときは、その線を「確定」ではなく「破棄」する。
    途切れた線がそのまま採点に混ざるのを防ぐ（保留していた対策F）。
    消しゴム中に奪われた場合は、消しはじめ時点のスナップショットへ巻き戻す */
 window.addEventListener("pointercancel", e=>{
+  if(endDragPan(e)) return;
   if(e.pointerType==="touch" && touchPts.has(e.pointerId)){
     touchPts.delete(e.pointerId);
     syncPinch();          // 残った指で基準を取り直す（倍率が飛ばない）
@@ -2527,23 +3672,24 @@ window.addEventListener("pointercancel", e=>{
   if(erasing){
     const snap=history.pop();
     if(snap) strokes=snap;
-    erasing=false; erasePrev=null; activeId=null;
+    erasing=false; erasePrev=null; activeId=null; activeType=""; captureOk=false;
     rebuildInk(); render();
     return;
   }
-  cur=null; activeId=null;
+  cur=null; activeId=null; activeType=""; captureOk=false;
   rebuildInk(); render();
 });
 /* ポインタキャプチャを失ったのに pointerup も pointercancel も来なかった場合
    （画面端でペンが範囲外に出た等）は、その時点で描けていた線を確定して解放する。
    pointerup 経由の正常終了では endStroke が先に activeId を消すので二重確定はしない。 */
 cv.addEventListener("lostpointercapture", e=>{
+  if(endDragPan(e)) return;
   if(activeId!==e.pointerId) return;
   endStroke(e);
 });
 /* PC・ペンタブはホイールで拡大縮小（カーソルの位置を固定して寄り引きする） */
 cv.addEventListener("wheel", e=>{
-  if(state!=="draw" && state!=="roundResult") return;
+  if((state!=="draw" && state!=="roundResult") || inputFrozen()) return;
   e.preventDefault();
   const r=cv.getBoundingClientRect();
   zoomAt(e.clientX-r.left, e.clientY-r.top, viewS*(e.deltaY<0 ? 1.12 : 1/1.12));
@@ -2586,9 +3732,8 @@ function hideJudgeHint(){
 /* ================= timer ================= */
 let timerId=null, deadline=0, lastTickSec=null, timedOut=false;
 let curLimit=TIME_LIMIT;   // このラウンドの制限時間（チャレンジは毎ラウンド変わる）
-/* 警告を出しはじめる残り秒数。絶対値5秒のままだと、制限時間そのものが4〜7秒の
-   チャレンジ後半で「開始と同時に警報が鳴り、赤く点滅し続ける」状態になるので
-   制限時間に対する割合で決める（30秒→5、13秒→5、9秒→4、7秒→3、4秒→2 で従来モードは挙動不変） */
+/* 警告を出しはじめる残り秒数。短いラウンドで警報が長く画面を支配しないよう、
+   制限時間に対する割合で決める（30秒→5、13秒→5、9秒→4、8秒→3）。 */
 let warnAt=5;
 const warnFor = lim => Math.max(2, Math.min(5, Math.round(lim*0.4)));
 const ARC_LEN=119.4;
@@ -2654,9 +3799,12 @@ function pauseRoundTimer(){
   // （pausedLeft は残すので、次の復帰で3・2・1をやり直す）
   if(resumeTimer){ clearResume(); return; }
   if(!timerId) return;
-  pausedLeft=Math.max(0.5,(deadline-performance.now())/1000);
+  pausedLeft=Math.max(0,(deadline-performance.now())/1000);
   stopTimer();
   clearResume();
+  /* 離脱時点の描きかけ・パン・ピンチを畳む。復帰カウント中に古いpointermoveが
+     届いて時間外インクや入力固着を作らないようにする。 */
+  endDragPan(); abortStroke(); dropTouches();
 }
 function resumeRoundTimer(){
   if(pausedLeft===null || state!=="draw" || resumeTimer) return;
@@ -2707,26 +3855,26 @@ const MODES={
           hint:tr("時間はどんどんみじかくなる！合格ラインを下回ったら終わりだよ",
                   "Time keeps shrinking — drop below the pass line and it's over!")},
 };
+/* ダブルはフェアネス再設計まで休止。実装と過去記録は残すが、新規ランから到達させない。 */
+const PAUSED_MODES=new Set(["double"]);
 const TOTAL_ROUNDS=8, PRACTICE_ROUNDS=2;   // 練習2＋本番6（8本番は長いというユーザーFBで短縮）
 
 /* ================= チャレンジモード（エンドレス・サバイバル） =================
    ラウンドごとに制限時間が縮み、合格ラインは上がる。
    タイムアウト、または「合格ライン以下」でラン終了＝何ラウンド生き延びたかを競う。
-   ★数値の根拠（実測・2026-07-28）:
+   ★数値の根拠（実測・2026-07-28、最低時間は2026-08-11改定）:
    ・5辺のお題で 2本を正確に描くと 49.8点。これが「手抜き戦法」の理論上限。
      → R17 で合格ライン50点がこれを上回るので、手抜きはそこで数学的に死ぬ。
-   ・4秒では 認知0.4＋パースの読み1.5＋3本描画2.2＋判定0.15＝4.25秒 が必要になり、
-     合格60点（3本以上が要る）は物理的に不可能。→ 遅くともR19〜20で必ず終了する
-     ＝ランキングに入る値が有界（score列の0-100制約を超えない）。
+   ・4秒はパースを読む力より入力速度の比重が大きすぎるため、最低8秒に緩和する。
+     終了の有界性は時間切れに頼らず、R27の合格ライン101点で保証する。
    ・序盤の合格ラインを20点に下げてあるのは、30秒でも事故で30点を割る回が
-     実測5〜8%あり、「時間はたっぷり余っているのに理不尽に死ぬ」のを防ぐため。 */
-const END_TIMES=[15,13,12,11,10,9,8,8,7,7,6,6,5,5,4];   // 16ラウンド目以降はずっと4秒
+   実測5〜8%あり、「時間はたっぷり余っているのに理不尽に死ぬ」のを防ぐため。 */
+const END_TIMES=[15,13,12,11,10,9,8];   // 7ラウンド目以降はずっと最低8秒
 /* 合格ライン（この点数「以上」で生き残る）。表示と判定を必ず同じ値で行うこと——
    別々にすると「21点必要と出ているのに20.5点で生き残る」ようなズレが出る */
 const END_KEEP_SHOTS=8;   // 結果画面に残すサムネイルの数（古い回の画像は捨ててメモリを守る）
-/* 人間なら合格ラインが物理的に届かなくなるR19〜20で必ず終わるが、
-   スクリプトで正解をなぞられると理論上は永久に続く。
-   ランキングの値（ラウンド数）を0-100に収めるためのハードキャップ。 */
+/* 現在はR27の合格ライン101点で必ず終わる。将来の合格ライン変更や不正入力でも
+   ランキング値（ラウンド数）を0-100に収めるため、念のためハードキャップも残す。 */
 const END_MAX=99;
 const endTime  = r => END_TIMES[Math.min(r, END_TIMES.length-1)];   // r=0起点
 const endPass = r => (r+1<=15 ? 20+5*Math.floor(r/3) : 40+5*(r+1-15)) + 1;
@@ -2757,6 +3905,14 @@ function setState(s){
   Sound.setScene(s==="menu" ? "menu" : s==="final" ? "final" : "game");
 }
 
+function fixedCameraSpec(distanceM){
+  const base=tr(
+    `立方体は1辺${CUBE_EDGE_M.toFixed(2)}m（1m³）　CAM: FOV ${CAMERA_FOV_DEG.toFixed(1)}° / f=${CAMERA_FOCAL_NORM.toFixed(3)} / 主点中央 / ROLL 0°`,
+    `Cube edges ${CUBE_EDGE_M.toFixed(2)}m (1m³)  CAM: FOV ${CAMERA_FOV_DEG.toFixed(1)}° / f=${CAMERA_FOCAL_NORM.toFixed(3)} / centred principal point / ROLL 0°`);
+  if(!Number.isFinite(distanceM)) return base;
+  return base+tr(` / 面距離 ${distanceM.toFixed(2)}m`,` / face distance ${distanceM.toFixed(2)}m`);
+}
+
 function updateHud(){
   // チップと説明はラウンドの実モードに従う（変化球「ふたご」ではダブル表示になる）
   $("#modeChip").textContent = MODES[round.mode].name;
@@ -2767,11 +3923,14 @@ function updateHud(){
     ? tr(`ラウンド ${roundIdx+1}`,`Round ${roundIdx+1}`)     // れんしゅうは終わりがないので分母なし
     : tr(`ラウンド ${roundIdx+1} / ${totalRounds}`,`Round ${roundIdx+1} / ${totalRounds}`);
   $("#practiceChip").classList.toggle("hidden", !round.practice);
-  $("#hint").textContent = round.practice
+  const playHint = round.practice
     ? tr("うすいガイドをなぞって、パースのかんかくをつかもう🌱","Trace the faint guides to get a feel for perspective 🌱")
     : round.twist==="maru"
       ? tr("その直線が直径！フリーハンドでまんまるな円をかこう","That line is the diameter — draw a perfect circle freehand!")
       : MODES[round.mode].hint;
+  const c=round.cubes && round.cubes[0];
+  $("#hint").textContent=playHint;
+  $("#cameraDock").textContent=fixedCameraSpec(c&&c.hintDistanceM);
 }
 
 function newRound(){
@@ -2790,7 +3949,11 @@ function newRound(){
   if(endlessRun) round.timeLimit = endTime(roundIdx);
   roundStart = performance.now();
   resetView(); touchPts.clear(); pinch=null;   // ズームはラウンドごとに等倍へ戻す
-  strokes=[]; cur=null; activeId=null; history=[]; erasing=false; hoverPos=null;
+  strokes=[]; cur=null; history=[]; hoverPos=null;
+  // 前ラウンドでpointerupを取りこぼしていても新しい線を引けるように、
+  // ポインタの掴み状態をここで必ず解放する（画面端バグの再発防止）。
+  erasing=false; erasePrev=null;
+  activeId=null; activeType=""; captureOk=false; dragPan=null; dropTouches();
   eraseUses=0; undoKeyUses=0; undoBtnUses=0; clearUses=0;
   setTool("pen", true);   // 消しゴムのまま白紙ラウンドが始まって描けない事故を防ぐ
   hideJudgeHint();
@@ -2826,10 +3989,10 @@ function twistForDailySeed(seed){
      このゲームの芯＝立方体のパースと関係がない唯一の変化球だったため。
      ★枠は null で残すこと。配列を5個に詰めると割り当てのインデックスが
      ずれて、公開済みクライアント（v1.25＝6個のプール）と同じデイリー板で
-     別のお題を出してしまう。null の枠は「変化球なしの普通のデイリー」になり、
-     ほかの日付の割り当ては v1.25 のままで一切動かない。
-     プールを詰めて整理するなら、v1.26 が全端末に行き渡ったあとの日付から。 */
-  const pool=["ta","dice","dbl","notch","wire",null];
+     別のお題を出してしまう。null は「変化球なしの普通のデイリー」になる。
+     ダブルもフェアネス再設計まで休止したため、その枠だけnullへ置換する。
+     配列長と他枠の位置は守り、公開は必ず新キャッシュが行き渡る日境界で行う。 */
+  const pool=["ta","dice",null,"notch","wire",null];
   const week=Math.floor(t/(7*86400000));
   return pool[(week*2 + (dow===6?1:0)) % pool.length];
 }
@@ -3007,6 +4170,7 @@ function showTwistIntro(k, onceEver){
 
 function startGame(m, opts){
   opts=opts||{};
+  if(PAUSED_MODES.has(m)) m="normal";
   mode=m; roundIdx=0; scores=[]; roundsInfo=[]; encouraged=false; noteOnce=new Set(); inputPts={};
   /* チャレンジ＝エンドレス・サバイバル。練習ラウンドは置かない
      （練習はタイマー自体が出ないので、ラダー先頭が「無制限の練習」に食われる） */
@@ -3027,7 +4191,7 @@ function startGame(m, opts){
        URLで起動すると、お題見せ画面だけ「かじられキューブ」と説明して普通のハリガネが出る
        という嘘になっていた（まんまる封印とは無関係の既存不整合。監査で発見）
      ・SEALED は封印済みの変化球。デバッグAPI経由でも起動させない */
-  const SEALED=new Set(["maru","cross"]);
+  const SEALED=new Set(["maru","cross","dbl"]);
   const pick = (TWISTS[opts.twist] && !SEALED.has(opts.twist)) ? opts.twist : null;
   gameTwist = (endlessRun||studyRun||m!=="normal") ? null
     : pick || twistForDailySeed(gameSeed) || null;
@@ -3084,6 +4248,8 @@ const CUBE_TIPS=[
      "📐 Parallel edges always meet at one vanishing point — extend two to find it"),
   tr("🧊 上の面が見えている＝立方体は目線より下。下の面が見えたら目線より上",
      "🧊 If you can see the top face, the cube sits below your eye line"),
+  tr("📷 レンズ・ヒント面の中心・大きさは全問共通。変わるのは向きだけ",
+     "📷 Lens, clue-face centre and size stay fixed — only its orientation changes"),
 ];
 function roundNotes(res, auto, oneStroke, giveUp){
   const n=[];
@@ -3271,11 +4437,19 @@ function submit(auto){
   if(!auto && performance.now()-roundStart < 450) return;
   stopTimer();
   hideJudgeHint();
-  if(!auto){ try{ localStorage.setItem(JUDGE_KEY, judgedTimes()+1); }catch(_){} }
+  /* 判定ボタン卒業カウンタ。れんしゅう系では増やさないが、
+     ★デイリーは seed を渡すため seededRun=true になる——巻き添えで除外しない。
+     （旧式 !seededRun はデイリーで矢印誘導を永遠に卒業できないバグだった） */
+  if(!auto && !studyRun && !twistSelRun && !(seededRun && !isDaily)){
+    try{ localStorage.setItem(JUDGE_KEY, judgedTimes()+1); }catch(_){}
+  }
   if(cur){ // stroke still in progress at time-up: commit it
     finishStrokeInk(cur.pts); pushHistory(); strokes.push(cur); cur=null; activeId=null;
   }
   erasing=false;
+  /* 時間切れがペン接触中に来ると activeType が "pen" のまま残り、
+     以後そのセッションの指入力（描画もピンチも）が全部拒否される。ここで必ず解く。 */
+  activeId=null; activeType=""; captureOk=false; dropTouches();
   const res = scoreRound(round, strokes);
   // ペンを一度も離さずに描き切った人（かくし称号「一筆書きの達人」）
   const oneStroke = strokes.length===1 && res.score>=60;
@@ -3307,17 +4481,22 @@ function submit(auto){
     ? tr("🏁 けっかをみる","🏁 See results") : tr("➡️ つぎへ","➡️ Next");
   if(auto) Sound.timeup(); else Sound.score(g);
   /* スナップショットは必ず等倍で撮る。ズームしたまま撮ると、結果画面のサムネイルも
-     シェア画像もリプレイ（ワールド座標のストロークを重ねる）もズレる */
+     シェア画像もリプレイ（論理座標を撮影時レイアウトへ戻して重ねる）もズレる */
   resetView();
   // 答え合わせスナップショット（最終画面グリッド＆シェア用）と
   // インクなしベース画像（リプレイ用）を撮っておく。
   // れんしゅうは結果画面自体が無いので、撮らない（メモリも時間も使わない）
   drawScene();
-  let shot=null, baseShot=null, shotScale=1;
+  let shot=null, baseShot=null, shotScale=1, replayLayout=null;
   if(!studyRun) try{
     const k=Math.min(1, 1000/cv.width);
     const cw=Math.round(cv.width*k), ch=Math.round(cv.height*k);
     shotScale=cw/W;
+    if(round.scoreLayout) replayLayout={
+      k:round.scoreLayout.k*shotScale,
+      cx:round.scoreLayout.cx*shotScale,
+      cy:round.scoreLayout.cy*shotScale,
+    };
     const snap=()=>{
       const c2=document.createElement("canvas");
       c2.width=cw; c2.height=ch;
@@ -3328,10 +4507,15 @@ function submit(auto){
     hideInk=true; drawScene(); baseShot=snap();
     hideInk=false; drawScene();
   }catch(_){ hideInk=false; }
+  const storedLogical=!!(round.scoreLayout&&round.scoreLayout.k>0);
+  const replayStrokes=studyRun ? [] : (storedLogical?logicalStrokes(round,strokes):strokes).map(s=>({
+    pts:s.pts.map(p=>({x:p.x,y:p.y,w:p.w,t:p.t||0}))
+  }));
   roundsInfo.push({
-    shot, baseShot, shotScale,
-    // れんしゅうはリプレイもシェアもしないのでストローク座標も残さない
-    strokes: studyRun ? [] : strokes.map(s=>({pts:s.pts.map(p=>({x:p.x,y:p.y,w:p.w,t:p.t||0}))})),
+    shot, baseShot, shotScale, replayLayout,
+    // リプレイ・将来のゴースト共用データも固定カメラの1000×1000論理座標で保存する
+    coordSpace:storedLogical?"camera-1000":"screen",
+    strokes:replayStrokes,
     score:res.score, practice:round.practice, timedOut:!!auto, doodle:res.doodle||null,
     oneStroke, mirrored:!!res.mirrored, gridish:res.gridish||null,
     farInk:res.farInk||0, erased:eraseUses, strokeCount:strokes.length,
@@ -3517,7 +4701,9 @@ function showFinal(){
   let owned=[]; try{ const v=JSON.parse(localStorage.getItem(COLLECT_KEY)); if(Array.isArray(v)) owned=v; }catch(_){}
   // チャレンジは条件が特殊（短時間・少ラウンド）でバッジが取りやすいので、
   // コレクションには加算しない（16種の価値を守る。表示はする）
-  if(!endlessRun && !studyRun)
+  // ★デイリーは seed を渡すため seededRun=true になる——巻き添えで除外しない
+  //   （旧式 !seededRun はデイリーでバッジが一切貯まらない退行だった）
+  if(!endlessRun && !studyRun && !(seededRun && !isDaily) && !twistSelRun)
     specials.forEach(s=>{ if(COLLECTIBLES.includes(s.key) && !owned.includes(s.key)) owned.push(s.key); });
   owned=owned.filter(k=>COLLECTIBLES.includes(k));
   try{ localStorage.setItem(COLLECT_KEY, JSON.stringify(owned)); }catch(_){}
@@ -3581,7 +4767,12 @@ function startReplay(i){
     $("#shotBig").classList.add("hidden"); c.classList.remove("hidden");
     const g=c.getContext("2d");
     g.lineCap="round"; g.lineJoin="round";
-    const k=info.shotScale||1;
+    const logicalMap=info.coordSpace==="camera-1000"&&info.replayLayout;
+    const k=logicalMap?logicalMap.k:(info.shotScale||1);
+    const xy=p=>logicalMap
+      ? {x:logicalMap.cx+(p.x-CAMERA_STAGE/2)*logicalMap.k,
+         y:logicalMap.cy+(p.y-CAMERA_STAGE/2)*logicalMap.k}
+      : {x:p.x*k,y:p.y*k};
     let t0=Infinity, t1=0;
     for(const s of info.strokes) for(const p of s.pts){ if(p.t<t0)t0=p.t; if(p.t>t1)t1=p.t; }
     if(!isFinite(t0)){ t0=0; t1=1; }
@@ -3598,7 +4789,8 @@ function startReplay(i){
         const pts=s.pts;
         if(!pts.length || pts[0].t>tNow) continue;
         if(pts.length===1){
-          g.beginPath(); g.arc(pts[0].x*k,pts[0].y*k,Math.max(1,pts[0].w*k/2),0,7); g.fill();
+          const p0=xy(pts[0]);
+          g.beginPath(); g.arc(p0.x,p0.y,Math.max(1,pts[0].w*k/2),0,7); g.fill();
           continue;
         }
         for(let j=1;j<pts.length;j++){
@@ -3609,8 +4801,9 @@ function startReplay(i){
             const f=(tNow-a.t)/Math.max(1,b.t-a.t);
             bx=a.x+(b.x-a.x)*f; by=a.y+(b.y-a.y)*f;
           }
+          const as=xy(a), bs=xy({x:bx,y:by});
           g.lineWidth=Math.max(0.6,((a.w+b.w)/2)*k);
-          g.beginPath(); g.moveTo(a.x*k,a.y*k); g.lineTo(bx*k,by*k); g.stroke();
+          g.beginPath(); g.moveTo(as.x,as.y); g.lineTo(bs.x,bs.y); g.stroke();
           if(b.t>tNow) break;
         }
       }
@@ -3676,10 +4869,16 @@ async function rankFetch(path, opts){
 /* ランキングの集計単位: 通常プレイ=モード別 / デイリー=その日 / シード戦・変化球セレクト=対象外。
    チャレンジだけは単位が「点」ではなく「ラウンド数」なので、盤の接頭辞から分ける
    （mode: の盤を点スケール前提で集計している既存SQLを汚さないため） */
-const boardKey = () => isDaily ? "daily:"+(dailyDate||todaySeedStr())
+/* ★採点世代。採点式やお題生成を変えたら必ず上げること。
+   上げないと、旧採点で付いたスコアと新採点のスコアが同じ板で比較されてしまう
+   （1.26〜1.27の採点変更では、同じ描き方で点がずれるため旧板と分離する）。
+   ★g2 を使うには Supabase 側の p_board 正規表現に @g2 を許可するSQL(v1.07)が必要。
+   先にクライアントを配ると全員「送信に失敗しました」になる。 */
+const SCORE_GEN="g2";
+const boardKey = () => isDaily ? `daily:${dailyDate||todaySeedStr()}@${SCORE_GEN}`
   // れんしゅうは時間無制限なので、時間つきモードと同じ板には載せられない
   : (seededRun || twistSelRun || studyRun) ? null
-  : endlessRun ? "rounds:endless" : "mode:"+mode;
+  : endlessRun ? `rounds:endless@${SCORE_GEN}` : `mode:${mode}@${SCORE_GEN}`;
 /* 端末ごとの匿名プレイヤーID（同一ブラウザ=同一プレイヤーとしてベスト1行を維持） */
 function playerId(){
   let id=null;
@@ -4140,7 +5339,8 @@ $("#btnSeedPlay").addEventListener("click",()=>{
   const q=new URLSearchParams(location.search);
   const s=q.get("seed");
   if(!s) return;
-  const m=MODES[q.get("mode")] ? q.get("mode") : "normal";
+  const requestedMode=q.get("mode");
+  const m=MODES[requestedMode] && !PAUSED_MODES.has(requestedMode) ? requestedMode : "normal";
   const b=document.createElement("button");
   b.className="modeBtn";
   b.style.background="#ffe9f2"; b.style.borderColor="#ff9fc4";
@@ -4219,7 +5419,12 @@ document.addEventListener("pointerup",tryUnlockAudio,true);
 document.addEventListener("keydown",tryUnlockAudio,true);
 
 window.addEventListener("keydown",e=>{
-  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==="z"){
+  const tag=(e.target&&e.target.tagName||"").toLowerCase();
+  const typing=tag==="input"||tag==="textarea"||tag==="select"||!!(e.target&&e.target.isContentEditable);
+  if(e.code==="Space" && !typing && (state==="draw"||state==="roundResult")){
+    e.preventDefault();                    // Spaceによるページスクロールを止める
+    if(!e.repeat){ spacePanHeld=true; refreshPanCursor(); }
+  }else if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==="z"){
     undo(true); e.preventDefault();
   }else if(e.key==="Enter"){
     if(state==="draw"||state==="roundResult"){
@@ -4227,15 +5432,33 @@ window.addEventListener("keydown",e=>{
       e.preventDefault();       // フォーカス中のボタンへのclick発火を止める
       state==="draw" ? submit(false) : next();
     }
-  }else if(e.key.toLowerCase()==="e" && state==="draw"){
-    if(e.repeat || activeId!==null) return;
+  }else if((e.key.toLowerCase()==="x"||e.key.toLowerCase()==="e") && !typing &&
+           !e.ctrlKey && !e.metaKey && !e.altKey && state==="draw"){
+    if(e.repeat || activeId!==null || dragPan || inputFrozen()) return;
     setTool(tool==="pen"?"eraser":"pen");
+    e.preventDefault();
   }
 });
+window.addEventListener("keyup",e=>{
+  if(e.code!=="Space") return;
+  spacePanHeld=false;
+  refreshPanCursor();             // ドラッグ中ならpointerupまではgrabbingを保つ
+  e.preventDefault();
+});
+window.addEventListener("blur",()=>{
+  spacePanHeld=false;
+  endDragPan();                   // Alt+Tab等でpointerupを失ってもパン状態を残さない
+  refreshPanCursor();
+});
 
-/* リサイズ・画面回転時はお題を作り直さず、一様スケール＋平行移動で安全域に収め直す。
-   （作り直すと不利／チートになるため。相似変換なので採点条件は変わらない） */
+/* リサイズ・画面回転時はお題を作り直さず、同じ1000×1000論理座標から
+   新しい安全域へ写し直す。ストロークも同じ変換に乗せるため採点値は変わらない。 */
 window.addEventListener("resize",()=>{
+  // 画面回転の途中でpointerupを取りこぼすと、パン／消しゴム／描画中の状態が残り
+  // 次の線が引けなくなる。座標系を作り直す前に必ず畳んでおく
+  // （abortStroke は描きかけの線と途中の消しゴムを取り消してポインタ状態も戻す）。
+  endDragPan();
+  abortStroke();
   // ズームは解除する（お題側の相似変換と混ざると位置が合わなくなる）
   viewS=1; viewX=0; viewY=0; touchPts.clear(); pinch=null;
   $("#btnZoomReset").classList.add("hidden");
@@ -4246,42 +5469,35 @@ window.addEventListener("resize",()=>{
     return;
   }
   if(round){
-    const landscape = W>=H;
-    const mL=24, mR=landscape?195:24, mT=70, mB=landscape?40:175;
-    const availW=Math.max(60,W-mL-mR), availH=Math.max(60,H-mT-mB);
-    const pts=[]; round.cubes.forEach(c=>pts.push(...c.P));
-    const xs=pts.map(p=>p.x), ys=pts.map(p=>p.y);
-    const l=Math.min(...xs), r=Math.max(...xs), t=Math.min(...ys), b=Math.max(...ys);
-    const bw=Math.max(r-l,1e-6), bh=Math.max(b-t,1e-6);
-    // 収まらないときだけ縮小（勝手に拡大はしない）
-    const s=Math.min(1, availW/bw*0.98, availH/bh*0.98);
-    const cx0=(l+r)/2, cy0=(t+b)/2;
-    let ax=(mL+(W-mR))/2 - cx0*s, ay=(mT+(H-mB))/2 - cy0*s;
-    // 相似変換後に安全域からはみ出していれば平行移動で戻す
-    const nl=l*s+ax, nr=r*s+ax, nt=t*s+ay, nb=b*s+ay;
-    if(nl<mL) ax+=mL-nl; else if(nr>W-mR) ax+=W-mR-nr;
-    if(nt<mT) ay+=mT-nt; else if(nb>H-mB) ay+=H-mB-nb;
-    if(s!==1 || ax!==0 || ay!==0){
-      const seen=new Set();
-      const xf=p=>{ if(seen.has(p))return; seen.add(p); p.x=p.x*s+ax; p.y=p.y*s+ay; };
-      round.cubes.forEach(c=>{ c.P.forEach(xf); c.tol*=s; });   // targetsのpa,pbはc.Pと同じ参照
-      // pa/pb は通常 c.P への参照（seenが二重変換を防ぐ）。変化球のターゲットが
-      // 独立した点を持つ場合に取り残さないよう、ここで必ず変換する
-      round.targets.forEach(t2=>{ xf(t2.pa); xf(t2.pb); t2.samples.forEach(xf);
-        if(t2.pts) t2.pts.forEach(xf);   // ポリライン点（まんまるの円は独立点。diceはP参照でseenが守る）
-        t2.tol*=s; });
-      // りったい十字の「隠れた折り目」も独立した点を持つので変換する
-      if(round.crossHidden) round.crossHidden.forEach(g=>{ xf(g.pa); xf(g.pb); });
-      // ヒント線（まんまるの直径など）が独立した点を持つ場合も取り残さない（seenが二重変換を防ぐ）
-      if(round.hintLines) round.hintLines.forEach(hl=>hl.forEach(xf));
-      // allSegsのpa,pbはEXT延長した独立コピーなので、座標も必ず変換する
-      // （忘れると採点が移動前の位置と照合され、正確な絵が大減点になる）
-      round.allSegs.forEach(g=>{ xf(g.pa); xf(g.pb); g.tol*=s; });
-      strokes.forEach(st=>st.pts.forEach(xf));
-      if(cur) cur.pts.forEach(xf);
-      history.forEach(snap=>snap.forEach(st=>st.pts.forEach(xf)));
-      hoverPos=null;
+    const old=round.scoreLayout, nextLayout=cameraScreenLayout(W,H);
+    if(!old || !(old.k>0) || !(nextLayout.k>0)){
+      if(W>50 && H>50) newRound();
+      return;
     }
+    const ratio=nextLayout.k/old.k, seen=new Set();
+    const xf=p=>{
+      if(seen.has(p)) return; seen.add(p);
+      const lx=CAMERA_STAGE/2+(p.x-old.cx)/old.k;
+      const ly=CAMERA_STAGE/2+(p.y-old.cy)/old.k;
+      p.x=nextLayout.cx+(lx-CAMERA_STAGE/2)*nextLayout.k;
+      p.y=nextLayout.cy+(ly-CAMERA_STAGE/2)*nextLayout.k;
+    };
+    round.cubes.forEach(c=>{ c.P.forEach(xf); c.tol*=ratio; });
+    round.targets.forEach(t2=>{
+      xf(t2.pa); xf(t2.pb); t2.samples.forEach(xf);
+      if(t2.pts) t2.pts.forEach(xf);
+      t2.tol*=ratio;
+      if(Number.isFinite(t2.len)) t2.len*=ratio;
+    });
+    if(round.crossHidden) round.crossHidden.forEach(g=>{ xf(g.pa); xf(g.pb); });
+    if(round.hintLines) round.hintLines.forEach(hl=>hl.forEach(xf));
+    round.allSegs.forEach(g=>{ xf(g.pa); xf(g.pb); g.tol*=ratio; });
+    strokes.forEach(st=>st.pts.forEach(xf));
+    if(cur) cur.pts.forEach(xf);
+    history.forEach(snap=>snap.forEach(st=>st.pts.forEach(xf)));
+    if(Number.isFinite(round.extraLen)) round.extraLen*=ratio;
+    round.scoreLayout=nextLayout;
+    hoverPos=null;
   }
   rebuildInk(); render();
 });
@@ -4293,7 +5509,197 @@ window.addEventListener("resize",()=>{
      localhost で見るとApp Store版で常時ONになる。 */
 const DEBUG_API = location.protocol==="file:" ||
   new URLSearchParams(location.search).get("debug")==="1";
-if(DEBUG_API) window.__cube = {
+if(DEBUG_API){
+const logicalScaleSelfTest=()=>{
+  if(!round) throw new Error("no round");
+  const lr=logicalScoreInputs(round,[]).round;
+  const source=lr.targets.map((t,si)=>({pts:(t.pts&&t.pts.length?t.pts:[t.pa,t.pb]).map((p,i)=>({
+    // 完璧な正解ではなく一定量ずらし、許容幅・減衰まで同一になることを検証する
+    x:p.x+9,y:p.y-6,w:3,t:si*100+i*10,
+  }))}));
+  const make=(layout)=>{
+    const dr=structuredClone(lr), seen=new Set();
+    const xf=p=>{ if(seen.has(p))return; seen.add(p);
+      p.x=layout.cx+(p.x-CAMERA_STAGE/2)*layout.k;
+      p.y=layout.cy+(p.y-CAMERA_STAGE/2)*layout.k; };
+    dr.cubes.forEach(c=>{c.P.forEach(xf);c.tol=(c.scoreTol||c.tol)*layout.k;});
+    dr.targets.forEach(t=>{xf(t.pa);xf(t.pb);t.samples.forEach(xf);if(t.pts)t.pts.forEach(xf);
+      t.tol=(t.scoreTol||t.tol)*layout.k;if(Number.isFinite(t.len))t.len*=layout.k;});
+    dr.allSegs.forEach(g=>{xf(g.pa);xf(g.pb);g.tol=(g.scoreTol||g.tol)*layout.k;});
+    if(Number.isFinite(dr.extraLen)) dr.extraLen*=layout.k;
+    dr.scoreLayout={...layout};
+    const ss=source.map(s=>({pts:s.pts.map(p=>({
+      ...p,x:layout.cx+(p.x-CAMERA_STAGE/2)*layout.k,
+      y:layout.cy+(p.y-CAMERA_STAGE/2)*layout.k,w:p.w*layout.k,
+    }))}));
+    return {round:dr,strokes:ss};
+  };
+  const mobile=make({k:0.25,cx:195,cy:360}), desktop=make({k:0.75,cx:640,cy:400});
+  const a=scoreRound(mobile.round,mobile.strokes), b=scoreRound(desktop.round,desktop.strokes);
+  const la=logicalStrokes(mobile.round,mobile.strokes), lb=logicalStrokes(desktop.round,desktop.strokes);
+  let maxDelta=0;
+  for(let i=0;i<la.length;i++) for(let j=0;j<la[i].pts.length;j++){
+    maxDelta=Math.max(maxDelta,Math.abs(la[i].pts[j].x-lb[i].pts[j].x),
+                     Math.abs(la[i].pts[j].y-lb[i].pts[j].y));
+  }
+  const fields=["score","cov","structure","modelFit","prec","eff","inkRatio","farInk"];
+  return {pass:maxDelta<1e-9&&fields.every(k=>Math.abs((a[k]||0)-(b[k]||0))<1e-9),
+          maxDelta,mobile:Object.fromEntries(fields.map(k=>[k,a[k]])),
+          desktop:Object.fromEntries(fields.map(k=>[k,b[k]]))};
+};
+const fairnessSelfTest=()=>{
+  if(!round) throw new Error("no round");
+  const lr=logicalScoreInputs(round,[]).round;
+  const line=(a,b,n=2)=>({pts:Array.from({length:n},(_,i)=>({
+    x:a.x+(b.x-a.x)*i/(n-1), y:a.y+(b.y-a.y)*i/(n-1), w:3, t:i*10,
+  }))});
+  const targetLine=t=>line(t.pa,t.pb);
+  const exact=lr.targets.map(targetLine);
+  const maxTL=lr.targets.reduce((m,t)=>Math.max(m,t.len||Math.hypot(t.pb.x-t.pa.x,t.pb.y-t.pa.y)),0);
+  const guideRuler=Math.max(maxTL,HINT_FACE_SIZE);
+  const guideEdges=lr.cubes.flatMap(c=>c.edges.map(e=>({pa:c.P[e.a],pb:c.P[e.b]})));
+  const guide=(i,factor,n=2)=>{
+    const t=guideEdges[i%guideEdges.length];
+    const dx=t.pb.x-t.pa.x,dy=t.pb.y-t.pa.y,L=Math.hypot(dx,dy)||1;
+    const ux=dx/L,uy=dy/L,cx=(t.pa.x+t.pb.x)/2,cy=(t.pa.y+t.pb.y)/2;
+    const h=guideRuler*factor/2;
+    return line({x:cx-ux*h,y:cy-uy*h},{x:cx+ux*h,y:cy+uy*h},n);
+  };
+  const scored=s=>scoreLogicalRound(structuredClone(lr),s);
+  const base=scored(exact);
+  const hedge=[];
+  const longGuideHedge=[...exact];
+  const k4=[], sharedJoinK4=[], gap8=[], passThrough4=[];
+  const factors=[0.7,0.9,1.1,1.3];
+  const at=(t,u)=>({x:t.pa.x+(t.pb.x-t.pa.x)*u,
+                    y:t.pa.y+(t.pb.y-t.pa.y)*u});
+  for(const t of lr.targets){
+    const dx=t.pb.x-t.pa.x,dy=t.pb.y-t.pa.y,L=Math.hypot(dx,dy)||1;
+    const ux=dx/L,uy=dy/L,cx=(t.pa.x+t.pb.x)/2,cy=(t.pa.y+t.pb.y)/2;
+    for(let k=0;k<25;k++){
+      const f=0.55+0.90*k/24,h=L*f/2;
+      hedge.push(line({x:cx-ux*h,y:cy-uy*h},{x:cx+ux*h,y:cy+uy*h}));
+    }
+    for(let k=0;k<25;k++){
+      const h=guideRuler*2.50/2;
+      longGuideHedge.push(line({x:cx-ux*h,y:cy-uy*h},{x:cx+ux*h,y:cy+uy*h}));
+    }
+    for(const f of factors){
+      const a=(1-f)/2,b=(1+f)/2,g=8/L;
+      const candidate=line(at(t,a),at(t,b));
+      k4.push(candidate); sharedJoinK4.push(candidate);
+      gap8.push(candidate,
+        line(at(t,Math.min(-0.301,a-g-0.251)),at(t,a-g)),
+        line(at(t,b+g),at(t,Math.max(1.301,b+g+0.251))));
+    }
+    sharedJoinK4.push(line(at(t,-0.36),at(t,-0.1)),line(at(t,-0.301),at(t,0.1)),
+                      line(at(t,0.9),at(t,1.301)),line(at(t,1.1),at(t,1.36)));
+    for(let k=0;k<4;k++) passThrough4.push(line(at(t,-0.301),at(t,1.301)));
+    passThrough4.push(line(at(t,0),at(t,0.25)),line(at(t,0.75),at(t,1)));
+  }
+  const guide249=Array.from({length:8},(_,i)=>guide(i,2.49));
+  const guide251=Array.from({length:8},(_,i)=>guide(i,2.51));
+  const sparse=scored([...exact,...guide249]);
+  const dense=scored([...exact,...Array.from({length:8},(_,i)=>guide(i,2.49,80))]);
+  const cliff=scored([...exact,...guide251]);
+  const aux=scored([...exact,...Array.from({length:4},(_,i)=>guide(i,2.50))]);
+  const aux6=scored([...exact,...Array.from({length:6},(_,i)=>guide(i,2.50))]);
+  const hedgeRes=scored(hedge);
+  const longHedgeRes=scored(longGuideHedge);
+  const k4Res=scored(k4), sharedJoinRes=scored(sharedJoinK4);
+  const gap8Res=scored(gap8), passThroughRes=scored(passThrough4);
+  const delta=(a,b)=>Math.abs(a-b);
+  return {
+    pass:base.score>=99 && hedgeRes.score<=70 && longHedgeRes.score<=70 && k4Res.score<=85 &&
+         sharedJoinRes.score<=70 && gap8Res.score<=70 && passThroughRes.score<=70 &&
+         delta(sparse.score,cliff.score)<=2.5 && delta(sparse.score,dense.score)<=0.1 &&
+         aux.score>=85 && aux6.score>=75,
+    exact:base.score, hedge25:hedgeRes.score, longGuideHedge25:longHedgeRes.score,
+    k4:k4Res.score, sharedJoinK4:sharedJoinRes.score,
+    gap8K4:gap8Res.score, passThrough4:passThroughRes.score,
+    auxiliary4:aux.score, auxiliary6:aux6.score,
+    guide249:sparse.score, guide251:cliff.score, guideCliffDelta:delta(sparse.score,cliff.score),
+    sparse:sparse.score, dense:dense.score, densityDelta:delta(sparse.score,dense.score),
+  };
+};
+const generationSelfTest=(perSeed=64)=>{
+  const saved={gameSeed,roundIdx,gameTwist,endlessRun,mode,rng};
+  const failures=[],normalCells=new Set(),notchCells=new Map(); let tilted=0,minTimePitch=null;
+  const valid=r=>!!r && r.twistOk && r.cubes.every((c,ci)=>c.frameOk && c.hintCentered &&
+    Math.abs(c.hintSize-HINT_FACE_SIZE)<0.05 &&
+    r.targets.filter(t=>t.cube===ci).length>=3 && yCornerMinAngle(c)>=90 && readableView(c));
+  const cell=r=>{
+    const z=r.cubes[0].rot;
+    return `${Math.round(Math.abs(z.yaw/DEG)/5)*5}/${Math.round(Math.abs(z.pitch/DEG)/5)*5}`;
+  };
+  try{
+    mode="normal"; endlessRun=false;
+    for(let s=0;s<perSeed;s++) for(let slot=0;slot<8;slot++){
+      gameSeed=`gen-${s}`; roundIdx=slot; gameTwist=null;
+      rng=mulberry32(hashSeed(`${gameSeed}#normal#${roundIdx}`));
+      const a=genRound("normal",false,1000,800);
+      if(!valid(a)) failures.push(`normal:${s}:${slot}`);
+      else{ normalCells.add(cell(a)); if(Math.abs(a.cubes[0].rot.pitch/DEG)>=40) tilted++; }
+      gameTwist="notch";
+      rng=mulberry32(hashSeed(`${gameSeed}#normal#${roundIdx}`));
+      const b=genRound("normal",false,1000,800);
+      if(!valid(b) || b.twist!=="notch") failures.push(`notch:${s}:${slot}`);
+      else notchCells.set(cell(b),(notchCells.get(cell(b))||0)+1);
+    }
+    gameSeed="endless-min"; roundIdx=6; gameTwist=null; endlessRun=true;
+    rng=mulberry32(hashSeed(`${gameSeed}#normal#${roundIdx}`));
+    minTimePitch=Math.abs(genRound("normal",false,1000,800).cubes[0].rot.pitch/DEG);
+  }finally{
+    gameSeed=saved.gameSeed; roundIdx=saved.roundIdx; gameTwist=saved.gameTwist;
+    endlessRun=saved.endlessRun; mode=saved.mode; rng=saved.rng;
+  }
+  const total=perSeed*8, maxNotch=Math.max(0,...notchCells.values());
+  return {pass:failures.length===0 && normalCells.size>=12 && notchCells.size>=8 &&
+               maxNotch/total<0.35 && tilted===perSeed && minTimePitch<40,
+          samples:total,failures:failures.slice(0,10),normalPoseCells:normalCells.size,
+          notchPoseCells:notchCells.size,maxNotchCellShare:maxNotch/total,
+          tiltedRounds:tilted,minTimePitch};
+};
+const inputRecoverySelfTest=()=>{
+  const saved={strokes:structuredClone(strokes),cur:cur?structuredClone(cur):null,
+    history:structuredClone(history),activeId,activeType,captureOk,lastActiveAt,lastPenAt,
+    erasing,eraseChanged,erasePrev,pausedLeft};
+  let ghost=false,stalePen=false,frozen=false,noOp=false;
+  try{
+    abortStroke(); dropTouches(); history=[]; strokes=[];
+    touchPts.set(101,{x:10,y:10});
+    cv.dispatchEvent(new PointerEvent("pointerdown",{pointerId:102,pointerType:"touch",isPrimary:true,
+      clientX:100,clientY:100,buttons:1,bubbles:true,cancelable:true}));
+    ghost=touchPts.size===1 && touchPts.has(102) && activeId===102;
+    abortStroke(); dropTouches();
+
+    activeId=201; activeType="pen"; captureOk=false; lastActiveAt=-1e9; lastPenAt=-1e9; cur=null;
+    cv.dispatchEvent(new PointerEvent("pointerdown",{pointerId:202,pointerType:"touch",isPrimary:true,
+      clientX:110,clientY:110,buttons:1,bubbles:true,cancelable:true}));
+    stalePen=activeId===202 && activeType==="touch";
+    abortStroke(); dropTouches();
+
+    pausedLeft=3; activeId=301; activeType="mouse"; cur={pts:[{x:20,y:20,w:3,t:0}]};
+    window.dispatchEvent(new PointerEvent("pointermove",{pointerId:301,pointerType:"mouse",
+      clientX:200,clientY:200,buttons:1,bubbles:true,cancelable:true}));
+    frozen=cur.pts.length===1;
+    pausedLeft=null; abortStroke();
+
+    strokes=[{pts:[{x:10,y:10,w:3,t:0},{x:90,y:10,w:3,t:10}]}]; history=[];
+    const before=JSON.stringify(strokes); pushHistory(); densifyStrokes();
+    erasing=true; eraseChanged=false; erasePrev={x:500,y:500}; activeId=401; activeType="mouse";
+    endStroke({pointerId:401,pointerType:"mouse"});
+    noOp=JSON.stringify(strokes)===before;
+  }finally{
+    strokes=saved.strokes; cur=saved.cur; history=saved.history; activeId=saved.activeId;
+    activeType=saved.activeType; captureOk=saved.captureOk; lastActiveAt=saved.lastActiveAt;
+    lastPenAt=saved.lastPenAt; erasing=saved.erasing; eraseChanged=saved.eraseChanged;
+    erasePrev=saved.erasePrev; pausedLeft=saved.pausedLeft; dropTouches(); rebuildInk(); render();
+  }
+  return {pass:ghost&&stalePen&&frozen&&noOp,ghostTouchRecovered:ghost,
+          stalePenRecovered:stalePen,frozenMoveBlocked:frozen,noOpEraserStable:noOp};
+};
+window.__cube = {
   get round(){ return round; },
   get strokes(){ return strokes; },
   get state(){ return state; },
@@ -4303,6 +5709,13 @@ if(DEBUG_API) window.__cube = {
   forceTimeout(){ if(state==="draw" && !round.practice){ deadline=performance.now(); } },
   nudgeTimer(sec){ if(state==="draw") deadline=performance.now()+sec*1000; },   // 検証用
   gen(m,w,h){ return genRound(m,false,w||W,h||H); },
+  score(r,s){ return scoreRound(r,s); },
+  logical(r,s){ return logicalScoreInputs(r,s); },
+  layout(w,h){ return cameraScreenLayout(w,h); },
+  logicalScaleSelfTest,
+  fairnessSelfTest,
+  generationSelfTest,
+  inputRecoverySelfTest,
   randomName(){ return randomPainterName(); },
   isNg(s){ return isNgName(s); },
   dailyLeft(){ return dailyLeft(); },
@@ -4313,6 +5726,36 @@ if(DEBUG_API) window.__cube = {
   get twist(){ return gameTwist; },
   start(m,o){ startGame(m,o); },
 };
+/* ブラウザー自動検証は隔離された実行領域からページ関数を直接呼べないため、
+   DOMイベントでテストを依頼し、結果だけdata属性へ返す。debug=1 の時だけ有効。 */
+const runLogicalSelfTest=()=>{
+  try{ document.documentElement.dataset.cubeLogicalTest=JSON.stringify(logicalScaleSelfTest()); }
+  catch(e){ document.documentElement.dataset.cubeLogicalTest=JSON.stringify({pass:false,error:String(e)}); }
+};
+const runFairnessSelfTest=()=>{
+  try{ document.documentElement.dataset.cubeFairnessTest=JSON.stringify(fairnessSelfTest()); }
+  catch(e){ document.documentElement.dataset.cubeFairnessTest=JSON.stringify({pass:false,error:String(e)}); }
+};
+const runGenerationSelfTest=()=>{
+  try{ document.documentElement.dataset.cubeGenerationTest=JSON.stringify(generationSelfTest()); }
+  catch(e){ document.documentElement.dataset.cubeGenerationTest=JSON.stringify({pass:false,error:String(e)}); }
+};
+const runInputRecoverySelfTest=()=>{
+  try{ document.documentElement.dataset.cubeInputTest=JSON.stringify(inputRecoverySelfTest()); }
+  catch(e){ document.documentElement.dataset.cubeInputTest=JSON.stringify({pass:false,error:String(e)}); }
+};
+document.addEventListener("cube-logical-selftest",runLogicalSelfTest);
+document.addEventListener("cube-fairness-selftest",runFairnessSelfTest);
+document.addEventListener("cube-generation-selftest",runGenerationSelfTest);
+document.addEventListener("cube-input-selftest",runInputRecoverySelfTest);
+/* 自動ブラウザーからはDOMイベント生成が制限されるため、debug時だけバージョン表示も実行ボタンにする。 */
+$("#verLab").addEventListener("click",runLogicalSelfTest);
+$("#modeChip").addEventListener("click",runLogicalSelfTest);
+$("#modeChip").addEventListener("click",runFairnessSelfTest);
+$("#modeChip").addEventListener("click",runGenerationSelfTest);
+$("#modeChip").addEventListener("click",runInputRecoverySelfTest);
+$("#cameraDock").addEventListener("click",runFairnessSelfTest);
+}
 
 /* 英語UI（日本語ブラウザ以外／?lang=en）: 静的テキストを差し替え */
 if(!JA){
@@ -4322,6 +5765,8 @@ if(!JA){
   $("#btnMenu").textContent="🏠 Quit";
   $("#btnPen").textContent="✏️ Pen";
   $("#btnEraser").textContent="🧽 Eraser";
+  $("#btnPen").title="Pen (X to switch)";
+  $("#btnEraser").title="Eraser (X to switch)";
   $("#btnUndo").textContent="↩️ Undo";
   $("#btnClear").textContent="🗑️ Clear";
   $("#btnSubmit").textContent="✨ Judge!";
@@ -4332,6 +5777,7 @@ if(!JA){
   $("#btnToMenu").textContent="🏠 Modes";
   $("#menuOverlay h1").textContent="🧊 Cube Challenge";
   $("#menuOverlay .sub").textContent="See one face, predict and draw the rest of the cube! Pen tablet & mouse friendly";
+  $("#cameraRule").textContent="Cube edges 1.00m (1m³)  Camera: square FOV 65.3° / f=0.780 / centred principal point / roll 0°";
   $("#howtoBox img").alt="Complete the cube from a single face";
   document.querySelector("#btnDaily .mn").textContent="📅 Daily Challenge";
   document.querySelector('.modeBtn[data-mode="normal"] .mn').textContent="🧊 Normal";
