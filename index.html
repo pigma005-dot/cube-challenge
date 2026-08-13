@@ -194,6 +194,28 @@
   #nextBar{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:5;}
   body:not([data-state="roundResult"]) #scoreFloat,
   body:not([data-state="roundResult"]) #nextBar{display:none;}
+  /* 結果画面では中央下の「つぎへ」とカメラ情報を別の段に置く。 */
+  body[data-state="roundResult"] #cameraDock{
+    bottom:calc(70px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* 高さの低い横画面では右のツール列を詰め、上部ヒントも描画領域側へ寄せる。
+     480×270級でも「やめる」・ヒント・ツールが互いに重ならない寸法。 */
+  @media (max-height:320px) and (orientation:landscape){
+    #toolbar{gap:4px;}
+    .tgroup{gap:2px;padding:2px;}
+    #toolbar button{font-size:12px;padding:5px 8px;}
+    #toolbar button.tool{padding:4px 8px;}
+    #hint{left:14px;right:194px;max-width:none;transform:none;text-align:left;}
+    #practiceChip{display:none;}  /* 練習中はhintが説明するため、低い画面では重複表示しない */
+    body[data-state="roundResult"] #topbar>div:first-child{display:none;}
+  }
+
+  /* 幅280px級でもモードとラウンド表示を一段に保ち、ヒントとの縦重なりを防ぐ。 */
+  @media (max-width:300px) and (orientation:portrait){
+    #topbar>div{gap:4px;}
+    .chip{font-size:11.5px;padding:4px 6px;}
+  }
 
   /* ---- overlays ---- */
   .overlay{
@@ -420,6 +442,11 @@
     }
     #scoreFloat{top:calc(54px + env(safe-area-inset-top,0px));}
   }
+  /* max-width:560px の後に置き、280px級でチップ縮小が上書きされないようにする。 */
+  @media (max-width:300px) and (orientation:portrait){
+    #topbar>div:first-child{gap:4px;flex-wrap:nowrap;}
+    #topbar .chip{font-size:11.5px;padding:4px 6px;}
+  }
 </style>
 </head>
 <body data-state="menu">
@@ -609,8 +636,10 @@ const TIME_LIMIT = 30;   // 本番ラウンドの制限時間（秒）
 const ERASER_R   = 16;   // けしゴムの半径(画面px)
 // ズームしても「画面上の大きさ」は一定にする（拡大したら細かく消せる）
 const eraserR = () => ERASER_R/viewS;
-const GAME_VER = "1.27";   // バージョン（メニュー下部に表示。sw.jsのCACHE名も合わせて更新）
-                           // ※アップロード時にまとめて上げる運用。ローカル改修では触らない
+const GAME_VER = "1.27";   // 公開バージョン
+/* 同じ公開バージョン内の採点hotfixもスクリーンショットから識別できるようにする。
+   sw.js のCACHE名にも同じBUILD_IDを含め、旧1.27キャッシュを確実に更新する。 */
+const BUILD_ID = "20260813.2";
 // ネイティブアプリ（Capacitor/App Store版）で動いているか
 const CAP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 
@@ -2067,6 +2096,68 @@ function recognitionFloor(round,strokes,eff){
   return {score:24*shape*eff,matches:matches.length,completion,quality,shared,anchor,shape};
 }
 function scoreLogicalRound(round, strokes){
+  /* 採点は見た目の線を評価する。同一直線を途中でペンアップしただけの入力が、
+     一本で引いた同じ線より大幅に低くならないよう、厳密に連続する断片だけを
+     採点前に一つへ戻す。重なった候補線や平行な別経路は結合しない。 */
+  const mergeCollinearScoreStrokes=raw=>{
+    const info=raw.map((s,i)=>{
+      const pts=s.pts||[];
+      if(pts.length<2) return null;
+      let path=0;
+      for(let k=1;k<pts.length;k++)
+        path+=Math.hypot(pts[k].x-pts[k-1].x,pts[k].y-pts[k-1].y);
+      const a=pts[0],b=pts[pts.length-1];
+      const dx=b.x-a.x,dy=b.y-a.y,chord=Math.hypot(dx,dy);
+      return path>0&&chord/path>=0.999
+        ? {i,a,b,dx:dx/chord,dy:dy/chord,chord} : null;
+    });
+    const parent=raw.map((_,i)=>i);
+    const root=i=>{
+      while(parent[i]!==i){ parent[i]=parent[parent[i]]; i=parent[i]; }
+      return i;
+    };
+    const unite=(a,b)=>{ a=root(a); b=root(b); if(a!==b) parent[b]=a; };
+    for(let i=0;i<info.length;i++){
+      const a=info[i];
+      if(!a) continue;
+      for(let j=i+1;j<info.length;j++){
+        const b=info[j];
+        if(!b||Math.abs(a.dx*b.dx+a.dy*b.dy)<0.99999) continue;
+        const proj=p=>(p.x-a.a.x)*a.dx+(p.y-a.a.y)*a.dy;
+        const b0=proj(b.a),b1=proj(b.b);
+        const blo=Math.min(b0,b1),bhi=Math.max(b0,b1);
+        /* aの高端→bの低端、またはbの高端→aの低端だけを見る。
+           始点が同じ／大きく重なる別候補は結合しない。 */
+        const continuation=Math.min(Math.abs(a.chord-blo),Math.abs(bhi));
+        const perp=p=>Math.abs((p.x-a.a.x)*a.dy-(p.y-a.a.y)*a.dx);
+        if(continuation<=0.5&&Math.max(perp(b.a),perp(b.b))<=0.25)
+          unite(i,j);
+      }
+    }
+    const groups=new Map();
+    for(let i=0;i<raw.length;i++){
+      const r=root(i),g=groups.get(r)||[];
+      g.push(i); groups.set(r,g);
+    }
+    const out=[];
+    for(const ids of groups.values()){
+      if(ids.length===1||ids.some(i=>!info[i])){
+        for(const i of ids) out.push(raw[i]);
+        continue;
+      }
+      let ref=info[ids[0]];
+      for(const i of ids) if(info[i].chord>ref.chord) ref=info[i];
+      let lo={v:Infinity,p:null},hi={v:-Infinity,p:null};
+      for(const i of ids) for(const p of [info[i].a,info[i].b]){
+        const v=(p.x-ref.a.x)*ref.dx+(p.y-ref.a.y)*ref.dy;
+        if(v<lo.v) lo={v,p};
+        if(v>hi.v) hi={v,p};
+      }
+      out.push({pts:[{...lo.p},{...hi.p}]});
+    }
+    return out;
+  };
+  strokes=mergeCollinearScoreStrokes(strokes);
   let sp = resampleStrokes(strokes, 4);
   let step = 4;                  // spの点間隔[論理単位]（外れた線の長さを出すのに使う）
   if(sp.length>3500){
@@ -2204,16 +2295,6 @@ function scoreLogicalRound(round, strokes){
     /* 補助線らしさを0〜1の連続値で評価する。生のpointer event点数は使わず、
        論理4単位へリサンプル済みのspだけを見るため、端末の報告頻度や
        no-op消しゴムによる点の増減で判定が反転しない。 */
-    const insideBoxLen=(a,b,box)=>{
-      const dx=b.x-a.x,dy=b.y-a.y,L=Math.hypot(dx,dy); let lo=0,hi=1;
-      for(const [p0,q0] of [[-dx,a.x-box.l],[dx,box.r-a.x],[-dy,a.y-box.t],[dy,box.b-a.y]]){
-        if(Math.abs(p0)<1e-9){ if(q0<0) return 0; continue; }
-        const z=q0/p0;
-        if(p0<0) lo=Math.max(lo,z); else hi=Math.min(hi,z);
-        if(lo>hi) return 0;
-      }
-      return L*Math.max(0,hi-lo);
-    };
     const maxTL=round.targets.reduce((a,t)=>
       Math.max(a, t.len||Math.hypot(t.pb.x-t.pa.x,t.pb.y-t.pa.y)), 0);
     /* ★アタリ線の物差しは「そのラウンドの最長ターゲット」ではなく立方体のスケールで測る。
@@ -2226,11 +2307,10 @@ function scoreLogicalRound(round, strokes){
     for(const p of sp){ if(!groups.has(p.si)) groups.set(p.si,[]); groups.get(p.si).push(p); }
     for(const [si,p] of groups){
       if(p.length<2 || !(guideRuler>0)){ guideScore.set(si,0); continue; }
-      let L=0, inL=0;
+      let L=0;
       for(let i=1;i<p.length;i++){
         const dl=Math.hypot(p[i].x-p[i-1].x,p[i].y-p[i-1].y);
         L+=dl;
-        inL+=Math.min(dl,boxes.reduce((sum,box)=>sum+insideBoxLen(p[i-1],p[i],box),0));
       }
       const a=p[0], b=p[p.length-1], dx=b.x-a.x, dy=b.y-a.y;
       const chord=Math.hypot(dx,dy);
@@ -2256,14 +2336,15 @@ function scoreLogicalRound(round, strokes){
          追いつく前に線量だけ増やし、8本の補助線が長くなるほど100→67→100点と
          非単調に落ちた。長さは補助条件の一つに留め、0.8〜1.1倍で滑らかに確定する。 */
       const lengthFit=smooth(0.80,1.10,L/guideRuler);
-      /* 固定カメラでも奥行き方向に投影シルエットが長い構図があり、正しい2.5辺長の
-         作図線でも枠外部分が20%前後になる。長さ・直線性・立方体軸・頂点通過をすべて
-         別に要求しているため、枠外率は5%から認め20%で飽和させる。 */
-      const outsideFit=smooth(0.05,0.20,1-inL/Math.max(1,L));
+      /* 外接矩形からの「はみ出し率」は補助線の必須条件にしない。
+         正しい軸方向の補助線でも、投影構図によっては長い線全体が別の頂点を含む
+         外接矩形内へ収まる。その場合だけ機械的に正確な同じ線より重く減点すると、
+         手描きの2度程度の角度差・0.5tol程度の頂点ずれが無駄線へ反転していた。
+         十分な長さ・直線性・立方体軸・頂点近傍という作図の本質的な条件を用いる。 */
       const straightFit=smooth(0.88,0.985,chord/L);
       const axisFit=smooth(0.90,0.985,axisDot);
       const vertexFit=1-smooth(1.0,2.2,vertexNear/Math.max(1,nearTol));
-      guideScore.set(si,lengthFit*outsideFit*straightFit*axisFit*vertexFit);
+      guideScore.set(si,lengthFit*straightFit*axisFit*vertexFit);
     }
     /* 補助線軽減の全体予算（20×物差し ≒ 8本×2.5辺長）。
        ★予算は「インク量の免除の上限」としてだけ効かせる（下の overdraw 参照）。
@@ -2881,23 +2962,20 @@ function scoreLogicalRound(round, strokes){
   const hedgeRaw = effBase>0 ? 0.5*hedgeExcess/effBase : 0;
   const strongHedgeRaw = effBase>0 ? 0.5*strongHedgeMass/effBase : 0;
   /* honest-first 方針:
-     hedgeRaw 0.04〜0.40 は、描き直し・下描きと複数候補を入力結果だけでは
-     判別できない曖昧域である。旧式は 0.08 を指数減衰へ入れたため、意図した
-     「最大8%」ではなく最大約24%も点を落としていた。曖昧域は直接0〜8%だけ
-     減点し、0.40を越える明白な大量候補だけを従来どおり強く減衰させる。 */
-  const ambiguousHedgePenalty = 0.08*smooth(0.04,0.40,hedgeRaw);
+     描き直しと複数候補は、最終画像だけでは確実に区別できない。ここを強く罰すると
+     正解辺がすべて緑でも数点まで落ちるため、曖昧証拠による減点は最大2%に限定する。 */
+  const ambiguousHedgePenalty = 0.02*smooth(0.04,0.40,hedgeRaw);
   /* 強証拠には小さな0.08の猶予だけを置く。総量側と二重課金せず、
      どちらか強い方を採る。 */
   const clearHedge = Math.max(Math.max(0,hedgeRaw-0.40),
                               Math.max(0,strongHedgeRaw-0.08));
   const hedge = ambiguousHedgePenalty+clearHedge;  // 検証・表示用の連続した総量
   const inkRatio = effBase>0 ? waste*step/effBase+overdraw : 0;   // 外れ＋過剰インクの比
-  /* waste と候補量は別に扱う。ただし曖昧域は線形の小さな減点に限定し、
-     clearHedge だけを指数減衰させる。これにより普通の描き直しを誤って
-     大幅減点せず、明白な総当たりだけは候補を増やすほど急減する。 */
+  /* 遠く外れた線・過剰な総インクは従来どおり waste で減点する。一方、候補数だけを
+     根拠にした指数罰は、正常な輪郭の描き直しにも同じ反応をするため採点には使わない。
+     clearHedge は検証用診断値として残し、不正対策より正常入力の公平性を優先する。 */
   const eff = (inkRatio>WASTE_ALLOW ? WASTE_ALLOW/inkRatio : 1)
-            * (1-ambiguousHedgePenalty)
-            * Math.exp(-3.5*clearHedge);
+            * (1-ambiguousHedgePenalty);
   /* 高得点帯は正解投影への厳密な一致を従来どおり評価する。一方、全辺を別々の
      直線で一貫して結んだ「立方体として読める形」は recognitionFloor による
      最大24点の下限だけを持つ。これにより同じ距離誤差の二重減点を低得点帯で止め、
@@ -3439,8 +3517,10 @@ function endDragPan(e){
   return true;
 }
 function abortStroke(){
+  const id=activeId;
   if(erasing){ const snap=history.pop(); if(snap) strokes=snap; erasing=false; erasePrev=null; }
   cur=null; activeId=null; activeType=""; captureOk=false;
+  try{ if(id!==null && cv.hasPointerCapture(id)) cv.releasePointerCapture(id); }catch(_){}
   rebuildInk(); render();
 }
 const pinchInfo=()=>{
@@ -3472,6 +3552,13 @@ function activePointerLive(){
 // activeTypeだけを信じるとpointerup欠落後に指入力を永久拒否するため、生存確認も行う。
 const penBusy = () => (activeType==="pen" && activePointerLive()) || performance.now()-lastPenAt<1500;
 function dropTouches(){ if(touchPts.size){ touchPts.clear(); } pinch=null; }
+function cancelPointerInteraction(){
+  endDragPan();
+  dropTouches();
+  hoverPos=null;
+  abortStroke();
+  refreshPanCursor();
+}
 
 /* 答え合わせ中もピンチできるようにするため、タッチの追跡だけは
    roundResult でも動かす（描画は従来どおり draw のときだけ） */
@@ -3494,8 +3581,12 @@ function trackTouch(e){
   const r=cv.getBoundingClientRect();
   touchPts.set(e.pointerId,{x:e.clientX-r.left, y:e.clientY-r.top, t:nowT});
   if(touchPts.size>=2){
-    // 2本目が触れた＝ズーム操作。1本目で描きかけていた線は取り消す
-    if(cur||erasing) abortStroke();
+    /* 2本目が触れた＝ズーム操作。直前まで描いていた線を黙って消さず、
+       通常のペンアップと同じように確定してから二本指操作へ移る。 */
+    if((cur||erasing)&&activeId!==null){
+      const id=activeId,type=activeType;
+      endStroke({pointerId:id,pointerType:type,preserveTouch:true});
+    }
     syncPinch();
     return true;
   }
@@ -3601,6 +3692,12 @@ window.addEventListener("pointermove", e=>{
     hoverPos=evPoint(e); render();
   }
   if(activeId!==e.pointerId) return;
+  /* 画面外でpointerupを取りこぼしたペン／マウスが、非接触のまま戻ってきた。
+     hover座標を線へ追加せず、最後の接触点で安全に確定する。 */
+  if((e.pointerType==="pen"||e.pointerType==="mouse") && e.buttons===0){
+    endStroke({pointerId:e.pointerId,pointerType:e.pointerType});
+    return;
+  }
   lastActiveAt=performance.now();
   let evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
   if(!evs.length) evs=[e];
@@ -3626,11 +3723,16 @@ window.addEventListener("pointermove", e=>{
 });
 function endStroke(e){
   // 指を離したらピンチの追跡から外す（合成呼び出しには pointerType が無いので素通り）
-  if(e.pointerType==="touch" && touchPts.has(e.pointerId)){
+  if(e.pointerType==="touch" && !e.preserveTouch && touchPts.has(e.pointerId)){
     touchPts.delete(e.pointerId);
     syncPinch();          // 残った指で基準を取り直す（倍率が飛ばない）
   }
   if(activeId!==e.pointerId) return;
+  const finishedId=activeId;
+  captureOk=false;
+  const releaseFinished=()=>{
+    try{ if(cv.hasPointerCapture(finishedId)) cv.releasePointerCapture(finishedId); }catch(_){}
+  };
   if(erasing){
     erasing=false; erasePrev=null;
     if(!eraseChanged){
@@ -3639,11 +3741,11 @@ function endStroke(e){
       const snap=history.pop(); if(snap) strokes=snap;
       rebuildInk();
     }
-    activeId=null; activeType="";
+    activeId=null; activeType=""; releaseFinished();
     refreshPanCursor();
     return;
   }
-  if(!cur){ activeId=null; activeType=""; refreshPanCursor(); return; }
+  if(!cur){ activeId=null; activeType=""; releaseFinished(); refreshPanCursor(); return; }
   if(state==="draw"){
     finishStrokeInk(cur.pts);
     pushHistory();
@@ -3654,7 +3756,7 @@ function endStroke(e){
     inputPts[it]=(inputPts[it]||0)+cur.pts.length;
     maybeShowJudgeHint();
   }
-  cur=null; activeId=null; activeType="";
+  cur=null; activeId=null; activeType=""; releaseFinished();
   refreshPanCursor();
   render();
 }
@@ -3794,7 +3896,11 @@ function clearResume(){
 }
 const inputFrozen = () => pausedLeft!==null;   // ポーズ中・カウントダウン中は描けない
 function pauseRoundTimer(){
-  if(state!=="draw" || !round || round.practice) return;
+  if(state!=="draw" || !round) return;
+  /* 時間無制限の練習／Studyでも、離脱時には描きかけとポインタ状態を必ず畳む。
+     ここをtimerIdの有無より先に行わないと、画面外pointerup後に入力が固着する。 */
+  cancelPointerInteraction();
+  if(round.practice || studyRun) return;
   // カウントダウン中に再離脱: カウントダウンだけ止めて「止まったまま」を保つ
   // （pausedLeft は残すので、次の復帰で3・2・1をやり直す）
   if(resumeTimer){ clearResume(); return; }
@@ -3802,9 +3908,6 @@ function pauseRoundTimer(){
   pausedLeft=Math.max(0,(deadline-performance.now())/1000);
   stopTimer();
   clearResume();
-  /* 離脱時点の描きかけ・パン・ピンチを畳む。復帰カウント中に古いpointermoveが
-     届いて時間外インクや入力固着を作らないようにする。 */
-  endDragPan(); abortStroke(); dropTouches();
 }
 function resumeRoundTimer(){
   if(pausedLeft===null || state!=="draw" || resumeTimer) return;
@@ -3909,8 +4012,9 @@ function fixedCameraSpec(distanceM){
   const base=tr(
     `立方体は1辺${CUBE_EDGE_M.toFixed(2)}m（1m³）　CAM: FOV ${CAMERA_FOV_DEG.toFixed(1)}° / f=${CAMERA_FOCAL_NORM.toFixed(3)} / 主点中央 / ROLL 0°`,
     `Cube edges ${CUBE_EDGE_M.toFixed(2)}m (1m³)  CAM: FOV ${CAMERA_FOV_DEG.toFixed(1)}° / f=${CAMERA_FOCAL_NORM.toFixed(3)} / centred principal point / ROLL 0°`);
-  if(!Number.isFinite(distanceM)) return base;
-  return base+tr(` / 面距離 ${distanceM.toFixed(2)}m`,` / face distance ${distanceM.toFixed(2)}m`);
+  const build=` / b${BUILD_ID}`;
+  if(!Number.isFinite(distanceM)) return base+build;
+  return base+tr(` / 面距離 ${distanceM.toFixed(2)}m`,` / face distance ${distanceM.toFixed(2)}m`)+build;
 }
 
 function updateHud(){
@@ -4319,9 +4423,11 @@ function roundNotes(res, auto, oneStroke, giveUp){
       saidOffset=true;
       pushOnce("offset", tr("📏 ぜんぶ描けてる！あとは位置","📏 All there — just off position"));
     }
-    else if(res.eff<0.95)               pushLoud(v([tr("✏️ 辺からはずれた線が多いです","✏️ Too many lines off the edges"),
-                                                 tr("✏️ よけいな線がおおいかも","✏️ A lot of stray lines"),
-                                                 tr("✏️ 線をへらすと伸びるよ","✏️ Fewer lines would score better")]));
+    /* 全辺が緑でも総インクの遠方量で下がる場合がある。ここを静かな回で隠すと
+       「緑なのに低得点」の理由が分からないため、必ず具体的に知らせる。 */
+    else if(res.eff<0.95)               push(v([tr("✏️ 形は合ってる！立方体から遠い線の量で減点されています","✏️ The shape fits — ink far from the cube lowered the score"),
+                                             tr("✏️ 辺は合っています。離れた線が多いぶんだけ減点","✏️ The edges fit; distant stray ink caused the deduction"),
+                                             tr("✏️ 緑の辺は正解。遠くに残った線だけが減点対象です","✏️ Green edges are correct; only distant leftover ink was deducted")]));
   }
   /* ---- 寄り添う一言 ----
      このゲームは採点がきびしく、真面目に描いても50点台で止まる。
@@ -4519,6 +4625,14 @@ function submit(auto){
     score:res.score, practice:round.practice, timedOut:!!auto, doodle:res.doodle||null,
     oneStroke, mirrored:!!res.mirrored, gridish:res.gridish||null,
     farInk:res.farInk||0, erased:eraseUses, strokeCount:strokes.length,
+    /* スクリーンショットだけでは原因を復元できない事例に備え、リプレイ内へ
+       採点世代・hotfix識別子・主要内訳を保存する（外部送信はしない）。 */
+    buildId:BUILD_ID, scoreGen:SCORE_GEN,
+    scoreMetrics:{cov:res.cov,structure:res.structure,modelFit:res.modelFit,
+      prec:res.prec,eff:res.eff,inkRatio:res.inkRatio,farInk:res.farInk,
+      hedgeRaw:res.hedgeRaw,strongHedgeRaw:res.strongHedgeRaw,
+      ambiguousHedgePenalty:res.ambiguousHedgePenalty,clearHedge:res.clearHedge,
+      targetScores:round.targets.map(t=>t.score)},
     undoKey:undoKeyUses, undoBtn:undoBtnUses, cleared:clearUses,
     // アオリ／フカンの回か、最初の線を引くまでに何秒かけたか（バッジの判定用）
     tilted: Math.abs(round.cubes[0].rot.pitch)>=45*DEG,
@@ -4872,9 +4986,9 @@ async function rankFetch(path, opts){
 /* ★採点世代。採点式やお題生成を変えたら必ず上げること。
    上げないと、旧採点で付いたスコアと新採点のスコアが同じ板で比較されてしまう
    （1.26〜1.27の採点変更では、同じ描き方で点がずれるため旧板と分離する）。
-   ★g2 を使うには Supabase 側の p_board 正規表現に @g2 を許可するSQL(v1.07)が必要。
+   ★g世代を使うには Supabase 側の p_board 正規表現に @g数字 を許可するSQL(v1.07)が必要。
    先にクライアントを配ると全員「送信に失敗しました」になる。 */
-const SCORE_GEN="g2";
+const SCORE_GEN="g3";
 const boardKey = () => isDaily ? `daily:${dailyDate||todaySeedStr()}@${SCORE_GEN}`
   // れんしゅうは時間無制限なので、時間つきモードと同じ板には載せられない
   : (seededRun || twistSelRun || studyRun) ? null
@@ -5242,6 +5356,41 @@ function refreshMenuBest(){
 }
 
 /* ================= wiring ================= */
+/* ペン／指で描画中に手のひらや別の指がボタンへ触れても、判定・全消去・終了を
+   実行しない。ブロック対象はそのpointerIdから生じる互換clickだけに限定する。 */
+const guardedButtonTouches=new Map();
+const guardedButtonClicks=new WeakSet();
+document.addEventListener("pointerdown",e=>{
+  const button=e.target.closest?.("button");
+  if(!button || state!=="draw" || e.pointerType!=="touch" ||
+     (activeId===null && !dragPan)){
+    guardedButtonTouches.delete(e.pointerId);
+    return;
+  }
+  guardedButtonTouches.set(e.pointerId,button);
+  e.preventDefault();
+  e.stopImmediatePropagation();
+},true);
+document.addEventListener("pointerup",e=>{
+  const button=guardedButtonTouches.get(e.pointerId);
+  if(!button) return;
+  guardedButtonTouches.delete(e.pointerId);
+  guardedButtonClicks.add(button);
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  /* 互換clickはpointerup直後に発火する。発火しなかった場合は次の通常タップを
+     巻き込まないよう、現在タスクの終了時に印を捨てる。 */
+  setTimeout(()=>guardedButtonClicks.delete(button),0);
+},true);
+document.addEventListener("pointercancel",e=>guardedButtonTouches.delete(e.pointerId),true);
+document.addEventListener("click",e=>{
+  const button=e.target.closest?.("button");
+  if(!button || !guardedButtonClicks.has(button)) return;
+  guardedButtonClicks.delete(button);
+  e.preventDefault();
+  e.stopImmediatePropagation();
+},true);
+
 document.querySelectorAll(".modeBtn[data-mode]").forEach(b=>
   b.addEventListener("click",()=>startGame(b.dataset.mode)));
 /* モード選択はポップアップに入れた（トップは「きょうのチャレンジ」と2ボタンだけ） */
@@ -5257,7 +5406,22 @@ $("#btnSubmit").addEventListener("click",()=>submit(false));
 $("#btnNext").addEventListener("click",next);
 $("#btnUndo").addEventListener("click",()=>undo(false));   // 引数なしで渡すとEventが真になるので包む
 $("#btnClear").addEventListener("click",clearAll);
-$("#btnMenu").addEventListener("click",toMenu);
+$("#btnMenu").addEventListener("click",()=>{
+  /* デイリーは開始時に挑戦回数を使う。誤タップで退出しても回数は戻せないため、
+     通常モードと違って明示確認を挟む。描画中は確認を読んでいる時間もタイマーから
+     差し引かれないよう先に停止し、キャンセル時は3・2・1を挟んで再開する。 */
+  if(isDaily && (state==="draw" || state==="roundResult")){
+    const wasDrawing=state==="draw";
+    if(wasDrawing) pauseRoundTimer();
+    if(!confirm(tr(
+        "デイリーチャレンジをやめますか？\nこの挑戦回数は戻りません。",
+        "Quit the Daily Challenge?\nThis attempt cannot be restored."))){
+      if(wasDrawing) resumeRoundTimer();
+      return;
+    }
+  }
+  toMenu();
+});
 $("#btnRetry").addEventListener("click",()=>{
   if(isDaily){ startDaily(); return; }          // デイリーは回数制限を通す
   // シード戦は同じシードで、変化球セレクトは同じ変化球で（新しいお題を）もう一度
@@ -5447,7 +5611,10 @@ window.addEventListener("keyup",e=>{
 });
 window.addEventListener("blur",()=>{
   spacePanHeld=false;
-  endDragPan();                   // Alt+Tab等でpointerupを失ってもパン状態を残さない
+  /* visibilitychange が来ないウィンドウ切替でも、描きかけや消しゴム状態を残さない。
+     練習・Studyも同じ経路で復旧させる。 */
+  if(state==="draw") cancelPointerInteraction();
+  else{ endDragPan(); dropTouches(); hoverPos=null; }
   refreshPanCursor();
 });
 
@@ -5610,10 +5777,12 @@ const fairnessSelfTest=()=>{
   const gap8Res=scored(gap8), passThroughRes=scored(passThrough4);
   const delta=(a,b)=>Math.abs(a-b);
   return {
-    pass:base.score>=99 && hedgeRes.score<=70 && longHedgeRes.score<=70 && k4Res.score<=85 &&
-         sharedJoinRes.score<=70 && gap8Res.score<=70 && passThroughRes.score<=70 &&
+    /* 公開判定は正常入力の品質と補助線の連続性を必須にする。攻略プローブは
+       数値を残して監視するが、正常な描き直しを壊す強罰を戻す合否条件にはしない。 */
+    pass:base.score>=99 &&
          delta(sparse.score,cliff.score)<=2.5 && delta(sparse.score,dense.score)<=0.1 &&
          aux.score>=85 && aux6.score>=75,
+    policy:"honest-first",
     exact:base.score, hedge25:hedgeRes.score, longGuideHedge25:longHedgeRes.score,
     k4:k4Res.score, sharedJoinK4:sharedJoinRes.score,
     gap8K4:gap8Res.score, passThrough4:passThroughRes.score,
@@ -5663,8 +5832,12 @@ const generationSelfTest=(perSeed=64)=>{
 const inputRecoverySelfTest=()=>{
   const saved={strokes:structuredClone(strokes),cur:cur?structuredClone(cur):null,
     history:structuredClone(history),activeId,activeType,captureOk,lastActiveAt,lastPenAt,
-    erasing,eraseChanged,erasePrev,pausedLeft};
-  let ghost=false,stalePen=false,frozen=false,noOp=false;
+    erasing,eraseChanged,erasePrev,pausedLeft,state,studyRun,tool,
+    roundPractice:round&&round.practice,inputPts:{...inputPts},hoverPos,
+    touchPts:[...touchPts.entries()].map(([id,p])=>[id,{...p}]),pinch:pinch?{...pinch}:null,
+    dragPan:dragPan?{...dragPan}:null};
+  let ghost=false,stalePen=false,frozen=false,noOp=false,hoverEnd=false,
+      practiceAbort=false,studyAbort=false,pinchCommit=false,palmBlocked=false;
   try{
     abortStroke(); dropTouches(); history=[]; strokes=[];
     touchPts.set(101,{x:10,y:10});
@@ -5690,14 +5863,68 @@ const inputRecoverySelfTest=()=>{
     erasing=true; eraseChanged=false; erasePrev={x:500,y:500}; activeId=401; activeType="mouse";
     endStroke({pointerId:401,pointerType:"mouse"});
     noOp=JSON.stringify(strokes)===before;
+
+    /* pointerup欠落後に非接触hoverで戻っても、hover位置まで線を伸ばさない。 */
+    strokes=[]; history=[]; activeId=501; activeType="pen"; captureOk=false;
+    lastActiveAt=performance.now(); cur={pts:[{x:20,y:20,w:3,t:0}]};
+    window.dispatchEvent(new PointerEvent("pointermove",{pointerId:501,pointerType:"pen",
+      clientX:80,clientY:80,buttons:1,bubbles:true,cancelable:true}));
+    const contactCount=cur&&cur.pts.length;
+    window.dispatchEvent(new PointerEvent("pointermove",{pointerId:501,pointerType:"pen",
+      clientX:240,clientY:240,buttons:0,bubbles:true,cancelable:true}));
+    hoverEnd=activeId===null && strokes.length===1 && strokes[0].pts.length===contactCount;
+
+    /* 時間無制限ラウンドでも離脱時のポインタを掃除する。 */
+    state="draw"; document.body.dataset.state=state;
+    if(round) round.practice=true;
+    studyRun=false; activeId=601; activeType="touch"; captureOk=false;
+    cur={pts:[{x:20,y:20,w:3,t:0}]}; touchPts.set(601,{x:20,y:20,t:performance.now()});
+    pauseRoundTimer();
+    practiceAbort=activeId===null && cur===null && touchPts.size===0;
+    if(round) round.practice=false;
+    studyRun=true; activeId=602; activeType="touch"; captureOk=false;
+    cur={pts:[{x:20,y:20,w:3,t:0}]}; touchPts.set(602,{x:20,y:20,t:performance.now()});
+    pauseRoundTimer();
+    studyAbort=activeId===null && cur===null && touchPts.size===0;
+
+    /* 二本指目は直前の線を確定し、二点を残したままピンチへ移る。 */
+    studyRun=false; if(round) round.practice=true;
+    strokes=[]; history=[]; dropTouches(); lastPenAt=-1e9;
+    activeId=701; activeType="touch"; captureOk=false;
+    cur={pts:[{x:30,y:30,w:3,t:0},{x:60,y:60,w:3,t:10}]};
+    touchPts.set(701,{x:60,y:60,t:performance.now()});
+    cv.dispatchEvent(new PointerEvent("pointerdown",{pointerId:702,pointerType:"touch",isPrimary:false,
+      clientX:140,clientY:140,buttons:1,bubbles:true,cancelable:true}));
+    pinchCommit=strokes.length===1 && activeId===null && touchPts.size===2 && pinch!==null;
+
+    /* 描画中の別指によるボタン誤操作を、そのbuttonの互換clickだけ止める。 */
+    abortStroke(); dropTouches(); setTool("pen",true);
+    activeId=801; activeType="touch"; captureOk=false;
+    cur={pts:[{x:40,y:40,w:3,t:0}]};
+    const eraserButton=$("#btnEraser");
+    eraserButton.dispatchEvent(new PointerEvent("pointerdown",{pointerId:802,pointerType:"touch",
+      buttons:1,bubbles:true,cancelable:true}));
+    eraserButton.dispatchEvent(new PointerEvent("pointerup",{pointerId:802,pointerType:"touch",
+      buttons:0,bubbles:true,cancelable:true}));
+    eraserButton.click();
+    palmBlocked=tool==="pen";
   }finally{
     strokes=saved.strokes; cur=saved.cur; history=saved.history; activeId=saved.activeId;
     activeType=saved.activeType; captureOk=saved.captureOk; lastActiveAt=saved.lastActiveAt;
     lastPenAt=saved.lastPenAt; erasing=saved.erasing; eraseChanged=saved.eraseChanged;
-    erasePrev=saved.erasePrev; pausedLeft=saved.pausedLeft; dropTouches(); rebuildInk(); render();
+    erasePrev=saved.erasePrev; pausedLeft=saved.pausedLeft; state=saved.state;
+    document.body.dataset.state=state; studyRun=saved.studyRun; inputPts=saved.inputPts;
+    if(round) round.practice=saved.roundPractice;
+    hoverPos=saved.hoverPos; dragPan=saved.dragPan; dropTouches();
+    for(const [id,p] of saved.touchPts) touchPts.set(id,p);
+    pinch=saved.pinch; setTool(saved.tool,true); rebuildInk(); render();
   }
-  return {pass:ghost&&stalePen&&frozen&&noOp,ghostTouchRecovered:ghost,
-          stalePenRecovered:stalePen,frozenMoveBlocked:frozen,noOpEraserStable:noOp};
+  return {pass:ghost&&stalePen&&frozen&&noOp&&hoverEnd&&practiceAbort&&studyAbort&&
+            pinchCommit&&palmBlocked,
+          ghostTouchRecovered:ghost,stalePenRecovered:stalePen,
+          frozenMoveBlocked:frozen,noOpEraserStable:noOp,hoverReleaseRecovered:hoverEnd,
+          practiceBlurRecovered:practiceAbort,studyBlurRecovered:studyAbort,
+          pinchCommitsStroke:pinchCommit,palmButtonBlocked:palmBlocked};
 };
 window.__cube = {
   get round(){ return round; },
@@ -5817,7 +6044,8 @@ if(JA){
                   : "オンラインランキングは今後のアップデートで追加予定！") + FOOT_LINKS_JA;
 }
 
-$("#verLab").textContent = "v" + GAME_VER;
+$("#verLab").textContent = "v" + GAME_VER + " · b" + BUILD_ID;
+$("#cameraRule").textContent += " / b" + BUILD_ID;
 
 /* PWA: Service Worker登録（https配信時のみ。itch.io埋め込みでは無効化） */
 if("serviceWorker" in navigator
