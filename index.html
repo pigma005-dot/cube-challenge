@@ -639,7 +639,7 @@ const eraserR = () => ERASER_R/viewS;
 const GAME_VER = "1.27";   // 公開バージョン
 /* 同じ公開バージョン内の採点hotfixもスクリーンショットから識別できるようにする。
    sw.js のCACHE名にも同じBUILD_IDを含め、旧1.27キャッシュを確実に更新する。 */
-const BUILD_ID = "20260813.2";
+const BUILD_ID = "20260818.1";
 // ネイティブアプリ（Capacitor/App Store版）で動いているか
 const CAP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 
@@ -3582,10 +3582,12 @@ function trackTouch(e){
   touchPts.set(e.pointerId,{x:e.clientX-r.left, y:e.clientY-r.top, t:nowT});
   if(touchPts.size>=2){
     /* 2本目が触れた＝ズーム操作。直前まで描いていた線を黙って消さず、
-       通常のペンアップと同じように確定してから二本指操作へ移る。 */
+       通常のペンアップと同じように確定してから二本指操作へ移る。
+       ただし開始点しかない場合は掌が先に触れた可能性が高いので、点を残さない。 */
     if((cur||erasing)&&activeId!==null){
       const id=activeId,type=activeType;
-      endStroke({pointerId:id,pointerType:type,preserveTouch:true});
+      if(cur && cur.pts.length===1) abortStroke();
+      else endStroke({pointerId:id,pointerType:type,preserveTouch:true});
     }
     syncPinch();
     return true;
@@ -3631,18 +3633,26 @@ cv.addEventListener("pointerdown", e=>{
      ポインタキャプチャが生きていれば本当に描画中なので従来どおり無視し（手のひら対策）、
      キャプチャが切れていれば取り残しとみなして確定させ、新しいストロークを受け付ける。 */
   if(activeId!==null){
-    let live;
-    if(captureOk){
-      // キャプチャが取れている環境では、それが生きているか＝描画中かの正確な判定になる
-      // （ただし20秒無音なら死骸とみなす。activePointerLive と同じ防御）
-      live=false;
-      try{ live = cv.hasPointerCapture(activeId) && performance.now()-lastActiveAt<20000; }catch(_){}
+    /* 同じIDの新しいpointerdownは、前ストリームのpointerupをブラウザーが
+       取りこぼした確実な証拠。captureが残っていても旧線を畳み、新しい線を始める。 */
+    if(e.pointerId===activeId){
+      /* 同じIDへ直ちにcaptureを取り直すため、旧captureの明示releaseは挟まない。
+         遅れて届くlostpointercaptureで新しい開始点まで確定する競合を避ける。 */
+      endStroke({pointerId:activeId,pointerType:activeType,keepCapture:true});
     }else{
-      // キャプチャが使えない環境では時間で見る（手のひらは描いている最中に触れるため）
-      live = performance.now()-lastActiveAt < 900;
+      let live;
+      if(captureOk){
+        // キャプチャが取れている環境では、それが生きているか＝描画中かの正確な判定になる
+        // （ただし20秒無音なら死骸とみなす。activePointerLive と同じ防御）
+        live=false;
+        try{ live = cv.hasPointerCapture(activeId) && performance.now()-lastActiveAt<20000; }catch(_){}
+      }else{
+        // キャプチャが使えない環境では時間で見る（手のひらは描いている最中に触れるため）
+        live = performance.now()-lastActiveAt < 900;
+      }
+      if(live) return;
+      endStroke({pointerId:activeId, pointerType:activeType});
     }
-    if(live) return;
-    endStroke({pointerId:activeId, pointerType:activeType});
   }
   activeId=e.pointerId;
   activeType=e.pointerType||"mouse";
@@ -3668,9 +3678,6 @@ window.addEventListener("pointermove", e=>{
     e.preventDefault();
     return;
   }
-  /* ペンの「接触中」だけ記録する。ホバーでも更新すると、Apple Pencilを
-     浮かせて近づけているだけで指入力が拒否され続けるバグになる（保留していた対策E） */
-  if(e.pointerType==="pen" && e.buttons>0) lastPenAt=performance.now();
   // ピンチ中は指の位置を追いかけて表示倍率と位置を更新する（描画はしない）
   if(e.pointerType==="touch" && touchPts.has(e.pointerId)){
     // ペンが動き出したら、追跡中の指（手のひら）は全部捨てる
@@ -3692,15 +3699,24 @@ window.addEventListener("pointermove", e=>{
     hoverPos=evPoint(e); render();
   }
   if(activeId!==e.pointerId) return;
-  /* 画面外でpointerupを取りこぼしたペン／マウスが、非接触のまま戻ってきた。
-     hover座標を線へ追加せず、最後の接触点で安全に確定する。 */
-  if((e.pointerType==="pen"||e.pointerType==="mouse") && e.buttons===0){
+  /* 親イベントのbuttonsが0でも、実際の高頻度サンプルには接触情報が入る端末がある。
+     終了判定より先に安全に取得し、部分実装が例外を投げても親イベントへ戻す。 */
+  let evs=[e];
+  try{
+    const cs=typeof e.getCoalescedEvents==="function" ? e.getCoalescedEvents() : [];
+    if(cs && cs.length) evs=cs;
+  }catch(_){}
+  const hasContact=e.buttons>0 || e.pressure>0 ||
+    evs.some(ev=>ev.buttons>0 || ev.pressure>0);
+  /* マウスのbutton解放だけは、画面外pointerup欠落後のhover復旧に使う。
+     ペンは実機・ドライバにより接触中もbuttons/pressureが0になり得るため、
+     pointerup / pointercancel / lostpointercapture / 次のpointerdownまで継続する。 */
+  if(e.pointerType==="mouse" && !hasContact){
     endStroke({pointerId:e.pointerId,pointerType:e.pointerType});
     return;
   }
+  if(e.pointerType==="pen") lastPenAt=performance.now();
   lastActiveAt=performance.now();
-  let evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
-  if(!evs.length) evs=[e];
   if(erasing){
     let changed=false;
     for(const ev of evs){
@@ -3731,6 +3747,7 @@ function endStroke(e){
   const finishedId=activeId;
   captureOk=false;
   const releaseFinished=()=>{
+    if(e.keepCapture) return;
     try{ if(cv.hasPointerCapture(finishedId)) cv.releasePointerCapture(finishedId); }catch(_){}
   };
   if(erasing){
@@ -5837,9 +5854,13 @@ const inputRecoverySelfTest=()=>{
     touchPts:[...touchPts.entries()].map(([id,p])=>[id,{...p}]),pinch:pinch?{...pinch}:null,
     dragPan:dragPan?{...dragPan}:null};
   let ghost=false,stalePen=false,frozen=false,noOp=false,hoverEnd=false,
-      practiceAbort=false,studyAbort=false,pinchCommit=false,palmBlocked=false;
+      practiceAbort=false,studyAbort=false,pinchCommit=false,palmBlocked=false,
+      penZeroPressure=false,penZeroNoPressure=false,coalescedContact=false,
+      mousePressure=false,pinchDotSuppressed=false,penPalmBlocked=false,
+      samePenRedown=false;
   try{
     abortStroke(); dropTouches(); history=[]; strokes=[];
+    state="draw"; document.body.dataset.state=state; pausedLeft=null;
     touchPts.set(101,{x:10,y:10});
     cv.dispatchEvent(new PointerEvent("pointerdown",{pointerId:102,pointerType:"touch",isPrimary:true,
       clientX:100,clientY:100,buttons:1,bubbles:true,cancelable:true}));
@@ -5864,15 +5885,89 @@ const inputRecoverySelfTest=()=>{
     endStroke({pointerId:401,pointerType:"mouse"});
     noOp=JSON.stringify(strokes)===before;
 
-    /* pointerup欠落後に非接触hoverで戻っても、hover位置まで線を伸ばさない。 */
+    /* buttons=0でも筆圧があるペンは接触中として線を継続する。 */
     strokes=[]; history=[]; activeId=501; activeType="pen"; captureOk=false;
     lastActiveAt=performance.now(); cur={pts:[{x:20,y:20,w:3,t:0}]};
     window.dispatchEvent(new PointerEvent("pointermove",{pointerId:501,pointerType:"pen",
-      clientX:80,clientY:80,buttons:1,bubbles:true,cancelable:true}));
-    const contactCount=cur&&cur.pts.length;
-    window.dispatchEvent(new PointerEvent("pointermove",{pointerId:501,pointerType:"pen",
-      clientX:240,clientY:240,buttons:0,bubbles:true,cancelable:true}));
-    hoverEnd=activeId===null && strokes.length===1 && strokes[0].pts.length===contactCount;
+      clientX:80,clientY:80,buttons:0,pressure:.45,bubbles:true,cancelable:true}));
+    penZeroPressure=activeId===501 && cur&&cur.pts.length>=2 && strokes.length===0;
+    abortStroke();
+
+    /* buttons/pressureをともに0で返すペンも、明示的な終了イベントまでは継続する。 */
+    strokes=[]; history=[]; activeId=502; activeType="pen"; captureOk=false;
+    lastActiveAt=performance.now(); cur={pts:[{x:20,y:20,w:3,t:0}]};
+    window.dispatchEvent(new PointerEvent("pointermove",{pointerId:502,pointerType:"pen",
+      clientX:90,clientY:90,buttons:0,pressure:0,bubbles:true,cancelable:true}));
+    penZeroNoPressure=activeId===502 && cur&&cur.pts.length>=2 && strokes.length===0;
+    abortStroke();
+
+    /* 親イベントが0でも、coalesced sampleに接触情報があれば全点を取り込む。 */
+    strokes=[]; history=[]; activeId=503; activeType="pen"; captureOk=false;
+    lastActiveAt=performance.now(); cur={pts:[{x:20,y:20,w:3,t:0}]};
+    let coalescedCalled=0;
+    const coalescedMove=new PointerEvent("pointermove",{pointerId:503,pointerType:"pen",
+      clientX:130,clientY:130,buttons:0,pressure:0,bubbles:true,cancelable:true});
+    Object.defineProperty(coalescedMove,"getCoalescedEvents",{value:()=>{
+      coalescedCalled++;
+      return [
+        new PointerEvent("pointermove",{pointerId:503,pointerType:"pen",clientX:70,clientY:70,
+          buttons:1,pressure:.4}),
+        new PointerEvent("pointermove",{pointerId:503,pointerType:"pen",clientX:120,clientY:120,
+          buttons:1,pressure:.5})
+      ];
+    }});
+    window.dispatchEvent(coalescedMove);
+    coalescedContact=coalescedCalled===1 && activeId===503 && cur&&cur.pts.length>=3;
+    abortStroke();
+
+    /* マウスは非接触hoverを末端へ加えず、従来どおり最後の接触点で確定する。 */
+    strokes=[]; history=[]; activeId=504; activeType="mouse"; captureOk=false;
+    lastActiveAt=performance.now();
+    cur={pts:[{x:20,y:20,w:3,t:0},{x:80,y:80,w:3,t:10}]};
+    window.dispatchEvent(new PointerEvent("pointermove",{pointerId:504,pointerType:"mouse",
+      clientX:240,clientY:240,buttons:0,pressure:0,bubbles:true,cancelable:true}));
+    hoverEnd=activeId===null && strokes.length===1 && strokes[0].pts.length===2;
+
+    /* mouse扱いになるペンタブでも筆圧があれば接触として継続する。 */
+    strokes=[]; history=[]; activeId=505; activeType="mouse"; captureOk=false;
+    lastActiveAt=performance.now(); cur={pts:[{x:20,y:20,w:3,t:0}]};
+    window.dispatchEvent(new PointerEvent("pointermove",{pointerId:505,pointerType:"mouse",
+      clientX:100,clientY:100,buttons:0,pressure:.5,bubbles:true,cancelable:true}));
+    mousePressure=activeId===505 && cur&&cur.pts.length>=2 && strokes.length===0;
+    abortStroke();
+
+    /* 開始点だけの指描画へ掌が触れても、点を残さずピンチへ移る。 */
+    strokes=[]; history=[]; dropTouches(); lastPenAt=-1e9;
+    activeId=506; activeType="touch"; captureOk=false;
+    cur={pts:[{x:30,y:30,w:3,t:0}]};
+    touchPts.set(506,{x:30,y:30,t:performance.now()});
+    cv.dispatchEvent(new PointerEvent("pointerdown",{pointerId:507,pointerType:"touch",isPrimary:false,
+      clientX:140,clientY:140,buttons:1,bubbles:true,cancelable:true}));
+    pinchDotSuppressed=strokes.length===0 && activeId===null && cur===null &&
+      touchPts.size===2 && pinch!==null;
+    dropTouches();
+
+    /* zero-buttons pen中の指は掌として拒否し、ペン線を中断しない。 */
+    strokes=[]; history=[]; activeId=508; activeType="pen"; captureOk=false;
+    lastActiveAt=performance.now(); lastPenAt=-1e9; cur={pts:[{x:20,y:20,w:3,t:0}]};
+    window.dispatchEvent(new PointerEvent("pointermove",{pointerId:508,pointerType:"pen",
+      clientX:100,clientY:100,buttons:0,pressure:0,bubbles:true,cancelable:true}));
+    const penPtsBeforePalm=cur&&cur.pts.length;
+    cv.dispatchEvent(new PointerEvent("pointerdown",{pointerId:509,pointerType:"touch",isPrimary:true,
+      clientX:150,clientY:150,buttons:1,bubbles:true,cancelable:true}));
+    penPalmBlocked=activeId===508 && activeType==="pen" && cur&&
+      cur.pts.length===penPtsBeforePalm && touchPts.size===0;
+    abortStroke(); dropTouches();
+
+    /* 同じペンIDの新pointerdownは旧pointerup欠落を復旧し、新しい線を開始する。 */
+    strokes=[]; history=[]; activeId=510; activeType="pen"; captureOk=true;
+    lastActiveAt=performance.now();
+    cur={pts:[{x:20,y:20,w:3,t:0},{x:80,y:80,w:3,t:10}]};
+    cv.dispatchEvent(new PointerEvent("pointerdown",{pointerId:510,pointerType:"pen",isPrimary:true,
+      clientX:150,clientY:150,buttons:1,pressure:.5,bubbles:true,cancelable:true}));
+    samePenRedown=strokes.length===1 && strokes[0].pts.length===2 &&
+      activeId===510 && activeType==="pen" && cur&&cur.pts.length===1;
+    abortStroke();
 
     /* 時間無制限ラウンドでも離脱時のポインタを掃除する。 */
     state="draw"; document.body.dataset.state=state;
@@ -5920,9 +6015,17 @@ const inputRecoverySelfTest=()=>{
     pinch=saved.pinch; setTool(saved.tool,true); rebuildInk(); render();
   }
   return {pass:ghost&&stalePen&&frozen&&noOp&&hoverEnd&&practiceAbort&&studyAbort&&
-            pinchCommit&&palmBlocked,
+            pinchCommit&&palmBlocked&&penZeroPressure&&penZeroNoPressure&&coalescedContact&&
+            mousePressure&&pinchDotSuppressed&&penPalmBlocked&&samePenRedown,
           ghostTouchRecovered:ghost,stalePenRecovered:stalePen,
           frozenMoveBlocked:frozen,noOpEraserStable:noOp,hoverReleaseRecovered:hoverEnd,
+          mouseHoverEndsWithoutExtension:hoverEnd,
+          penZeroButtonsPressureContinues:penZeroPressure,
+          penZeroButtonsNoPressureContinues:penZeroNoPressure,
+          coalescedActiveSampleConsumed:coalescedContact,
+          mouseZeroButtonsPressureContinues:mousePressure,
+          pinchDotSuppressed,penPalmAfterZeroMoveBlocked:penPalmBlocked,
+          samePenIdRedownRecovered:samePenRedown,
           practiceBlurRecovered:practiceAbort,studyBlurRecovered:studyAbort,
           pinchCommitsStroke:pinchCommit,palmButtonBlocked:palmBlocked};
 };
