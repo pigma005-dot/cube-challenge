@@ -183,7 +183,7 @@
   #scoreFloat{
     position:fixed;top:12px;left:50%;transform:translateX(-50%);
     z-index:6;text-align:center;pointer-events:none;white-space:nowrap;
-    max-width:96vw;   /* 一言(#rpNote)が長い時に画面外へ切れないように */
+    width:min(94vw,720px);max-width:96vw;
     text-shadow:0 1px 0 #fff,0 0 8px #fff,0 0 16px rgba(255,255,255,.9);
   }
   #rpScore{font-size:40px;font-weight:800;line-height:1.1;color:var(--plum-dark);display:inline-block;animation:pop .45s cubic-bezier(.34,1.8,.64,1);}
@@ -191,7 +191,17 @@
   #rpScore small{font-size:17px;font-weight:700;margin-left:2px;}
   #rpGrade{display:inline-block;font-size:30px;font-weight:800;border-radius:12px;padding:1px 13px;margin-right:10px;vertical-align:middle;color:#463a4d;text-shadow:none;}
   #rpNote{font-size:13px;font-weight:800;color:#7a6ab8;margin-top:2px;white-space:normal;line-height:1.35;}
-  #nextBar{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:5;}
+  #nextBar{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:5;display:flex;gap:8px;white-space:nowrap;}
+  #reviewDock{position:fixed;bottom:82px;left:50%;transform:translateX(-50%);z-index:8;display:flex;gap:6px;white-space:nowrap;}
+  #reviewDock button{font-size:12px;padding:7px 10px;}
+  @media (orientation:portrait){body[data-review="true"][data-state="draw"] #reviewDock{position:static;transform:none;bottom:auto;margin-bottom:3px;}}
+  body[data-review="true"][data-state="roundResult"] #cameraDock{bottom:calc(122px + env(safe-area-inset-bottom, 0px));}
+  #skipPracticeLab{display:block;font-size:12px;color:#9a8090;margin:8px 0;}
+  #shareOptions{display:flex;gap:8px;justify-content:center;align-items:center;flex-wrap:wrap;margin:0 0 10px;font-size:12px;}
+  #shareOptions select{max-width:100%;padding:7px;border:1px solid #dac9df;border-radius:8px;color:#54455a;background:#fff;}
+  #popupBtns{flex-wrap:wrap;justify-content:center;max-width:96vw;}
+  #albumGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;}
+  .albumBadge{padding:12px;border-radius:12px;background:#f3eff8;}
   body:not([data-state="roundResult"]) #scoreFloat,
   body:not([data-state="roundResult"]) #nextBar{display:none;}
   /* 結果画面では中央下の「つぎへ」とカメラ情報を別の段に置く。 */
@@ -253,8 +263,9 @@
   }
   .modeBtn{
     display:flex;justify-content:space-between;align-items:center;width:100%;
-    text-align:left;padding:14px 18px;margin-bottom:10px;border-radius:18px;
+    text-align:left;padding:14px 18px;margin-bottom:10px;border-radius:18px;white-space:normal;gap:6px;
   }
+  .modeBtn>span:first-child{min-width:0;}
   .modeBtn[data-mode="normal"]{background:#fff0f6;border-color:#ffb8d2;}
   .modeBtn[data-mode="wire"]{background:#f5f1ff;border-color:#cbb8ff;}
   .modeBtn[data-mode="double"]{background:#eefaf3;border-color:#a8e6c5;}
@@ -262,6 +273,10 @@
   .modeBtn .mn{font-size:17px;font-weight:800;color:var(--plum-dark);}
   .modeBtn .md{font-size:12.5px;color:#9a8a9e;font-weight:600;margin-top:2px;}
   .modeBtn .best{font-size:12px;color:#7a6ab8;font-weight:800;white-space:nowrap;margin-left:12px;}
+  #btnDaily{flex-wrap:wrap;}
+  #btnDaily>span:first-child{flex:1 1 150px;}
+  #btnDaily .best{margin-left:0;white-space:normal;}
+  #dailyResetLab,#dailyTwistLab{margin:-3px 4px 10px;font-size:11px;line-height:1.5;color:#94858b;text-align:center;font-weight:500;}
   .foot{font-size:12px;color:#947d8b;margin-top:12px;line-height:1.7;font-weight:600;}
   #menuOverlay .foot{display:flex;justify-content:space-between;align-items:center;}
 
@@ -451,7 +466,7 @@
 </head>
 <body data-state="menu">
 
-<canvas id="cv" class="pen"></canvas>
+<canvas id="cv" class="pen" tabindex="-1"></canvas>
 
 <div id="topbar">
   <div>
@@ -500,7 +515,8 @@
   <div><span id="rpGrade"></span><span id="rpScore"></span></div>
   <div id="rpNote"></div>
 </div>
-<div id="nextBar"><button id="btnNext" class="primary">➡️ つぎへ</button></div>
+<div id="nextBar"><button id="btnNext" class="primary">➡️ つぎへ</button><button id="btnStudyReview" class="small hidden">🎯 この1問を復習</button></div>
+<div id="reviewDock" class="hidden"><button id="btnGhost">前の線：オフ</button><button id="btnExitReview">結果へ戻る</button></div>
 
 <div id="menuOverlay" class="overlay">
   <button id="btnLang" class="small">🌐 English</button>
@@ -515,6 +531,8 @@
       <span><span class="mn">📅 きょうのチャレンジ</span></span>
       <span class="best" id="bestDailyLab"></span>
     </button>
+    <p id="dailyResetLab"></p>
+    <p id="dailyTwistLab"></p>
     <button class="modeBtn" id="btnModes" style="background:#f3f0ff;border-color:#c9b8f0;">
       <span><span class="mn">🎮 モードをえらぶ</span></span>
     </button>
@@ -547,8 +565,9 @@
       <span><span class="mn">♾️ 無限モード</span><br><span class="md">1ラウンドごとに時間がみじかく、ごうかくラインは高くなる</span></span>
       <span class="best" id="bestEndless"></span>
     </button>
-    <div id="twistSelBox" style="display:none">
-      <div id="twistSelLab">🎮 変化球セレクト（きろくはつかないよ）</div>
+    <label id="skipPracticeLab"><input id="skipPractice" type="checkbox"> <span>最初のガイド練習2問をスキップ（本番は同じ6問）</span></label>
+    <div id="twistSelBox">
+      <div id="twistSelLab">🎮 変化球れんしゅう（時間無制限・記録なし）</div>
       <div id="twistSelRow">
         <button class="twistSelBtn" data-twist="ta">⊞ よつわり</button>
         <button class="twistSelBtn" data-twist="dice">⚀ サイコロ</button>
@@ -556,6 +575,8 @@
         <button class="twistSelBtn" data-twist="wire">🩻 ハリガネ</button>
       </div>
     </div>
+    <button id="btnAlbum" class="ghost small">🎭 バッジアルバム</button>
+    <p id="legacyBestLab" style="font-size:11px;color:#9a8090;"></p>
     <button id="btnModeClose" class="ghost small" style="width:100%;margin-top:4px;">✕ とじる</button>
   </div>
 </div>
@@ -571,7 +592,8 @@
     <div id="finalSeed" style="display:none;font-size:12px;font-weight:700;color:#9a8090;cursor:pointer;margin:2px 0 0;"></div>
     <div id="finalGrid"></div>
     <div id="rankBox" class="hidden">
-      <div id="rankEntry">
+      <p id="rankLightNotice" style="font-size:12px"></p>
+<div id="rankEntry">
         <input id="rankName" maxlength="12" placeholder="名前">
         <button id="btnRankSubmit" class="primary">🏆 ランキングにとうろく</button>
       </div>
@@ -588,6 +610,11 @@
 
 <div id="sharePopup" class="hidden">
   <div id="shareCardBox">
+    <div id="shareOptions">
+      <select id="shareKind" aria-label="共有画像の種類"><option value="summary">スコアカード</option><option value="drawing">この1枚</option></select>
+      <select id="shareRound" aria-label="共有するラウンド"></select>
+      <label id="shareAnswerLab"><input id="shareAnswer" type="checkbox"> <span>正解を重ねる</span></label>
+    </div>
     <img id="sharePrev" alt="">
     <div id="shareHint"></div>
     <div id="shareBtns">
@@ -622,9 +649,12 @@
   <div id="shotCap"></div>
   <div id="popupBtns">
     <button id="btnReplay" class="primary">▶️ リプレイ</button>
+    <button id="btnReview">🎯 この1問を復習</button>
+    <button id="btnShareShot">📮 この1枚をシェア</button>
     <button id="btnPopupClose">✕ とじる</button>
   </div>
 </div>
+<div id="albumPopup" class="overlay hidden"><div class="card"><h1 id="albumTitle" style="font-size:20px;">🎭 バッジアルバム</h1><div id="albumGrid"></div><p id="albumHint" style="font-size:12px;color:#9a8090;">未発見のバッジはシルエット。いつもの遊び方から見つけよう。</p><button id="btnAlbumClose" class="small">✕ とじる</button></div></div>
 <div id="toast" class="hidden"></div>
 
 <script>
@@ -636,10 +666,11 @@ const TIME_LIMIT = 30;   // 本番ラウンドの制限時間（秒）
 const ERASER_R   = 16;   // けしゴムの半径(画面px)
 // ズームしても「画面上の大きさ」は一定にする（拡大したら細かく消せる）
 const eraserR = () => ERASER_R/viewS;
-const GAME_VER = "1.27";   // 公開バージョン
+const GAME_VER = "1.28";   // 公開バージョン
 /* 同じ公開バージョン内の採点hotfixもスクリーンショットから識別できるようにする。
    sw.js のCACHE名にも同じBUILD_IDを含め、旧1.27キャッシュを確実に更新する。 */
-const BUILD_ID = "20260818.1";
+const BUILD_ID = "20261030.6";
+const SCORE_GEN="g4";    // 採点世代。旧記録は削除せず、別の記録として保持する
 // ネイティブアプリ（Capacitor/App Store版）で動いているか
 const CAP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 
@@ -1989,9 +2020,9 @@ function logicalScoreInputs(round, strokes){
     strokes:logicalStrokes(round,strokes),
   };
 }
-function scoreRound(round, strokes){
+function scoreRound(round, strokes, skipUnneededRecognition=false){
   const logical=logicalScoreInputs(round,strokes);
-  const res=scoreLogicalRound(logical.round,logical.strokes);
+  const res=scoreLogicalRound(logical.round,logical.strokes,skipUnneededRecognition);
   /* 答え合わせの色分けは表示用ターゲットに残す。採点計算そのものは論理側だけ。 */
   if(logical.round!==round) round.targets.forEach((t,i)=>{
     const lt=logical.round.targets[i];
@@ -2001,13 +2032,149 @@ function scoreRound(round, strokes){
 }
 /* 正解投影との距離だけでは拾えない低得点帯の「立方体として読める形」を評価する。
    これは最大24点の認識下限であり、通常の厳密採点を押し上げる加点ではない。
-   全ターゲット辺を、別々の直線ストロークが一貫して担当し、共有頂点どうしも
-   まとまっている場合だけ働く。1本の線を複数辺へ使う／候補線を重ねる攻略は
-   1対1割当と全辺完成条件で下限を得られない。 */
-function recognitionFloor(round,strokes,eff){
+   全ターゲット辺を一貫して結び、共有頂点どうしもまとまっている場合に働く。
+   ペンを上げた回数に左右されないよう、途中再開をつなぎ、曲がり角で分けた
+   各直線部分でも評価する。従来の認識結果との高い方を採り、既存点を下げない。 */
+function recognitionFloor(round,strokes,eff,partsOnly=false,spanReps=null){
   if(!round.targets.length || round.targets.some(t=>t.pts)) return {score:0};
+  if(!partsOnly){
+    /* 分岐点での連結・同品質候補の選択を描画順ではなく座標順に固定する。
+       閉じた線も全点列で向きを決め、入力の点・配列・時刻は変更しない。 */
+    const comparePath=(a,b)=>{
+      for(let i=0;i<Math.min(a.length,b.length);i++){
+        const dx=a[i].x-b[i].x,dy=a[i].y-b[i].y;
+        if(Math.abs(dx)>1e-8)return dx;if(Math.abs(dy)>1e-8)return dy;
+      }
+      return a.length-b.length;
+    };
+    strokes=strokes.map(s=>{
+      const pts=(s.pts||[]).slice(),reverse=pts.slice().reverse();
+      return {...s,pts:comparePath(pts,reverse)>0?reverse:pts};
+    }).sort((a,b)=>comparePath(a.pts,b.pts));
+    const original=recognitionFloor(round,strokes,eff,true);
+    const inputPaths=strokes.filter(s=>s.pts&&s.pts.length>1)
+      .map(s=>s.pts.filter((p,i,a)=>i===0 ||
+        Math.hypot(p.x-a[i-1].x,p.y-a[i-1].y)>1e-8));
+    /* 一筆の内部にある分岐点も、別ストロークの端と同じように扱う。
+       既存点で切るだけで、補間・スナップ・描き足しはしない。端は空間索引で
+       探し、大量の点と端の全組合せを走査しない。 */
+    const endpoints=new Map(),seen=new Set(),repeated=new Set();
+    const pointKey=p=>p.x.toFixed(8)+","+p.y.toFixed(8),cellKey=(x,y)=>x+","+y;
+    for(const pts of inputPaths){
+      for(const p of pts){const key=pointKey(p);if(seen.has(key))repeated.add(key);seen.add(key);}
+      for(const p of [pts[0],pts[pts.length-1]]){
+        const key=cellKey(Math.floor(p.x/.5),Math.floor(p.y/.5));
+        if(!endpoints.has(key))endpoints.set(key,[]);endpoints.get(key).push(p);
+      }
+    }
+    const isJoin=p=>{
+      if(repeated.has(pointKey(p)))return true;
+      const x=Math.floor(p.x/.5),y=Math.floor(p.y/.5);
+      for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)
+        if((endpoints.get(cellKey(x+dx,y+dy))||[]).some(q=>Math.hypot(p.x-q.x,p.y-q.y)<=.5))return true;
+      return false;
+    };
+    const paths=[];
+    for(const pts of inputPaths){
+      let start=0;
+      for(let i=1;i<pts.length;i++)if(i===pts.length-1 || isJoin(pts[i])){
+        const part=pts.slice(start,i+1),reverse=part.slice().reverse();
+        paths.push(comparePath(part,reverse)>0?reverse:part);start=i;
+      }
+    }
+    /* 分岐を選ぶ前に、次数2の途中再開点をつなぐ。これを先に行わないと
+       同じ辺を短く区切っただけで、分岐での座標順が変わってしまう。 */
+    const degree=new Map();
+    for(const pts of paths)for(const p of [pts[0],pts[pts.length-1]]){
+      const key=pointKey(p);degree.set(key,(degree.get(key)||0)+1);
+    }
+    const same=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y)<=0.5;
+    for(let i=0;i<paths.length;i++){
+      for(let j=i+1;j<paths.length;j++){
+        const a=paths[i],b=paths[j],a0=a[0],a1=a[a.length-1],b0=b[0],b1=b[b.length-1];
+        const through=(p,q)=>same(p,q)&&(degree.get(pointKey(p))||0)<=2&&(degree.get(pointKey(q))||0)<=2;
+        if(through(a1,b0))paths[i]=a.concat(b);
+        else if(through(a1,b1))paths[i]=a.concat(b.slice().reverse());
+        else if(through(a0,b1))paths[i]=b.concat(a);
+        else if(through(a0,b0))paths[i]=b.slice().reverse().concat(a);
+        else continue;
+        paths.splice(j,1);j=i;
+      }
+    }
+    for(let i=0;i<paths.length;i++){
+      const reverse=paths[i].slice().reverse();if(comparePath(paths[i],reverse)>0)paths[i]=reverse;
+    }
+    paths.sort(comparePath);
+    /* 同じ位置から続けた線は、角の途中でも辺の途中でも同じ経路として読む。
+       順序や始終点の向きは問わず、離れた線に新しい辺を描き足さない。 */
+    for(let i=0;i<paths.length;i++){
+      let joined=true;
+      while(joined){
+        joined=false;
+        for(let j=i+1;j<paths.length;j++){
+          const a=paths[i],b=paths[j];
+          if(same(a[a.length-1],b[0])) paths[i]=a.concat(b);
+          else if(same(a[a.length-1],b[b.length-1])) paths[i]=a.concat(b.slice().reverse());
+          else if(same(a[0],b[b.length-1])) paths[i]=b.concat(a);
+          else if(same(a[0],b[0])) paths[i]=b.slice().reverse().concat(a);
+          else continue;
+          paths.splice(j,1); joined=true; break;
+        }
+      }
+    }
+    const reps=[],edgeLengths=round.targets.map(t=>Math.hypot(t.pb.x-t.pa.x,t.pb.y-t.pa.y));
+    const minLen=0.55*Math.min(...edgeLengths),maxLen=1.60*Math.max(...edgeLengths);
+    /* 角が浅い構図では、手ぶれと曲がり角を角度だけで区別できない。
+       そこで経路内の直線らしい区間を候補にし、後段で正解辺に対応づける。
+       長さは元の点列で測り、同じ区間の複数辺への使い回しは防ぐ。 */
+    for(let pi=0;pi<paths.length;pi++){
+      const pts=[];
+      for(const p of paths[pi]){
+        if(pts.length && Math.hypot(p.x-pts[pts.length-1].x,p.y-pts[pts.length-1].y)<=1e-8) continue;
+        /* 直線の途中に再開点を挿しただけで、候補数が増えないようにする。 */
+        while(pts.length>1){
+          const a=pts[pts.length-2],b=pts[pts.length-1];
+          if(distToSeg(b.x,b.y,a.x,a.y,p.x,p.y)>1e-8) break;
+          pts.pop();
+        }
+        pts.push(p);
+      }
+      /* 同じ経路を逆から描いても、同品質の候補の優先順を変えない。 */
+      const compare=(a,b)=>a.x-b.x || a.y-b.y;
+      if(pts.length>1 && compare(pts[0],pts[pts.length-1])>0) pts.reverse();
+      const lengths=[0];
+      for(let i=1;i<pts.length;i++) lengths.push(lengths[i-1]+
+        Math.hypot(pts[i].x-pts[i-1].x,pts[i].y-pts[i-1].y));
+      /* 大量の入力点がある場合も候補は約200端点に抑える。正解の各頂点に
+         最も近い実入力点は必ず残し、遠い落書きで計算量が膨らまないようにする。 */
+      const indices=new Set([0,pts.length-1]),stride=Math.max(1,Math.ceil(pts.length/192));
+      for(let i=0;i<pts.length;i+=stride) indices.add(i);
+      for(const t of round.targets) for(const end of [t.pa,t.pb]){
+        let best=0,distance=Infinity;
+        for(let i=0;i<pts.length;i++){
+          const d=Math.hypot(pts[i].x-end.x,pts[i].y-end.y);
+          if(d<distance){distance=d;best=i;}
+        }
+        indices.add(best);
+      }
+      const ends=[...indices].sort((a,b)=>a-b);
+      for(let i=0;i<ends.length;i++) for(let j=i+1;j<ends.length;j++){
+        const lo=ends[i],hi=ends[j],a=pts[lo],b=pts[hi];
+        const pathLen=lengths[hi]-lengths[lo];
+        if(pathLen>maxLen/0.78) break;
+        const dx=b.x-a.x,dy=b.y-a.y,chord=Math.hypot(dx,dy);
+        if(chord<minLen || chord>maxLen || !(pathLen>0)) continue;
+        const u=clamp((chord/pathLen-0.78)/(0.96-0.78),0,1),straight=u*u*(3-2*u);
+        if(straight>0){
+          reps.push({si:reps.length,a,b,dx,dy,chord,straight,range:{path:pi,lo,hi}});
+        }
+      }
+    }
+    const normalized=recognitionFloor(round,[],eff,true,reps);
+    return normalized.score>original.score?{...normalized,pathNormalized:true}:original;
+  }
   const sm=(a,b,x)=>{ const u=clamp((x-a)/(b-a),0,1); return u*u*(3-2*u); };
-  const reps=[];
+  const reps=spanReps||[];
   for(let si=0;si<strokes.length;si++){
     const pts=strokes[si].pts||[];
     if(pts.length<2) continue;
@@ -2018,7 +2185,8 @@ function recognitionFloor(round,strokes,eff){
     const dx=b.x-a.x,dy=b.y-a.y,chord=Math.hypot(dx,dy);
     if(!(pathLen>0&&chord>0)) continue;
     const straight=sm(0.78,0.96,chord/pathLen);
-    if(straight>0) reps.push({si,a,b,dx,dy,chord,straight});
+    if(straight>0) reps.push({si,a,b,dx,dy,chord,straight,
+      range:strokes[si].recognitionRange});
   }
   const pairs=[];
   for(let ti=0;ti<round.targets.length;ti++){
@@ -2039,15 +2207,46 @@ function recognitionFloor(round,strokes,eff){
       const ratio=r.chord/edgeLen;
       const lenFit=sm(0.55,0.82,ratio)*(1-sm(1.25,1.60,ratio));
       const q=distFit*dirFit*lenFit*r.straight;
-      if(q>0.08) pairs.push({ti,si:r.si,q,
+      if(q>0.08) pairs.push({ti,si:r.si,q,range:r.range,
         pa:reverse?r.b:r.a,pb:reverse?r.a:r.b,t});
     }
   }
   pairs.sort((a,b)=>b.q-a.q||a.ti-b.ti||a.si-b.si);
-  const usedTargets=new Set(),usedStrokes=new Set(),matches=[];
+  const usedTargets=new Set(),usedStrokes=new Set();
+  let matches=[];
   for(const p of pairs){
     if(usedTargets.has(p.ti)||usedStrokes.has(p.si)) continue;
+    if(p.range && matches.some(m=>m.range && m.range.path===p.range.path &&
+      Math.max(m.range.lo,p.range.lo)<Math.min(m.range.hi,p.range.hi))) continue;
     usedTargets.add(p.ti); usedStrokes.add(p.si); matches.push(p);
+  }
+  if(spanReps){
+    /* 最良の1辺を先取りすると、その区間に隣の辺の端が含まれて全体の
+       完成を見落とす。最大5辺の通常問題では、重ならない対応の組合せを
+       探し、完成した辺数を先に、品質を次に優先する。 */
+    const groups=round.targets.map((_,ti)=>pairs.filter(p=>p.ti===ti))
+      .sort((a,b)=>a.length-b.length);
+    let best=matches.slice(),bestQ=best.reduce((sum,p)=>sum+p.q,0),visits=0;
+    const chosen=[];
+    const search=(i,q)=>{
+      if(++visits>20000 || chosen.length+groups.length-i<best.length) return;
+      const upper=q+groups.slice(i).reduce((sum,g)=>sum+(g[0]?.q||0),0);
+      if(best.length===groups.length && upper<=bestQ+1e-12) return;
+      if(i===groups.length){
+        if(chosen.length>best.length || (chosen.length===best.length && q>bestQ)){
+          best=chosen.slice();bestQ=q;
+        }
+        return;
+      }
+      for(const p of groups[i]){
+        if(chosen.some(m=>m.range.path===p.range.path &&
+          Math.max(m.range.lo,p.range.lo)<Math.min(m.range.hi,p.range.hi))) continue;
+        chosen.push(p);search(i+1,q+p.q);chosen.pop();
+        if(visits>20000) break;
+      }
+      if(best.length<groups.length) search(i+1,q);
+    };
+    search(0,0);matches=best;
   }
   const completion=sm(0.72,0.98,matches.length/round.targets.length);
   if(completion<=0) return {score:0,matches:matches.length,completion};
@@ -2095,7 +2294,7 @@ function recognitionFloor(round,strokes,eff){
   const shape=completion*(0.45+0.30*quality+0.15*shared+0.10*anchor);
   return {score:24*shape*eff,matches:matches.length,completion,quality,shared,anchor,shape};
 }
-function scoreLogicalRound(round, strokes){
+function scoreLogicalRound(round, strokes, skipUnneededRecognition=false){
   /* 採点は見た目の線を評価する。同一直線を途中でペンアップしただけの入力が、
      一本で引いた同じ線より大幅に低くならないよう、厳密に連続する断片だけを
      採点前に一つへ戻す。重なった候補線や平行な別経路は結合しない。 */
@@ -2976,8 +3175,8 @@ function scoreLogicalRound(round, strokes){
      clearHedge は検証用診断値として残し、不正対策より正常入力の公平性を優先する。 */
   const eff = (inkRatio>WASTE_ALLOW ? WASTE_ALLOW/inkRatio : 1)
             * (1-ambiguousHedgePenalty);
-  /* 高得点帯は正解投影への厳密な一致を従来どおり評価する。一方、全辺を別々の
-     直線で一貫して結んだ「立方体として読める形」は recognitionFloor による
+  /* 高得点帯は正解投影への厳密な一致を従来どおり評価する。一方、全辺を
+     一貫して結んだ「立方体として読める形」は recognitionFloor による
      最大24点の下限だけを持つ。これにより同じ距離誤差の二重減点を低得点帯で止め、
      中〜高得点や攻略防御の序列は変えない。 */
   /* coverage と端点構造は同じ位置ずれを別方向から見るため、端を早めに止めた
@@ -2990,7 +3189,9 @@ function scoreLogicalRound(round, strokes){
      0.50ならcareful/ordinary/looseの手描き分布が旧版とほぼ一致し、厳密一致・
      攻略防御・recognition下限を変えずに、過剰な中間帯圧縮だけを戻せる。 */
   const strictScore=100*Math.pow(cov,0.50)*modelFit*eff;
-  const recognition=recognitionFloor(round,strokes,eff);
+  // 本番では最終点に影響しない計算を省く。診断APIは既定で全指標を計算する。
+  const recognition=skipUnneededRecognition && strictScore>=24
+    ? {score:0,skipped:true,upperBound:24} : recognitionFloor(round,strokes,eff);
   const score=Math.round(100*Math.max(strictScore,recognition.score))/100;
   // まんまるの日は落書き判定を切る（「まるいね！でも今回は立方体だよ」が的外れになるため）
   const doodle = round.twist==="maru" ? null : doodleKind(round, strokes, cov, prec, needLen);
@@ -3037,7 +3238,7 @@ function scoreLogicalRound(round, strokes){
 const gradeOf = s => s>=88?"S":s>=72?"A":s>=55?"B":s>=35?"C":"D";
 const gradeColor = g => ({S:"#f5b73d",A:"#4fbf7f",B:"#6f9df0",C:"#f0a24f",D:"#ef6e8a"})[g];
 const TITLES=[
-  [99.2,"チート疑い","Are you Cheating?","🧀"],
+  [99.2,"立方体の極み","Cube Virtuoso","💎"],
   [97,"立方体の神","Cube God","👑"],
   [94,"立方体の匠","Master of Cubes","🌟"],
   [90,"立方体マイスター","Cube Meister","🎓"],
@@ -3051,9 +3252,9 @@ const TITLES=[
   [-1,"とうふくずし","Melted Tofu","🫠"],
 ];
 /* 変化球「ハリガネ」「まんまる」の日は称号もその日のテーマで（ユーザー要望）。
-   しきい値は本家TITLESと同じ。チート疑いだけは実質bot検知なので全テーブル共通 */
+   しきい値は本家TITLESと同じ。高得点は疑わず、素直に達成をたたえる。 */
 const TITLES_WIRE=[
-  [99.2,"チート疑い","Are you Cheating?","🧀"],
+  [99.2,"立方体の極み","Cube Virtuoso","💎"],
   [97,"透視の神","X-Ray God","👑"],
   [94,"人間レントゲン","Human X-Ray","🩻"],
   [90,"ハリガネマイスター","Wireframe Meister","🎓"],
@@ -3067,7 +3268,7 @@ const TITLES_WIRE=[
   [-1,"針金だんご","Wire Tangle","🫠"],
 ];
 const TITLES_MARU=[
-  [99.2,"チート疑い","Are you Cheating?","🧀"],
+  [99.2,"円の極み","Circle Virtuoso","💎"],
   [97,"まんまるの神","Circle God","👑"],
   [94,"人間コンパス","Human Compass","🧭"],
   [90,"まんまるマイスター","Perfect-Circle Meister","🎓"],
@@ -3125,6 +3326,7 @@ const ink=document.createElement("canvas");
 const ictx=ink.getContext("2d");
 let W=0,H=0,dpr=1;
 let hideInk=false; // リプレイ用ベース画像キャプチャ時にインクを描かない
+let captureDrawing=false; // 共有・リプレイ用に正解/消失点/復習表示を除外する
 
 /* ================= 表示だけのズーム（ピンチ／ホイール） =================
    お題・ストローク・採点はすべて「ワールド座標」のまま。ズームは見え方だけを変える
@@ -3257,7 +3459,7 @@ function drawScene(){
   ctx.setTransform(dpr*viewS,0,0,dpr*viewS, dpr*viewX, dpr*viewY);
   ctx.lineCap="round"; ctx.lineJoin="round";
 
-  const showAnswer = (state==="roundResult");
+  const showAnswer = (state==="roundResult" && !captureDrawing);
 
   if(showAnswer){
     if(round.crossHidden){
@@ -3287,7 +3489,7 @@ function drawScene(){
       ctx.stroke();
     }
     ctx.setLineDash([]);
-  }else if(round.practice){
+  }else if(round.practice && !captureDrawing){
     for(const t of round.targets){
       ctx.strokeStyle="rgba(214,137,159,.42)"; ctx.lineWidth=2;
       ctx.setLineDash(t.hidden?[2,7]:[7,7]);
@@ -3327,6 +3529,10 @@ function drawScene(){
 
   // れんしゅうモードでは、答え合わせと一緒に消失点とパース線を見せる
   if(showAnswer && studyRun) drawVanishingAid();
+  if(!captureDrawing && reviewSession){
+    if(reviewSession.ghost) drawReviewGhost();
+    if(showAnswer) drawReviewFocus();
+  }
 
   if(!hideInk){
     // インクは ictx 側でズーム済みなので、ここは画面座標のまま等倍で貼る
@@ -3361,6 +3567,7 @@ let captureOk=false, lastActiveAt=0;
 let tool="pen";              // "pen" | "eraser"
 let hoverPos=null;           // eraser indicator
 let erasing=false, eraseChanged=false, erasePrev=null;
+let eraseStart=null, eraseTravel=0; // 指消しゴムの意図的な移動を、掌の接触と区別する
 let eraseUses=0;   // このラウンドで消しゴムを使った回数（かくし称号の判定用）
 let undoKeyUses=0, undoBtnUses=0;   // Ctrl+Z とボタンでの取り消し回数（同上）
 let clearUses=0;                    // このラウンドで「ぜんぶけす」を使った回数（同上）
@@ -3552,6 +3759,16 @@ function activePointerLive(){
 // activeTypeだけを信じるとpointerup欠落後に指入力を永久拒否するため、生存確認も行う。
 const penBusy = () => (activeType==="pen" && activePointerLive()) || performance.now()-lastPenAt<1500;
 function dropTouches(){ if(touchPts.size){ touchPts.clear(); } pinch=null; }
+/* 掌→ペンの順でも、ペンをすぐ受け付ける。指の点や微小な揺れは残さず、
+   すでに描いた実線・意図的に動かした消しゴムは持ち替え前に確定する。
+   閾値は表示上の6px。普通に指を離したときの短い線や点には適用しない。 */
+function settleTouchForPen(){
+  if(activeType!=="touch" || activeId===null) return;
+  const moved=erasing ? eraseTravel>=6 : cur && cur.pts.some(p=>
+    Math.hypot(p.x-cur.pts[0].x,p.y-cur.pts[0].y)*viewS>=6);
+  if(moved) endStroke({pointerId:activeId,pointerType:"touch"});
+  else abortStroke();
+}
 function cancelPointerInteraction(){
   endDragPan();
   dropTouches();
@@ -3596,12 +3813,20 @@ function trackTouch(e){
 }
 
 cv.addEventListener("pointerdown", e=>{
+  // preventDefaultでボタンにフォーカスが残らないよう、描画操作でキャンバスへ戻す。
+  if((state==="draw"||state==="roundResult") && !inputFrozen())cv.focus({preventScroll:true});
+  if(e.pointerType==="pen" && (state==="draw"||state==="roundResult") && !inputFrozen()){
+    lastPenAt=performance.now();
+    if(dragPan && dragPan.type==="touch") endDragPan();
+    settleTouchForPen();
+    dropTouches();
+  }
   /* PC・ペンタブ: Spaceを押しながらドラッグすると一時的に画面移動。
      描画用のactiveIdとは別に持ち、線・消しゴム履歴へ一切混ぜない。 */
   if((state==="draw"||state==="roundResult") && !inputFrozen() &&
      spacePanHeld && e.button===0 && !dragPan && activeId===null){
     dropTouches(); hoverPos=null;
-    dragPan={id:e.pointerId, sx:e.clientX, sy:e.clientY, x0:viewX, y0:viewY};
+    dragPan={id:e.pointerId, type:e.pointerType, sx:e.clientX, sy:e.clientY, x0:viewX, y0:viewY};
     try{ cv.setPointerCapture(e.pointerId); }catch(_){}
     refreshPanCursor();
     e.preventDefault();
@@ -3625,7 +3850,6 @@ cv.addEventListener("pointerdown", e=>{
     if(trackTouch(e)){ e.preventDefault(); return; }
   }
   if(state!=="draw" || inputFrozen()) return;   // ポーズ中・復帰カウントダウン中は描かせない
-  if(e.pointerType==="pen"){ lastPenAt=performance.now(); dropTouches(); }
   /* 前のストロークが「終わったことになっていない」場合の復帰。
      画面の端でペンが範囲外に出たり、ウィンドウの外で指を離したりすると
      pointerup が届かず activeId を握ったままになり、そのラウンド中ずっと
@@ -3664,6 +3888,7 @@ cv.addEventListener("pointerdown", e=>{
     pushHistory();
     densifyStrokes();
     erasing=true; eraseChanged=false; erasePrev=p; hoverPos=p; eraseUses++;
+    eraseStart=p; eraseTravel=0;
     if(applyErase(p,p)){ eraseChanged=true; rebuildInk(); }
     render();
   }else{
@@ -3698,7 +3923,7 @@ window.addEventListener("pointermove", e=>{
   if(state==="draw" && tool==="eraser" && e.target===cv && activeId===null){
     hoverPos=evPoint(e); render();
   }
-  if(activeId!==e.pointerId) return;
+  if(activeId!==e.pointerId || (e.pointerType && e.pointerType!==activeType)) return;
   /* 親イベントのbuttonsが0でも、実際の高頻度サンプルには接触情報が入る端末がある。
      終了判定より先に安全に取得し、部分実装が例外を投げても親イベントへ戻す。 */
   let evs=[e];
@@ -3721,6 +3946,8 @@ window.addEventListener("pointermove", e=>{
     let changed=false;
     for(const ev of evs){
       const p=evPoint(ev);
+      if(eraseStart) eraseTravel=Math.max(eraseTravel,
+        Math.hypot(p.x-eraseStart.x,p.y-eraseStart.y)*viewS);
       if(applyErase(erasePrev,p)) changed=true;
       erasePrev=p; hoverPos=p;
     }
@@ -3743,7 +3970,7 @@ function endStroke(e){
     touchPts.delete(e.pointerId);
     syncPinch();          // 残った指で基準を取り直す（倍率が飛ばない）
   }
-  if(activeId!==e.pointerId) return;
+  if(activeId!==e.pointerId || (e.pointerType && e.pointerType!==activeType)) return;
   const finishedId=activeId;
   captureOk=false;
   const releaseFinished=()=>{
@@ -3769,7 +3996,7 @@ function endStroke(e){
     // pushHistory snapshots current strokes (without cur) — then commit
     strokes.push(cur);
     // どの入力デバイスで描いたか（ペン／マウス／指）を点の数で数えておく
-    const it=e.pointerType||"mouse";
+    const it=activeType||e.pointerType||"mouse";
     inputPts[it]=(inputPts[it]||0)+cur.pts.length;
     maybeShowJudgeHint();
   }
@@ -3787,7 +4014,7 @@ window.addEventListener("pointercancel", e=>{
     touchPts.delete(e.pointerId);
     syncPinch();          // 残った指で基準を取り直す（倍率が飛ばない）
   }
-  if(activeId!==e.pointerId) return;
+  if(activeId!==e.pointerId || (e.pointerType && e.pointerType!==activeType)) return;
   if(erasing){
     const snap=history.pop();
     if(snap) strokes=snap;
@@ -3803,7 +4030,7 @@ window.addEventListener("pointercancel", e=>{
    pointerup 経由の正常終了では endStroke が先に activeId を消すので二重確定はしない。 */
 cv.addEventListener("lostpointercapture", e=>{
   if(endDragPan(e)) return;
-  if(activeId!==e.pointerId) return;
+  if(activeId!==e.pointerId || (e.pointerType && e.pointerType!==activeType)) return;
   endStroke(e);
 });
 /* PC・ペンタブはホイールで拡大縮小（カーソルの位置を固定して寄り引きする） */
@@ -3927,6 +4154,8 @@ function pauseRoundTimer(){
   clearResume();
 }
 function resumeRoundTimer(){
+  // 説明を見ている間は再開しない。閉じる操作からだけ再開する。
+  if(!$("#twistIntro").classList.contains("hidden")) return;
   if(pausedLeft===null || state!=="draw" || resumeTimer) return;
   const gen=timerGen;              // このカウントダウンが属するラウンド
   let n=3;
@@ -3986,20 +4215,19 @@ const TOTAL_ROUNDS=8, PRACTICE_ROUNDS=2;   // 練習2＋本番6（8本番は長�
    ・5辺のお題で 2本を正確に描くと 49.8点。これが「手抜き戦法」の理論上限。
      → R17 で合格ライン50点がこれを上回るので、手抜きはそこで数学的に死ぬ。
    ・4秒はパースを読む力より入力速度の比重が大きすぎるため、最低8秒に緩和する。
-     終了の有界性は時間切れに頼らず、R27の合格ライン101点で保証する。
+     v1.28からR26の合格で完全制覇。不可能な点数による強制敗北は廃止する。
    ・序盤の合格ラインを20点に下げてあるのは、30秒でも事故で30点を割る回が
    実測5〜8%あり、「時間はたっぷり余っているのに理不尽に死ぬ」のを防ぐため。 */
 const END_TIMES=[15,13,12,11,10,9,8];   // 7ラウンド目以降はずっと最低8秒
 /* 合格ライン（この点数「以上」で生き残る）。表示と判定を必ず同じ値で行うこと——
    別々にすると「21点必要と出ているのに20.5点で生き残る」ようなズレが出る */
 const END_KEEP_SHOTS=8;   // 結果画面に残すサムネイルの数（古い回の画像は捨ててメモリを守る）
-/* 現在はR27の合格ライン101点で必ず終わる。将来の合格ライン変更や不正入力でも
-   ランキング値（ラウンド数）を0-100に収めるため、念のためハードキャップも残す。 */
-const END_MAX=99;
+/* 合格できる最後の段階をクリア条件とする。R26は96点、最低8秒。 */
+const END_MAX=26; // R26（96点）を越えたら完全制覇。満点でも不可能なR27は出題しない
 const endTime  = r => END_TIMES[Math.min(r, END_TIMES.length-1)];   // r=0起点
 const endPass = r => (r+1<=15 ? 20+5*Math.floor(r/3) : 40+5*(r+1-15)) + 1;
 let state="menu", mode="normal", roundIdx=0, round=null, scores=[];
-/* ラン単位の可変値。チャレンジは「練習なし・無限ラウンド」になる */
+/* ラン単位の可変値。チャレンジは「練習なし・最大26ラウンド」になる */
 let totalRounds=TOTAL_ROUNDS, practiceRounds=PRACTICE_ROUNDS, endlessRun=false;
 /* れんしゅうモード: 制限時間なし・記録対象外。判定すると消失点とパース線が見える */
 let studyRun=false;
@@ -4016,12 +4244,20 @@ let gameTwist=null;   // デイリーの変化球（"ta"=よつわり）。日�
    送信先・シェア画像の日付が翌日にズレないようにするため。 */
 let dailyDate="";
 
-const BEST_KEY="cube-challenge-best-v1";
+const LEGACY_BEST_KEY="cube-challenge-best-v1";
+const BEST_KEY=`cube-challenge-best-${SCORE_GEN}`;
 const loadBest=()=>{ try{ return JSON.parse(localStorage.getItem(BEST_KEY))||{}; }catch(_){ return {}; } };
 const saveBest=b=>{ try{ localStorage.setItem(BEST_KEY, JSON.stringify(b)); }catch(_){} };
+const SKIP_PRACTICE_KEY="cube-challenge-skip-practice";
+try{$("#skipPractice").checked=localStorage.getItem(SKIP_PRACTICE_KEY)==="1";}catch(_){}
+$("#skipPractice").addEventListener("change",()=>{try{localStorage.setItem(SKIP_PRACTICE_KEY,$("#skipPractice").checked?"1":"0");}catch(_){}});
 
 function setState(s){
   state=s; document.body.dataset.state=s;
+  // 縦画面の復習ボタンもツールと同じ縦並びへ入れ、翻訳や文字拡大で重ならないようにする。
+  const reviewDock=$("#reviewDock");
+  if(reviewSession && s==="draw") $("#bottomControls").prepend(reviewDock);
+  else document.body.appendChild(reviewDock);
   Sound.setScene(s==="menu" ? "menu" : s==="final" ? "final" : "game");
 }
 
@@ -4052,6 +4288,12 @@ function updateHud(){
   const c=round.cubes && round.cubes[0];
   $("#hint").textContent=playHint;
   $("#cameraDock").textContent=fixedCameraSpec(c&&c.hintDistanceM);
+  if(reviewSession){
+    $("#modeChip").textContent=tr("🎯 1問復習・記録なし","🎯 Review · unranked");
+    $("#roundChip").textContent="∞";
+    $("#hint").textContent=tr("時間無制限。同じお題に再挑戦。前の線は採点されません","No time limit. Same puzzle; the ghost is not scored.");
+  }
+  $("#btnStudyReview").classList.toggle("hidden", !studyRun || !!reviewSession);
 }
 
 function newRound(){
@@ -4095,8 +4337,10 @@ function twistForDailySeed(seed){
   if(!m) return null;
   const dateStr=m[1]+"-"+m[2]+"-"+m[3];
   if(dateStr < TWIST_START) return null;
-  /* 週2回（水曜・土曜）だけ変化球にする（ユーザー決定）。
-     曜日はUTC基準で計算するので全端末で同じ。4種を2週間で一巡するローテ */
+  /* 変化球の候補日は水曜・土曜。6候補枠を3週間で一巡する。
+     休止中の2枠はnull（通常問題）のため、実際の変化球は4種・3週間で4回。
+     デイリーの日付はtodaySeedStrで日本時間に統一し、その日付の曜日を
+     UTCで計算して端末のタイムゾーンによる曜日のずれを防ぐ。 */
   const t=Date.UTC(+m[1], +m[2]-1, +m[3]);
   /* 月末スペシャル「りったい十字」(cross) は封印中（2026-07-28 ユーザー判断）。
      主因: ヒント面が立体のどの面なのか判別できず、答えが一意に定まらない。
@@ -4114,6 +4358,7 @@ function twistForDailySeed(seed){
      ダブルもフェアネス再設計まで休止したため、その枠だけnullへ置換する。
      配列長と他枠の位置は守り、公開は必ず新キャッシュが行き渡る日境界で行う。 */
   const pool=["ta","dice",null,"notch","wire",null];
+  // weekは1970-01-01（木）起点の7日区切り。暦の週番号へ変えると割当日も変わる。
   const week=Math.floor(t/(7*86400000));
   return pool[(week*2 + (dow===6?1:0)) % pool.length];
 }
@@ -4291,16 +4536,21 @@ function showTwistIntro(k, onceEver){
 
 function startGame(m, opts){
   opts=opts||{};
+  closeShare();lastFinal=null;
+  reviewSession=null; document.body.dataset.review="false";
+  $("#reviewDock").classList.add("hidden");
   if(PAUSED_MODES.has(m)) m="normal";
   mode=m; roundIdx=0; scores=[]; roundsInfo=[]; encouraged=false; noteOnce=new Set(); inputPts={};
   /* チャレンジ＝エンドレス・サバイバル。練習ラウンドは置かない
      （練習はタイマー自体が出ないので、ラダー先頭が「無制限の練習」に食われる） */
   endlessRun = (m==="endless");
-  studyRun   = (m==="study");
+  studyRun   = (m==="study" || (m==="normal" && !!opts.study));
   // れんしゅうは終わりなし＝結果画面を出さない（やめるまで好きなだけ描ける）
   totalRounds  = (endlessRun||studyRun) ? Infinity : TOTAL_ROUNDS;
   // れんしゅうは全ラウンドが本物のお題（ガイドなぞりの練習ラウンドは置かない）
   practiceRounds = (endlessRun||studyRun) ? 0 : PRACTICE_ROUNDS;
+  // 番号を詰めない。練習を飛ばしても #2〜#7 の本番シードは変わらない。
+  if(practiceRounds && $("#skipPractice").checked) roundIdx=practiceRounds;
   endDead=false; endDeadReason="";
   gameSeed = opts.seed || randomSeed();
   seededRun = !!opts.seed;
@@ -4314,9 +4564,9 @@ function startGame(m, opts){
      ・SEALED は封印済みの変化球。デバッグAPI経由でも起動させない */
   const SEALED=new Set(["maru","cross","dbl"]);
   const pick = (TWISTS[opts.twist] && !SEALED.has(opts.twist)) ? opts.twist : null;
-  gameTwist = (endlessRun||studyRun||m!=="normal") ? null
-    : pick || twistForDailySeed(gameSeed) || null;
-  twistSelRun = !!pick && !endlessRun && !studyRun && m==="normal";
+  gameTwist = (endlessRun||m!=="normal") ? null
+    : pick || (studyRun ? null : twistForDailySeed(gameSeed)) || null;
+  twistSelRun = !!pick && !endlessRun && m==="normal";
   isDaily = !!opts.daily;
   dailyDate = isDaily ? (opts.seed||todaySeedStr()) : "";
   $("#menuOverlay").classList.add("hidden");
@@ -4331,7 +4581,10 @@ function startGame(m, opts){
   newRound();
   // お題見せ画面。ラウンド1は練習（タイマーなし）なので上に被せても安全。
   // セレクトの回は「その変化球を初めて遊ぶとき」だけ出す（毎回出るとうっとおしい）
-  if(gameTwist) showTwistIntro(gameTwist, twistSelRun);
+  if(gameTwist){
+    showTwistIntro(gameTwist, twistSelRun);
+    if(!$("#twistIntro").classList.contains("hidden")) pauseRoundTimer();
+  }
 }
 
 /* 「前半は真面目に描いていたのに急に投げやりになった人」を見つける。
@@ -4573,7 +4826,7 @@ function submit(auto){
   /* 時間切れがペン接触中に来ると activeType が "pen" のまま残り、
      以後そのセッションの指入力（描画もピンチも）が全部拒否される。ここで必ず解く。 */
   activeId=null; activeType=""; captureOk=false; dropTouches();
-  const res = scoreRound(round, strokes);
+  const res = scoreRound(round, strokes, true);
   // ペンを一度も離さずに描き切った人（かくし称号「一筆書きの達人」）
   const oneStroke = strokes.length===1 && res.score>=60;
   round.result=res;
@@ -4582,8 +4835,7 @@ function submit(auto){
   /* 時間切れそのものは不合格にしない（ユーザー判断）。
      ブザーが鳴る前に描けていた分はちゃんと採点され、合格ラインを超えていれば生き残る。
      ＝時間の短さは「点が伸びない」という形で効き、二重の罰にはしない。
-     終了は「合格ラインを下回った」ときだけ。ラインはR27で101点＝満点でも不可能になるので
-     必ず終わる（時間切れ判定に頼らなくても有界であることは変わらない） */
+     合格ライン未満で終了、R26合格は完全制覇として終了する。 */
   if(endlessRun && !endDead){
     const shown=+res.score.toFixed(2);
     if(shown<endPass(roundIdx)){ endDead=true; endDeadReason="score"; }
@@ -4599,8 +4851,8 @@ function submit(auto){
   $("#rpGrade").style.background=gradeColor(g);
   const giveUp = gaveUpNow(res, (performance.now()-roundStart)/1000, auto);
   if(giveUp) encouraged=true;            // 1ラン1回だけ。しつこく言わない
-  $("#rpNote").textContent = roundNotes(res, auto, oneStroke, giveUp).join("　");
-  $("#btnNext").textContent = (endlessRun ? endDead : roundIdx===totalRounds-1)
+  $("#rpNote").textContent = reviewSession ? reviewFeedback(res) : roundNotes(res, auto, oneStroke, giveUp).join("　");
+  $("#btnNext").textContent = reviewSession ? tr("🔁 同じ問題でもう一度","🔁 Try this puzzle again") : (endlessRun ? endDead : roundIdx===totalRounds-1)
     ? tr("🏁 けっかをみる","🏁 See results") : tr("➡️ つぎへ","➡️ Next");
   if(auto) Sound.timeup(); else Sound.score(g);
   /* スナップショットは必ず等倍で撮る。ズームしたまま撮ると、結果画面のサムネイルも
@@ -4608,10 +4860,10 @@ function submit(auto){
   resetView();
   // 答え合わせスナップショット（最終画面グリッド＆シェア用）と
   // インクなしベース画像（リプレイ用）を撮っておく。
-  // れんしゅうは結果画面自体が無いので、撮らない（メモリも時間も使わない）
+  // れんしゅうも直近1問は復習用に保存する。古い画像は下で破棄する。
   drawScene();
-  let shot=null, baseShot=null, shotScale=1, replayLayout=null;
-  if(!studyRun) try{
+  let shot=null, baseShot=null, drawingShot=null, shareBounds=null, shotScale=1, replayLayout=null;
+  try{
     const k=Math.min(1, 1000/cv.width);
     const cw=Math.round(cv.width*k), ch=Math.round(cv.height*k);
     shotScale=cw/W;
@@ -4627,15 +4879,18 @@ function submit(auto){
       return c2.toDataURL("image/jpeg",0.85);
     };
     shot=snap();
+    captureDrawing=true;drawScene();drawingShot=snap();
     hideInk=true; drawScene(); baseShot=snap();
-    hideInk=false; drawScene();
-  }catch(_){ hideInk=false; }
+    hideInk=false;captureDrawing=false;drawScene();
+    shareBounds=roundShareBounds(round,strokes,shotScale,cw,ch);
+  }catch(_){ hideInk=false;captureDrawing=false; }
   const storedLogical=!!(round.scoreLayout&&round.scoreLayout.k>0);
-  const replayStrokes=studyRun ? [] : (storedLogical?logicalStrokes(round,strokes):strokes).map(s=>({
+  const replayStrokes=(storedLogical?logicalStrokes(round,strokes):strokes).map(s=>({
     pts:s.pts.map(p=>({x:p.x,y:p.y,w:p.w,t:p.t||0}))
   }));
   roundsInfo.push({
-    shot, baseShot, shotScale, replayLayout,
+    shot, baseShot, drawingShot, shareBounds, shotScale, replayLayout,
+    roundTemplate:copyRound(round), roundNo:roundIdx+1,
     // リプレイ・将来のゴースト共用データも固定カメラの1000×1000論理座標で保存する
     coordSpace:storedLogical?"camera-1000":"screen",
     strokes:replayStrokes,
@@ -4663,11 +4918,13 @@ function submit(auto){
      古い回の重いデータだけ捨てる（点数などの集計用フィールドは残す） */
   if(endlessRun && roundsInfo.length>END_KEEP_SHOTS){
     const drop=roundsInfo[roundsInfo.length-1-END_KEEP_SHOTS];
-    if(drop){ drop.shot=null; drop.baseShot=null; drop.strokes=[]; }
+    if(drop){ drop.shot=null; drop.baseShot=null; drop.drawingShot=null;drop.roundTemplate=null;drop.strokes=[]; }
   }
   /* れんしゅうは終わりが無いので、集計用の軽い記録も貯め続けない。
      直近20回だけ残す（「まえより+○点」「このランで一番」の比較にはこれで足りる） */
   if(studyRun){
+    // 直近1問を復習できればよい。長時間練習でもJPEGや幾何データを溜めない。
+    if(roundsInfo.length>1){const old=roundsInfo[roundsInfo.length-2];old.shot=null;old.baseShot=null;old.drawingShot=null;old.roundTemplate=null;old.strokes=[];}
     if(roundsInfo.length>20) roundsInfo.splice(0, roundsInfo.length-20);
     if(scores.length>20) scores.splice(0, scores.length-20);
   }
@@ -4679,7 +4936,8 @@ function next(){
   if(state!=="roundResult") return;
   // 「はんてい！」の誤ダブルタップで答え合わせを飛ばさないようにする
   if(performance.now()-resultAt < 450) return;
-  // チャレンジは死んだ時だけ終わる（ラウンド数の上限はない）
+  if(reviewSession){ resetReviewAttempt();return; }
+  // チャレンジは不合格、または最終段階の完全制覇で結果へ。
   if(endlessRun){
     if(endDead){ showFinal(); return; }
     roundIdx++; newRound(); return;
@@ -4724,10 +4982,10 @@ function showFinal(){
     cell.className="shotCell"+(info.practice?" practice":"");
     const im=document.createElement("img");
     if(info.shot) im.src=info.shot;
-    im.alt=`ラウンド${i+1}`;
+    im.alt=`ラウンド${info.roundNo||i+1}`;
     const lab=document.createElement("div");
     lab.className="shotLab";
-    lab.textContent = info.practice ? `R${i+1} 🌱` : `R${i+1}　${info.score.toFixed(2)}`;
+    lab.textContent = info.practice ? `R${info.roundNo||i+1} 🌱` : `R${info.roundNo||i+1}　${info.score.toFixed(2)}`;
     cell.append(im,lab);
     cell.addEventListener("click",()=>openShot(i));
     grid.appendChild(cell);
@@ -4735,19 +4993,13 @@ function showFinal(){
   const best=loadBest();
   let isBest=false;
   $("#btnRetry").style.opacity=1;   // デイリーで薄くした状態を持ち越さない
+  $("#btnRetry").textContent=tr("🔁 もういちど","🔁 Play again");
   if(isDaily){
     const rec=dailyRec(dailyDate);   // 開始時の日付で読む（日付またぎで記録を壊さない）
-    const left=Math.max(0, DAILY_MAX-rec.tries);
-    const leftMsg=left>0 ? tr(`（のこり${left}回）`,` (${left} left)`) : tr("（きょうは終了）"," (done for today)");
-    if(rec.score===null || avg>rec.score){
-      isBest=true;
-      rec.score=avg; saveDailyRec(rec);
-      $("#finalBest").textContent=tr("🏆 きょうのベストこうしん！","🏆 New daily best!")+leftMsg;
-    }else{
-      $("#finalBest").textContent=tr(`きょうのベスト：${(+rec.score).toFixed(2)}点`,`Today's best: ${(+rec.score).toFixed(2)}`)+leftMsg;
-    }
-    // 押せなくはせず薄く見せる（押すと「また明日ね！」と理由が出る方が親切）
-    $("#btnRetry").style.opacity = left===0 ? .55 : 1;
+    isBest=rec.score===null || avg>rec.score;
+    saveDailyScore(dailyDate,avg);
+    dailyFinalBestScore=isBest ? avg : null;
+    refreshDailyFinal();
   }else if(seededRun && !endlessRun && !studyRun){
     $("#finalBest").textContent = best[mode]!==undefined
       ? tr(`自己ベスト：${(+best[mode]).toFixed(2)}点（シード戦は記録対象外）`,`Personal best: ${(+best[mode]).toFixed(2)} (seed runs aren't recorded)`)
@@ -4781,7 +5033,8 @@ function showFinal(){
   // チャレンジは死んだ回を含む平均だと不当に低く出るので、グレードと同じ avgAlive で決める
   const ttl=titleOf(endlessRun ? avgAlive : avg, gameTwist==="maru" ? TITLES_MARU
     : (gameTwist==="wire" || mode==="wire") ? TITLES_WIRE : null);
-  $("#finalTitleLine").textContent=`${ttl.emoji} ${ttl.name}`;
+  $("#finalTitleLine").textContent=endlessRun&&endDeadReason==="cap"
+    ? tr("👑 全26ラウンド、完全制覇！","👑 All 26 rounds cleared!") : `${ttl.emoji} ${ttl.name}`;
   /* かくしバッジ（条件を満たしたものを並べる。増やす時はここにpushする） */
   const specials=[];
   const add=(k,src)=>{ const s=src[k]; if(s) specials.push({key:k, name: JA?s.ja:s.en, emoji:s.emoji}); };
@@ -4859,12 +5112,177 @@ function showFinal(){
     $("#rankName").value = nm;    // 空ならプレースホルダ（未記入でランダム名）が見える
   }
   Sound.fanfare(isBest);
-  if(g==="S" || isBest){ fx.burst(150); setTimeout(()=>fx.burst(110),450); }
+  if(g==="S" || isBest || endDeadReason==="cap"){ fx.burst(150); setTimeout(()=>fx.burst(110),450); }
   $("#finalOverlay").classList.remove("hidden");
 }
 
+/* ---- 1問復習。本番の配列/記録を退避して、独立した時間無制限の試行を作る ---- */
+let reviewSession=null;
+const copyRound=r=>JSON.parse(JSON.stringify(r));
+function reprojectRound(r, layout, ss=[], hs=[]){
+  const old=r.scoreLayout;
+  if(!old || !(old.k>0) || !(layout.k>0)) return;
+  const ratio=layout.k/old.k, seen=new Set();
+  const xf=p=>{
+    if(!p || seen.has(p)) return; seen.add(p);
+    p.x=layout.cx+(p.x-old.cx)*ratio;
+    p.y=layout.cy+(p.y-old.cy)*ratio;
+  };
+  r.cubes.forEach(c=>{c.P.forEach(xf);c.tol*=ratio;});
+  r.targets.forEach(t=>{xf(t.pa);xf(t.pb);t.samples.forEach(xf);if(t.pts)t.pts.forEach(xf);
+    t.tol*=ratio;if(Number.isFinite(t.len))t.len*=ratio;});
+  r.allSegs.forEach(g=>{xf(g.pa);xf(g.pb);g.tol*=ratio;});
+  if(r.crossHidden) r.crossHidden.forEach(g=>{xf(g.pa);xf(g.pb);});
+  if(r.hintLines) r.hintLines.forEach(hl=>hl.forEach(xf));
+  ss.forEach(s=>s.pts.forEach(xf));
+  hs.forEach(snap=>snap.forEach(s=>s.pts.forEach(xf)));
+  if(Number.isFinite(r.extraLen)) r.extraLen*=ratio;
+  r.scoreLayout={...layout};
+}
+function reviewAllowed(){
+  return !isDaily || dailyDate!==todaySeedStr() || dailyLeft(dailyDate)===0;
+}
+function beginReview(i){
+  if(reviewSession || !(state==="final" || (studyRun && state==="roundResult"))) return;
+  const source=roundsInfo[i];
+  if(!source?.roundTemplate) return;
+  if(!reviewAllowed()){
+    toast(tr("デイリーの復習は今日の3回を終えてから（または翌日）できます","Daily review unlocks after all 3 attempts, or the next day"));return;
+  }
+  closeShare();
+  stopTimer();stopReplay();
+  reviewSession={source,ghost:false,parent:{state,mode,roundIdx,round,scores,roundsInfo,
+    totalRounds,practiceRounds,endlessRun,studyRun,endDead,endDeadReason,lastFinal,
+    gameSeed,seededRun,isDaily,dailyDate,gameTwist,twistSelRun,strokes,history,
+    inputPts,encouraged,noteOnce,roundStart,resultAt,
+    note:$("#rpNote").textContent,next:$("#btnNext").textContent}};
+  // ランキング送信口も既存の studyRun ガードを使い、本番とは接続しない。
+  studyRun=true;endlessRun=false;isDaily=false;lastFinal=null;
+  scores=[];roundsInfo=[];inputPts={};noteOnce=new Set();encouraged=false;
+  document.body.dataset.review="true";
+  $("#finalOverlay").classList.add("hidden");$("#shotPopup").classList.add("hidden");
+  $("#reviewDock").classList.remove("hidden");
+  $("#btnGhost").textContent=tr("前の線：オフ","Ghost: off");
+  $("#btnExitReview").textContent=tr("結果へ戻る","Back to results");
+  resetReviewAttempt();
+}
+function resetReviewAttempt(){
+  if(!reviewSession) return;
+  stopTimer();cancelPointerInteraction();resetView();
+  round=copyRound(reviewSession.source.roundTemplate);
+  reprojectRound(round,cameraScreenLayout(W,H));
+  round.practice=false;delete round.result;
+  strokes=[];history=[];cur=null;hoverPos=null;
+  eraseUses=0;undoKeyUses=0;undoBtnUses=0;clearUses=0;
+  scores=[];roundsInfo=[];roundStart=performance.now();
+  setTool("pen",true);rebuildInk();setState("draw");updateHud();startTimer();render();
+}
+function leaveReview(){
+  if(!reviewSession) return;
+  stopTimer();cancelPointerInteraction();resetView();
+  const p=reviewSession.parent;reviewSession=null;
+  ({mode,roundIdx,round,scores,roundsInfo,totalRounds,practiceRounds,endlessRun,studyRun,
+    endDead,endDeadReason,lastFinal,gameSeed,seededRun,isDaily,dailyDate,gameTwist,twistSelRun,
+    strokes,history,inputPts,encouraged,noteOnce,roundStart,resultAt}=p);
+  document.body.dataset.review="false";$("#reviewDock").classList.add("hidden");
+  reprojectRound(round,cameraScreenLayout(W,H),strokes,history);
+  rebuildInk();setState(p.state);updateHud();
+  if(p.state==="final") $("#finalOverlay").classList.remove("hidden");
+  else{
+    const res=round.result,g=gradeOf(res.score);
+    $("#rpScore").innerHTML=`${res.score.toFixed(2)}<small>${tr("点","pts")}</small>`;
+    $("#rpGrade").textContent=g;$("#rpGrade").style.background=gradeColor(g);
+    $("#rpNote").textContent=p.note;$("#btnNext").textContent=p.next;
+  }
+  render();
+}
+function drawReviewGhost(){
+  const info=reviewSession.source,m=round.scoreLayout;
+  const old=info.roundTemplate.scoreLayout;
+  const xy=p=>info.coordSpace==="camera-1000"
+    ? {x:m.cx+(p.x-CAMERA_STAGE/2)*m.k,y:m.cy+(p.y-CAMERA_STAGE/2)*m.k}
+    : {x:m.cx+(p.x-old.cx)*m.k/old.k,y:m.cy+(p.y-old.cy)*m.k/old.k};
+  ctx.save();ctx.strokeStyle="rgba(148,115,176,.25)";ctx.lineWidth=2/viewS;
+  for(const s of info.strokes){ctx.beginPath();s.pts.forEach((p,i)=>{const q=xy(p);i?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y);});ctx.stroke();}
+  ctx.restore();
+}
+function weakestReviewTarget(){
+  return round.targets.reduce((a,t)=>!a||(t.score||0)<(a.score||0)?t:a,null);
+}
+function drawReviewFocus(){
+  const t=weakestReviewTarget();if(!t || t.score>=.95) return;
+  const pts=t.pts||[t.pa,t.pb];
+  ctx.save();ctx.strokeStyle="#a8772e";ctx.lineWidth=7/viewS;ctx.globalAlpha=.5;ctx.setLineDash([3/viewS,6/viewS]);
+  ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();ctx.restore();
+}
+/* 線の対応が一意な直線だけ具体的に助言する。複数候補・一筆の折れ線・曲線は
+   断定しない。比率をtolで測るので画面サイズやズームで助言は変わらない。 */
+function reviewAdvice(target,drawn,targets){
+  if(!target || target.pts)return "compare";
+  const dx=target.pb.x-target.pa.x,dy=target.pb.y-target.pa.y,len=Math.hypot(dx,dy);
+  if(!(len>0 && target.tol>0))return "compare";
+  const ux=dx/len,uy=dy/len,tol=target.tol,candidates=[];
+  const endDistance=(a,b,t)=>Math.min(
+    Math.hypot(a.x-t.pa.x,a.y-t.pa.y)+Math.hypot(b.x-t.pb.x,b.y-t.pb.y),
+    Math.hypot(b.x-t.pa.x,b.y-t.pa.y)+Math.hypot(a.x-t.pb.x,a.y-t.pb.y));
+  for(const s of drawn){
+    const pts=s.pts||[];if(pts.length<2)continue;
+    let a=pts[0],b=pts[pts.length-1];
+    if((b.x-a.x)*ux+(b.y-a.y)*uy<0)[a,b]=[b,a];
+    const chord=Math.hypot(b.x-a.x,b.y-a.y);
+    if(chord<len*.6 || chord>len*1.4)continue;
+    if(Math.hypot(a.x-target.pa.x,a.y-target.pa.y)>3*tol ||
+       Math.hypot(b.x-target.pb.x,b.y-target.pb.y)>3*tol)continue;
+    const distance=endDistance(a,b,target);
+    if(targets.some(t=>t!==target && endDistance(a,b,t)<=distance+tol))continue;
+    // 曖昧な候補も数えておき、都合のよい1本だけを根拠にしない。
+    candidates.push({a,b,pts,chord});
+  }
+  if(candidates.length!==1)return "compare";
+  const {a,b,pts,chord}=candidates[0];
+  if(((b.x-a.x)*ux+(b.y-a.y)*uy)/chord<Math.cos(Math.PI/12) ||
+     pts.some(p=>distToSeg(p.x,p.y,a.x,a.y,b.x,b.y)>.25*tol))return "compare";
+  const start=((a.x-target.pa.x)*ux+(a.y-target.pa.y)*uy)/tol;
+  const end=((b.x-target.pb.x)*ux+(b.y-target.pb.y)*uy)/tol;
+  const va=(-(a.x-target.pa.x)*uy+(a.y-target.pa.y)*ux)/tol;
+  const vb=(-(b.x-target.pb.x)*uy+(b.y-target.pb.y)*ux)/tol;
+  if(Math.max(Math.abs(va),Math.abs(vb))<.3){
+    if(start>-.15 && end<.15 && Math.max(start,-end)>.5)return "longer";
+    if(start<.15 && end>-.15 && Math.max(-start,end)>.5)return "shorter";
+  }
+  if(Math.abs(va-vb)<.25 && Math.abs((va+vb)/2)>.5 &&
+     Math.max(Math.abs(start),Math.abs(end))<.3)return "move";
+  return "compare";
+}
+function reviewFeedback(res){
+  const delta=res.score-reviewSession.source.score,t=weakestReviewTarget();
+  const comparison=tr(`元の回答から ${delta>=0?"+":""}${delta.toFixed(2)}点（元 ${reviewSession.source.score.toFixed(2)}点）`,
+    `${delta>=0?"+":""}${delta.toFixed(2)} pts vs original (${reviewSession.source.score.toFixed(2)})`);
+  if(!t || t.score>=.95)return comparison+"　"+tr("辺はどれもよく合っています！","All the edges line up well!");
+  const advice=reviewAdvice(t,strokes,round.targets);
+  const message=advice==="longer"
+    ? tr("点線の辺は、線を少し長くして端を合わせてみよう。","Try extending your line to meet the ends of the outlined edge.")
+    : advice==="shorter"
+    ? tr("点線の辺は、はみ出した端を少し短くしてみよう。","Try shortening the overshooting end of the outlined edge.")
+    : advice==="move"
+    ? tr("点線の辺は、長さを保って線の位置を寄せてみよう。","Keep the length and move your line toward the outlined edge.")
+    : tr("点線で囲んだ辺を見比べよう。次はここを意識してみて","Compare the outlined edge — focus on that one next time");
+  return comparison+"　"+message;
+}
+$("#btnReview").addEventListener("click",e=>{e.stopPropagation();beginReview(curShotIdx);});
+$("#btnStudyReview").addEventListener("click",()=>beginReview(roundsInfo.length-1));
+$("#btnExitReview").addEventListener("click",leaveReview);
+$("#btnGhost").addEventListener("click",()=>{
+  if(!reviewSession)return;reviewSession.ghost=!reviewSession.ghost;
+  $("#btnGhost").textContent=reviewSession.ghost?tr("前の線：オン","Ghost: on"):tr("前の線：オフ","Ghost: off");render();
+});
+
 /* ---- round snapshot popup & replay ---- */
 let curShotIdx=-1, replayRaf=null, replayGen=0;
+function refreshReviewAccess(){
+  if($("#shotPopup").classList.contains("hidden"))return;
+  $("#btnReview").textContent=reviewAllowed()?tr("🎯 この1問を復習","🎯 Review this puzzle"):tr("🎯 復習は3回終了後","🎯 Review after 3 attempts");
+}
 function stopReplay(){
   replayGen++;   // img.onload待ちの再生開始も含めて無効化する（2連打で二重ループにならないように）
   if(replayRaf){ cancelAnimationFrame(replayRaf); replayRaf=null; }
@@ -4878,9 +5296,12 @@ function openShot(i){
   curShotIdx=i;
   $("#shotBig").src=info.shot;
   $("#shotCap").textContent = tr(
-    `ラウンド${i+1}${info.practice?"（れんしゅう）":""} — ${info.score.toFixed(2)}点${info.timedOut?" ⏰":""}`,
-    `Round ${i+1}${info.practice?" (practice)":""} — ${info.score.toFixed(2)} pts${info.timedOut?" ⏰":""}`);
+    `ラウンド${info.roundNo||i+1}${info.practice?"（れんしゅう）":""} — ${info.score.toFixed(2)}点${info.timedOut?" ⏰":""}`,
+    `Round ${info.roundNo||i+1}${info.practice?" (practice)":""} — ${info.score.toFixed(2)} pts${info.timedOut?" ⏰":""}`);
   $("#btnReplay").disabled = !(info.baseShot && info.strokes && info.strokes.length);
+  $("#btnReview").disabled = !info.roundTemplate;
+  $("#btnReview").textContent=reviewAllowed()?tr("🎯 この1問を復習","🎯 Review this puzzle"):tr("🎯 復習は3回終了後","🎯 Review after 3 attempts");
+  $("#btnShareShot").classList.toggle("hidden",isDaily);
   $("#shotPopup").classList.remove("hidden");
 }
 function startReplay(i){
@@ -4997,19 +5418,8 @@ async function rankFetch(path, opts){
   }catch(_){}
 })();
 
-/* ランキングの集計単位: 通常プレイ=モード別 / デイリー=その日 / シード戦・変化球セレクト=対象外。
-   チャレンジだけは単位が「点」ではなく「ラウンド数」なので、盤の接頭辞から分ける
-   （mode: の盤を点スケール前提で集計している既存SQLを汚さないため） */
-/* ★採点世代。採点式やお題生成を変えたら必ず上げること。
-   上げないと、旧採点で付いたスコアと新採点のスコアが同じ板で比較されてしまう
-   （1.26〜1.27の採点変更では、同じ描き方で点がずれるため旧板と分離する）。
-   ★g世代を使うには Supabase 側の p_board 正規表現に @g数字 を許可するSQL(v1.07)が必要。
-   先にクライアントを配ると全員「送信に失敗しました」になる。 */
-const SCORE_GEN="g3";
-const boardKey = () => isDaily ? `daily:${dailyDate||todaySeedStr()}@${SCORE_GEN}`
-  // れんしゅうは時間無制限なので、時間つきモードと同じ板には載せられない
-  : (seededRun || twistSelRun || studyRun) ? null
-  : endlessRun ? `rounds:endless@${SCORE_GEN}` : `mode:${mode}@${SCORE_GEN}`;
+/* 簡易ランキングはDaily/g4のみ。旧世代とは別の窓口・盤を使用する。 */
+const boardKey = () => isDaily && !reviewSession ? `daily:${dailyDate||todaySeedStr()}@${SCORE_GEN}` : null;
 /* 端末ごとの匿名プレイヤーID（同一ブラウザ=同一プレイヤーとしてベスト1行を維持） */
 function playerId(){
   let id=null;
@@ -5021,36 +5431,9 @@ function playerId(){
   }
   return id;
 }
-async function rankCount(board, q){
-  const r=await rankFetch(`scores?select=id&board=eq.${encodeURIComponent(board)}${q||""}&limit=1`,
-    {headers:{Prefer:"count=exact"}});
-  return parseInt((r.headers.get("content-range")||"//0").split("/")[1],10)||0;
-}
-/* 名前を書かなかった人には、画家の名前をパロディにしたランダム名を進呈する。
-   前置き×画家×後置きの組み合わせで数千通り。DB側の上限に合わせて12文字以内に収める。 */
-const PAINTER_STEMS=["ピカソ","ゴッホ","モネ","マネ","ダリ","ミロ","ムンク","クリムト","セザンヌ",
-  "ルノワール","ゴーギャン","マティス","シャガール","フェルメール","レンブラント","ラファエロ",
-  "ミケランジェロ","ターナー","クールベ","スーラ","ロートレック","エッシャー","ボッシュ","ブリューゲル",
-  "ホクサイ","写楽","雪舟","若冲","光琳","大観","蕪村","歌麿","広重","国芳","応挙","鉄斎","ゴヤ","エル・グレコ"];
-const NAME_PRE=["","","","","","ニセ","自称","元","明日の","令和の","未来の","本日の","深夜の","負けない"];
-const NAME_SUF=["","","","二世","三世","Jr.","風","もどき","見習い","先生","くん","ちゃん","さん",
-  "太郎","次郎","ぽい","たぶん","部長","参上","の弟子","の孫","未満","級","気分","目指す","かもしれない"];
-const PAINTER_EN=["Picassoish","Van Gogh Jr","Monet-ish","Dali 2nd","Miro-like","Munch Jr",
-  "Klimtish","Cezanne-y","Renoirish","Matissey","Chagalish","Vermeerio","Turnerish","Seurat Jr",
-  "Escherish","Hokusai Jr","Goyaish","Boschy","Manet-ish","Rubensy"];
-const _pick = a => a[Math.floor(Math.random()*a.length)];
-function randomPainterName(){
-  if(!JA){
-    for(let i=0;i<30;i++){ const n=_pick(PAINTER_EN); if(n.length<=12) return n; }
-    return "Painter";
-  }
-  for(let i=0;i<50;i++){
-    const n=_pick(NAME_PRE)+_pick(PAINTER_STEMS)+_pick(NAME_SUF);
-    if(n.length>=1 && n.length<=12) return n;
-  }
-  return _pick(PAINTER_STEMS).slice(0,12);
-}
+var CubeRandomNames=(()=>{var i=Object.defineProperty;var f=Object.getOwnPropertyDescriptor;var S=Object.getOwnPropertyNames;var m=Object.prototype.hasOwnProperty;var y=(o,e)=>{for(var t in e)i(o,t,{get:e[t],enumerable:!0})},g=(o,e,t,n)=>{if(e&&typeof e=="object"||typeof e=="function")for(let a of S(e))!m.call(o,a)&&a!==t&&i(o,a,{get:()=>e[a],enumerable:!(n=f(e,a))||n.enumerable});return o};var p=o=>g(i({},"__esModule",{value:!0}),o);var x={};y(x,{friendlyNamePool:()=>h,makeFriendlyName:()=>P});var M=["\u7A7A\u8272","\u6708\u591C\u306E","\u671D\u306E","\u591C\u306E","\u5922\u306E","\u65C5\u3059\u308B","\u5C0F\u3055\u306A","\u6C17\u307E\u307E\u306A","\u967D\u6C17\u306A","\u9759\u304B\u306A","\u6625\u306E","\u590F\u306E","\u79CB\u306E","\u51AC\u306E","\u8679\u8272","\u661F\u306E","\u68EE\u306E","\u6D77\u306E","\u5C71\u306E","\u98A8\u306E","\u96F2\u306E","\u96EA\u306E","\u82B1\u306E","\u8C46\u306E","\u9280\u306E","\u91D1\u306E","\u6843\u8272","\u6C34\u8272","\u82E5\u8449\u306E","\u9060\u304F\u306E","\u96A3\u306E","\u672A\u6765\u306E"],d=["\u30D4\u30AB\u30BD","\u30B4\u30C3\u30DB","\u30E2\u30CD","\u30DE\u30CD","\u30C0\u30EA","\u30DF\u30ED","\u30E0\u30F3\u30AF","\u30AF\u30EA\u30E0\u30C8","\u30BB\u30B6\u30F3\u30CC","\u30EB\u30CE\u30EF\u30FC\u30EB","\u30B4\u30FC\u30AE\u30E3\u30F3","\u30DE\u30C6\u30A3\u30B9","\u30B7\u30E3\u30AC\u30FC\u30EB","\u30BF\u30FC\u30CA\u30FC","\u30AF\u30FC\u30EB\u30D9","\u30B9\u30FC\u30E9","\u30DC\u30C3\u30B7\u30E5","\u30DB\u30AF\u30B5\u30A4","\u5199\u697D","\u96EA\u821F","\u82E5\u51B2","\u5149\u7433","\u5927\u89B3","\u856A\u6751","\u6B4C\u9EBF","\u5E83\u91CD","\u56FD\u82B3","\u5FDC\u6319","\u9244\u658E","\u30B4\u30E4","\u30AF\u30EC\u30FC","\u30E2\u30E9\u30F3\u30C7\u30A3"],A=["Neo","Mini","Lil","Sky","Sun","Sea","Zen","Ink","Tiny","Soft","Bold","Fast","Blue","Red","Gold","New","Old","Star","My","Go","Dr","Mr","Ms","Art","Fun","Big","Icy","Shy","Hot","Cool","Pop","Joy"],R=["Miro","Dali","Klee","Goya","Monet","Manet","Munch","Klimt","Kahlo","Gogh","Hokusai","Renoir","Degas","Seurat","Turner","Escher","Bosch","Soga","Korin","Sotatsu","Utamaro","Gauguin","Raphael","Picasso","Cezanne","Wyeth","Rothko","Matisse","Hiroshige","Hopper","Kano","Okyo"];function u(o){let e=o?M:A,t=o?d:R;return[...new Set(e.flatMap(n=>t.map(a=>n+a)).filter(n=>n.length<=7))]}var k={ja:u(!0),en:u(!1)};function c(o){if(globalThis.crypto?.getRandomValues){let e=new Uint32Array(1),t=4294967296-4294967296%o;do globalThis.crypto.getRandomValues(e);while(e[0]>=t);return e[0]%o}return Math.floor(Math.random()*o)}var I=["\u7A7A\u8272","\u6708\u591C\u306E","\u671D\u306E","\u591C\u306E","\u5922\u306E","\u65C5\u3059\u308B","\u5C0F\u3055\u306A","\u6C17\u307E\u307E\u306A","\u967D\u6C17\u306A","\u9759\u304B\u306A","\u6625\u306E","\u590F\u306E","\u79CB\u306E","\u51AC\u306E","\u8679\u8272","\u661F\u306E","\u68EE\u306E","\u6D77\u306E","\u5C71\u306E","\u98A8\u306E","\u96F2\u306E","\u96EA\u306E","\u82B1\u306E","\u8C46\u306E","\u9280\u306E","\u91D1\u306E","\u6843\u8272","\u6C34\u8272","\u82E5\u8449\u306E","\u9060\u304F\u306E","\u96A3\u306E","\u672A\u6765\u306E","\u306E\u3093\u3073\u308A","\u304A\u663C\u306E","\u5915\u713C\u3051","\u7720\u305F\u3044","\u307B\u307B\u3048\u3080","\u304A\u3084\u3064\u306E","\u96E8\u306E\u65E5\u306E","\u6728\u9670\u306E"],N=["\u30D4\u30AB\u30BD","\u30B4\u30C3\u30DB","\u30E2\u30CD","\u30DE\u30CD","\u30C0\u30EA","\u30DF\u30ED","\u30E0\u30F3\u30AF","\u30AF\u30EA\u30E0\u30C8","\u30BB\u30B6\u30F3\u30CC","\u30EB\u30CE\u30EF\u30FC\u30EB","\u30B4\u30FC\u30AE\u30E3\u30F3","\u30DE\u30C6\u30A3\u30B9","\u30B7\u30E3\u30AC\u30FC\u30EB","\u30BF\u30FC\u30CA\u30FC","\u30AF\u30FC\u30EB\u30D9","\u30B9\u30FC\u30E9","\u30DC\u30C3\u30B7\u30E5","\u30DB\u30AF\u30B5\u30A4","\u5199\u697D","\u96EA\u821F","\u82E5\u51B2","\u5149\u7433","\u5927\u89B3","\u856A\u6751","\u6B4C\u9EBF","\u5E83\u91CD","\u56FD\u82B3","\u5FDC\u6319","\u9244\u658E","\u30B4\u30E4","\u30AF\u30EC\u30FC","\u30E2\u30E9\u30F3\u30C7\u30A3"],T=["\u898B\u7FD2\u3044","\u3082\u3069\u304D","\u753B\u4F2F","\u5148\u751F","\u3055\u3093","\u304F\u3093","\u3061\u3083\u3093","\u5148\u8F29","\u5F8C\u8F29","\u5E2B\u5320","\u306E\u5F1F\u5B50","\u306E\u76F8\u68D2","\u306E\u53CB\u3060\u3061","\u306E\u305F\u307E\u3054","\u306E\u4F11\u65E5","\u306E\u6563\u6B69","\u306E\u5DE5\u623F","\u306E\u30A2\u30C8\u30EA\u30A8","\u306E\u7B46","\u306E\u7D75\u65E5\u8A18","\u306E\u843D\u66F8\u304D","\u306E\u30B9\u30B1\u30C3\u30C1","\u306E\u5922","\u306E\u65C5"],B=["Neo","Mini","Lil","Sky","Sun","Sea","Zen","Ink","Tiny","Soft","Bold","Blue","Red","Gold","New","Star","My","Go","Dr","Mr","Ms","Art","Fun","Big","Icy","Shy","Cool","Pop","Joy","Cozy","Sleepy","Happy","Dream","Moon","Snow","Cloud","Misty","Mellow","Sunny","Quiet"],E=["Miro","Dali","Klee","Goya","Monet","Manet","Munch","Klimt","Kahlo","Gogh","Hokusai","Renoir","Degas","Seurat","Turner","Escher","Bosch","Soga","Korin","Sotatsu","Utamaro","Gauguin","Raphael","Picasso","Cezanne","Wyeth","Rothko","Matisse","Hiroshige","Hopper","Kano","Okyo"],F=["Jr","Fan","Pal","Kid","Cub","Muse","Brush","Sketch","Ink","Pen","Art","Bean","Buddy","Pupil","Pixie","Sprite","Studio","Club","Dream","Doodle","Bun","Cat","Fox","Owl"],l=new Map;function h(o){if(!l.has(o)){let e=new Set;for(let t of o?I:B)for(let n of o?N:E)for(let a of o?T:F){if(!o&&t==="Sun"&&n==="Korin")continue;let r=t+n+a;r.length<=12&&e.add(r)}l.set(o,Object.freeze([...e]))}return l.get(o)}function P(o,{pick:e=c,reject:t=()=>!1}={}){let n=h(o);for(let r=0;r<64;r++){let s=n[e(n.length)];if(!t(s))return s}let a=e(n.length);for(let r=0;r<n.length;r++){let s=n[(a+r)%n.length];if(!t(s))return s}throw Error("No acceptable nickname")}return p(x);})();
 
+function randomPainterName(){return CubeRandomNames.makeFriendlyName(JA,{reject:isNgName});}
 /* ランキングは誰にでも見える場所なので、明らかに不適切な名前は登録させない */
 /* 追加時の注意: ここは部分一致なので、短い語を足すと普通の名前を巻き込む。
    足したら必ずNG_SAFEに誤爆する実在の語を書くこと（sex→Essex、anal→analog など）。
@@ -5088,83 +5471,39 @@ function mainInput(){
 const INPUT_ICON={pen:"🖊",mouse:"🖱",touch:"👆"};
 const inputLabel=k=>({pen:tr("ペン","Pen"),mouse:tr("マウス","Mouse"),touch:tr("指","Touch")})[k]||"";
 
+// Embedded in the game closure by build-light.mjs; intentionally no score/auth fallback.
 async function submitScore(){
-  if($("#btnRankSubmit").disabled) return;  // 送信中のEnter連打・多重呼び出しを無視
-  if(!lastFinal) return;
-  const board=boardKey(); if(!board) return;
-  const name=((($("#rankName").value)||"").trim()||randomPainterName()).slice(0,12);
-  $("#rankName").value=name;      // 自動生成された名前を本人にも見せる
-  if(isNgName(name)){
-    toast(tr("その名前は登録できません…べつの名前にしてね","That name can't be used — please pick another"));
-    return;
-  }
-  try{ localStorage.setItem("cube-challenge-name",name); }catch(_){}
-  $("#btnRankSubmit").disabled=true;
-  $("#rankResult").textContent=tr("そうしんちゅう…","Submitting…");
-  try{
-    // 同一プレイヤー(端末ID)はベストスコアで1行を上書き（RPC経由のみ）。
-    // 旧方式の直接INSERTはサーバ側のRLSで封鎖済みなのでフォールバックは持たない。
-    /* チャレンジは「生き延びたラウンド数」が成績。ただし値の種類が十数個しかなく
-       素の整数だと同着だらけで、TOP10が最初に到達した10人で固定されてしまう。
-       小数部に「生き延びた回の平均点/100」を入れて同着を崩す
-       （降順ソートでラウンド数が必ず優先され、同ラウンドなら内容の良い方が上）。 */
-    /* 小数部は「整数部へ繰り上がらない」ことが絶対条件。
-       avgAlive=100.00（満点を続けた人）で 0.9999→四捨五入で 1.00 になり、
-       1ラウンドが2ラウンドとして登録されるバグを実測で踏んだ。
-       整数点に切り捨てて 0.99 を上限にする（同着崩しの精度は1点刻みで十分） */
-    const sendVal = lastFinal.endless
-      ? lastFinal.survived + Math.floor(Math.min(99, lastFinal.avgAlive))/100
-      : lastFinal.avg;
-    let stored=sendVal;
-    const base={p_pid:playerId(), p_name:name, p_board:board, p_score:sendVal};
-    const inp=mainInput();
-    let r=await rankFetch("rpc/submit_score",{method:"POST",
-      body:JSON.stringify(inp?{...base, p_input:inp}:base)});
-    // 入力デバイス列がまだ無いサーバーでは引数が合わず404になる。その場合は旧形式で送り直す
-    // （SQLとクライアントのどちらを先に更新しても壊れないようにするため）
-    if(r.status===404 && inp){
-      r=await rankFetch("rpc/submit_score",{method:"POST",body:JSON.stringify(base)});
-    }
-    if(r.ok){
-      try{ const v=await r.json(); if(typeof v==="number") stored=v; }catch(_){}
-    }
-    if(!r.ok) throw new Error("post "+r.status);
-    const higher=await rankCount(board,"&score=gt."+stored);
-    const total=await rankCount(board,"");
-    // input列がまだ無いサーバーだと400が返るので、その場合は列なしで取り直す
-    let top=[];
-    let tr1=await rankFetch(
-      `scores?select=name,score,input&board=eq.${encodeURIComponent(board)}&order=score.desc,created_at.asc&limit=10`);
-    if(!tr1.ok) tr1=await rankFetch(
-      `scores?select=name,score&board=eq.${encodeURIComponent(board)}&order=score.desc,created_at.asc&limit=10`);
-    try{ top=await tr1.json(); }catch(_){ top=[]; }
-    const esc=s=>String(s).replace(/[<>&]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]));
-    // 盤の単位で表示を変える（ラウンド盤は整数部だけ見せる。小数部は同着崩し用の内部値）
-    const fmt = v => lastFinal.endless
-      ? tr(`${Math.floor(+v)}ラウンド`,`${Math.floor(+v)} rounds`) : (+v).toFixed(2);
-    const rows=top.map((e,i)=>{
-      const ic=INPUT_ICON[e.input]||"";
-      return `<div class="rrow${e.name===name&&Math.abs(e.score-stored)<0.005?" me":""}">`+
-        `<span>${i+1}. ${esc(e.name)}${ic?` <span class="rin" title="${inputLabel(e.input)}">${ic}</span>`:""}</span>`+
-        `<span>${fmt(e.score)}</span></div>`;
-    }).join("");
-    // TOP10がどの入力デバイスで占められているか（追加の通信は発生しない）
-    const mix={};
-    top.forEach(e=>{ if(INPUT_ICON[e.input]) mix[e.input]=(mix[e.input]||0)+1; });
-    const mixTxt=Object.keys(mix).length
-      ? `<div class="rmix">${tr("上位10人","Top 10")}: ` +
-        ["pen","mouse","touch"].filter(k=>mix[k]).map(k=>`${INPUT_ICON[k]}${mix[k]}`).join("　") + `</div>`
-      : "";
-    const bestNote = stored>sendVal+0.004
-      ? `<div style="font-size:12px;color:#9a8090;">${tr(`じこベスト ${fmt(stored)}でとうろく中`,`Your best ${fmt(stored)} stays on the board`)}</div>` : "";
-    $("#rankResult").innerHTML=
-      `<div class="big">🏅 ${tr(`${total}人中 ${higher+1}位！`,`Rank ${higher+1} of ${total}!`)}</div>${bestNote}${rows}${mixTxt}`;
-    $("#rankEntry").classList.add("hidden");
-  }catch(_){
-    $("#rankResult").textContent=tr("送信に失敗しました…（通信環境を確認してね）","Submission failed… (check your connection)");
-    $("#btnRankSubmit").disabled=false;
-  }
+ if($('#btnRankSubmit').disabled||!lastFinal||!isDaily||!!reviewSession)return;
+ const submittedFinal=lastFinal;
+ const relevant=()=>lastFinal===submittedFinal||reviewSession?.parent.lastFinal===submittedFinal;
+ const name=(($('#rankName').value||'').trim()||randomPainterName()).slice(0,12);
+ if(isNgName(name)){toast(tr('その名前は使えません。別の名前にしてください。','Please choose another name.'));return;}
+ $('#rankName').value=name;
+ $('#btnRankSubmit').disabled=true;$('#rankResult').textContent=tr('送信中…','Submitting…');
+ try{
+  const r=await rankFetch('rpc/submit_score_light_g4',{method:'POST',body:JSON.stringify({p_pid:playerId(),p_name:name,p_board:boardKey(),p_score:submittedFinal.avg,p_input:mainInput()})});
+  const data=await r.json();if(!r.ok)throw Error(data.message||'connection_failed');
+  if(!['saved','existing'].includes(data.status)||!Number.isFinite(Number(data.score)))throw Error('connection_failed');
+  if(!relevant())return;
+  try{localStorage.setItem('cube-challenge-name',name);}catch{}
+  $('#rankResult').textContent=tr(`掲載しました。自己ベスト ${Number(data.score).toFixed(2)}点`,`Posted. Your best: ${Number(data.score).toFixed(2)}`);
+  $('#rankEntry').classList.add('hidden');
+ }catch(e){
+  if(!relevant())return;
+  const messages={ranking_paused:['ランキング受付は停止中です。得点は端末に残っています。','Rankings are paused. Your local score is kept.'],
+   duplicate_recent:['同じ名前・同じ点数の記録が直近10分以内にあります。重複掲載を見合わせました。得点は変わりません。','A matching name and score was posted in the last 10 minutes. Not posted again; your score is unchanged.'],
+   name_rate_limited:['同じ名前の投稿が集中しています。少し時間をおいてください。','Many posts use this name. Please wait before retrying.'],
+   score_review_required:['100点は自動掲載の対象外です。得点は変更していません。掲載については作者にご相談ください。','100-point results require review. Your score is unchanged; contact the author about publication.'],
+   daily_limit:['この端末の今日の掲載更新は3回までです。得点は端末に残っています。','Up to 3 score updates per browser per day. Your local score is kept.'],
+   rate_limited:['送信が続いています。10秒ほど待って再試行してください。','Please wait about 10 seconds before retrying.'],
+   invalid_board:['このお題のランキング受付は終了しています。','Submissions for this challenge are closed.'],
+   invalid_name:['名前を確認してください（12文字まで）。','Please check your name (up to 12 characters).'],
+   record_unavailable:['この記録は掲載できません。','This record cannot be posted.']};
+  const message=messages[e.message]||['掲載結果を確認できませんでした。同じ内容で再試行できます。','Could not confirm publication. Retry with the same details.'];
+  $('#rankResult').textContent=tr(...message);$('#btnRankSubmit').disabled=false;
+ }
 }
+
 $("#btnRankSubmit").addEventListener("click",submitScore);
 $("#rankName").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); e.stopPropagation(); submitScore(); } });
 
@@ -5175,14 +5514,31 @@ const loadImg = src => new Promise(res=>{
   im.onload=()=>res(im); im.onerror=()=>res(null);
   im.src=src;
 });
-function drawCover(g,im,x,y,w,h,r){
+function roundShareBounds(r, ss, scale, width, height){
+  const ps=r.cubes.flatMap(c=>c.P).concat(r.targets.flatMap(t=>t.pts||[t.pa,t.pb]));
+  let l=Math.min(...ps.map(p=>p.x)),right=Math.max(...ps.map(p=>p.x));
+  let top=Math.min(...ps.map(p=>p.y)),bottom=Math.max(...ps.map(p=>p.y));
+  const extent=Math.max(right-l,bottom-top,30), margin=extent*.16;
+  // 遠い作図線で立方体が豆粒になるのを防ぎ、近くの描き損じはそのまま残す。
+  for(const s of ss) for(const p of s.pts){
+    if(p.x<l-extent*.5||p.x>right+extent*.5||p.y<top-extent*.5||p.y>bottom+extent*.5)continue;
+    ps.push(p);
+  }
+  l=Math.max(0,(Math.min(...ps.map(p=>p.x))-margin)*scale);
+  top=Math.max(0,(Math.min(...ps.map(p=>p.y))-margin)*scale);
+  right=Math.min(width,(Math.max(...ps.map(p=>p.x))+margin)*scale);
+  bottom=Math.min(height,(Math.max(...ps.map(p=>p.y))+margin)*scale);
+  return {x:l,y:top,w:Math.max(1,right-l),h:Math.max(1,bottom-top)};
+}
+function drawCover(g,im,x,y,w,h,r,bounds){
   g.save(); g.beginPath();
   if(g.roundRect) g.roundRect(x,y,w,h,r); else g.rect(x,y,w,h);
   g.fillStyle="#fff"; g.fill(); g.clip();
   if(im){
-    const s=Math.max(w/im.width, h/im.height);
-    const dw=im.width*s, dh=im.height*s;
-    g.drawImage(im, x+(w-dw)/2, y+(h-dh)/2, dw, dh);
+    const b=bounds||{x:0,y:0,w:im.width,h:im.height};
+    // coverではなくcontain。縦画面の絵も全体を同じ比率で収める。
+    const s=Math.min(w/b.w,h/b.h),dw=b.w*s,dh=b.h*s;
+    g.drawImage(im,b.x,b.y,b.w,b.h,x+(w-dw)/2,y+(h-dh)/2,dw,dh);
   }
   g.restore();
   g.strokeStyle="#ffd9e8"; g.lineWidth=3;
@@ -5191,6 +5547,8 @@ function drawCover(g,im,x,y,w,h,r){
   g.stroke();
 }
 async function buildShareCard(){
+  if(isDaily) return buildDailyShareCard();
+  if($("#shareKind").value==="drawing") return buildDrawingShareCard();
   const Wc=1200, Hc=675, M=48, F="'Segoe UI','Yu Gothic UI',sans-serif";
   const c=document.createElement("canvas"); c.width=Wc; c.height=Hc;
   const g=c.getContext("2d");
@@ -5228,9 +5586,9 @@ async function buildShareCard(){
   shown.forEach((c,k)=>{
     const info=c.info;
     const x=M+(k%cols)*(gw+14), y=162+Math.floor(k/cols)*(gh+44);
-    drawCover(g,imgs[k],x,y,gw,gh,10);
+    drawCover(g,imgs[k],x,y,gw,gh,10,info.shareBounds);
     g.textAlign="center"; g.fillStyle=info.practice?"#b3a08a":"#8a6f80"; g.font="700 19px "+F;
-    g.fillText(info.practice?`R${c.i+1} 🌱`:`R${c.i+1}  ${info.score.toFixed(2)}`, x+gw/2, y+gh+28);
+    g.fillText(info.practice?`R${info.roundNo||c.i+1} 🌱`:`R${info.roundNo||c.i+1}  ${info.score.toFixed(2)}`, x+gw/2, y+gh+28);
   });
   g.textAlign="center"; g.fillStyle="#54455a"; g.font="800 34px "+F;
   const sp=(lastFinal.specials||[]);
@@ -5255,31 +5613,153 @@ async function buildShareCard(){
   }
   return c.toDataURL("image/png");
 }
+function shareCanvas(){
+  const c=document.createElement("canvas");c.width=1200;c.height=675;
+  const g=c.getContext("2d");g.fillStyle="#fff9f3";g.fillRect(0,0,1200,675);
+  return {c,g,F:"'Segoe UI','Yu Gothic UI',sans-serif"};
+}
+function buildDailyShareCard(){
+  const {c,g,F}=shareCanvas();
+  g.fillStyle="#54455a";g.font="800 42px "+F;g.fillText(tr("立方体チャレンジ","Cube Challenge"),55,76);
+  g.fillStyle="#8a6f80";g.font="700 28px "+F;
+  g.fillText(dailyDate===todaySeedStr()
+    ? tr("きょうの6問、あなたは何点？","Six daily puzzles. What's your score?")
+    : tr("この日の6問の結果","Results for this day's six puzzles"),55,124);
+  g.textAlign="right";g.fillText(dailyDate.replace("daily-",""),1145,75);
+  g.fillStyle="#54455a";g.font="800 82px "+F;g.fillText(lastFinal.avg.toFixed(2)+tr("点"," pts"),1145,169);
+  const rows=roundsInfo.filter(i=>!i.practice);
+  rows.forEach((info,i)=>{
+    const x=70+i*180,y=245,grade=gradeOf(info.score);
+    g.fillStyle=gradeColor(grade);g.beginPath();g.roundRect(x,y,160,156,22);g.fill();
+    g.textAlign="center";g.fillStyle="#54455a";g.font="800 68px "+F;g.fillText(grade,x+80,y+86);
+    g.font="700 25px "+F;g.fillText(info.score.toFixed(2),x+80,y+127);
+    g.fillStyle="#9a8090";g.font="700 22px "+F;g.fillText(`${i+1} / 6`,x+80,y+190);
+  });
+  g.textAlign="center";g.fillStyle="#54455a";g.font="800 34px "+F;
+  g.fillText(`${lastFinal.ttl.emoji} ${lastFinal.ttl.name}`,600,508);
+  g.font="700 24px "+F;g.fillStyle="#8a6f80";
+  g.fillText(tr("みんな同じお題 · 毎日0:00更新（日本時間）","Same puzzles for everyone · Resets at 00:00 JST"),600,560);
+  g.textAlign="left";g.fillStyle="#e86f9e";g.font="800 26px "+F;g.fillText(tr("#立方体チャレンジ","#CubeChallenge"),55,630);
+  g.textAlign="right";g.fillStyle="#9a8090";g.font="600 20px "+F;g.fillText(`v${GAME_VER} · ${SCORE_GEN} · No spoilers`,1145,630);
+  return c.toDataURL("image/png");
+}
+async function buildDrawingShareCard(){
+  const info=roundsInfo[+$("#shareRound").value];
+  if(!info) throw new Error("missing selected round");
+  const {c,g,F}=shareCanvas(),answer=$("#shareAnswer").checked;
+  const im=await loadImg(answer?info.shot:info.drawingShot||info.shot);
+  drawCover(g,im,580,48,565,565,24,info.shareBounds);
+  if(info.roundTemplate && info.shareBounds) drawVectorShare(g,info,580,48,565,565,answer);
+  g.textAlign="left";g.fillStyle="#e86f9e";g.font="800 27px "+F;
+  g.fillText(tr("1つの面から、ここまで描けた。","One face. The rest is up to you."),48,92);
+  g.fillStyle="#54455a";g.font="800 43px "+F;g.fillText(tr("立方体チャレンジ","Cube Challenge"),48,163);
+  g.fillStyle=gradeColor(gradeOf(info.score));g.font="800 115px "+F;
+  g.fillText(gradeOf(info.score),48,310);
+  g.fillStyle="#54455a";g.font="800 64px "+F;g.fillText(info.score.toFixed(2)+tr("点"," pts"),160,307);
+  g.fillStyle="#8a6f80";g.font="700 25px "+F;
+  g.fillText(tr(`ラウンド ${info.roundNo} の1枚`,`One drawing · Round ${info.roundNo}`),48,370);
+  g.font="600 23px "+F;g.fillText(tr("あなたなら、どう描く？","How would you draw it?"),48,445);
+  g.fillText(answer?tr("正解を重ねて表示","Answer overlay shown"):tr("描いた線をそのまま表示","Your drawing, as drawn"),48,487);
+  g.fillStyle="#e86f9e";g.font="800 25px "+F;g.fillText(tr("#立方体チャレンジ","#CubeChallenge"),48,605);
+  g.textAlign="right";g.fillStyle="#9a8090";g.font="600 17px "+F;g.fillText(`v${GAME_VER} · ${SCORE_GEN}`,1145,650);
+  return c.toDataURL("image/png");
+}
+/* スマホの小さなスクリーンショットを拡大せず、保存済みの同じ座標から清書する。
+   入力点の補正・直線化はしない。カード内で拡大しても本人の線のまま。 */
+function drawVectorShare(g,info,x,y,w,h,answer){
+  const r=info.roundTemplate,b=info.shareBounds,k0=info.shotScale||1;
+  const box={x:b.x/k0,y:b.y/k0,w:b.w/k0,h:b.h/k0};
+  const k=Math.min(w/box.w,h/box.h);
+  g.save();g.beginPath();g.roundRect(x+2,y+2,w-4,h-4,22);g.clip();
+  g.fillStyle="#fff9f3";g.fillRect(x,y,w,h);
+  g.translate(x+(w-box.w*k)/2-box.x*k,y+(h-box.h*k)/2-box.y*k);g.scale(k,k);
+  g.lineCap="round";g.lineJoin="round";
+  const path=pts=>{g.beginPath();pts.forEach((p,i)=>i?g.lineTo(p.x,p.y):g.moveTo(p.x,p.y));};
+  if(answer){
+    g.strokeStyle="rgba(140,120,140,.25)";g.lineWidth=1.3;g.setLineDash([4,6]);
+    for(const c of r.cubes) for(const e of c.edges||[]) if(!e.visible){path([c.P[e.a],c.P[e.b]]);g.stroke();}
+    if(r.crossHidden)for(const s of r.crossHidden){path([s.pa,s.pb]);g.stroke();}
+    for(const t of r.targets){
+      g.setLineDash(t.hidden?[7,7]:[]);g.lineWidth=3;
+      g.strokeStyle=t.score>=.78?"#4fbf7f":t.score>=.45?"#f0a24f":"#ef6e8a";
+      path(t.pts||[t.pa,t.pb]);g.stroke();
+    }
+  }
+  g.setLineDash([]);
+  if(!r.noCube)for(const c of r.cubes){
+    path(CUBE_FACES[c.shown].idx.map(i=>c.P[i]));g.closePath();
+    g.fillStyle="rgba(255,143,183,.13)";g.fill();g.strokeStyle="#54455a";g.lineWidth=3;g.stroke();
+  }
+  if(r.hintLines)r.hintLines.forEach((hl,i)=>{
+    path(hl);if(r.noCube&&i===0){g.closePath();g.fillStyle="rgba(255,143,183,.13)";g.fill();}
+    g.strokeStyle="#54455a";g.lineWidth=r.noCube?3:2.5;g.stroke();
+  });
+  const m=r.scoreLayout,logical=info.coordSpace==="camera-1000";
+  const xy=p=>logical?{...p,x:m.cx+(p.x-CAMERA_STAGE/2)*m.k,y:m.cy+(p.y-CAMERA_STAGE/2)*m.k,w:(p.w||3)*m.k}:p;
+  g.strokeStyle="#5f6fd6";g.fillStyle="#5f6fd6";g.globalAlpha=answer?.4:1;
+  for(const s of info.strokes){
+    const ps=s.pts.map(xy);
+    if(ps.length===1){g.beginPath();g.arc(ps[0].x,ps[0].y,(ps[0].w||3)/2,0,Math.PI*2);g.fill();}
+    for(let i=1;i<ps.length;i++){g.lineWidth=((ps[i-1].w||3)+(ps[i].w||3))/2;path([ps[i-1],ps[i]]);g.stroke();}
+  }
+  g.restore();
+}
 function buildShareText(){
   const base = PUBLIC_URL || (location.protocol.startsWith("http") ? location.origin+location.pathname : "");
   const link = !base
     ? ""
     : base.includes("itch.io")
-    ? (isDaily ? tr(` きょうのチャレンジに挑戦→ ${base}`,` Try today's challenge → ${base}`)
+    ? (isDaily ? tr(` きょうのチャレンジに挑戦→ ${base} 開いたら「📅 きょうのチャレンジ」を選んでね。`,` Try today's challenge → ${base} Choose “📅 Daily Challenge” in the game.`)
                : tr(` あそんでみて→ ${base}`,` Play it → ${base}`))
     : tr(` おなじお題に挑戦→ `,` Try the same puzzles → `)+`${base}?seed=${encodeURIComponent(gameSeed)}&mode=${mode}`;
   const sp2=(lastFinal.specials||[]).slice(0,2);   // 投稿文は2つまで
   const spTxt=sp2.map(s=>`＋「${s.name}」`).join("");
   const spEn =sp2.map(s=>` + "${s.name}"`).join("");
+  const dailyLabel=dailyDate===todaySeedStr()?tr("きょうのチャレンジ","Daily")
+    : tr(`${dailyDate.replace("daily-","")}のデイリー`,`Daily ${dailyDate.replace("daily-","")}`);
+  if(!isDaily && $("#shareKind").value==="drawing"){
+    const info=roundsInfo[+$("#shareRound").value];
+    return tr(`1つの面から、ここまで描けた。立方体チャレンジ R${info.roundNo}：${info.score.toFixed(2)}点！ あなたならどう描く？${link} #立方体チャレンジ`,
+      `One face. The rest is up to you. Cube Challenge R${info.roundNo}: ${info.score.toFixed(2)} pts! How would you draw it?${link} #CubeChallenge`);
+  }
   if(lastFinal.endless) return tr(
     `立方体チャレンジ【♾️無限モード】${lastFinal.survived}ラウンド生きのこった！（生存平均${lastFinal.avgAlive.toFixed(2)}点）${spTxt}${link} #立方体チャレンジ`,
     `Cube Challenge [♾️ Endless] — survived ${lastFinal.survived} rounds! (avg ${lastFinal.avgAlive.toFixed(2)} while alive)${spEn}${link} #CubeChallenge`);
   return tr(
-    `立方体チャレンジ（${MODES[mode].name}${isDaily?"・きょうのチャレンジ":""}）${lastFinal.avg.toFixed(2)}点・グレード${lastFinal.g} 称号「${lastFinal.ttl.name}」${spTxt}！${link} #立方体チャレンジ`,
-    `Cube Challenge (${MODES[mode].name}${isDaily?" · Daily":""}) — ${lastFinal.avg.toFixed(2)} pts, grade ${lastFinal.g}, title "${lastFinal.ttl.name}"${spEn}!${link} #CubeChallenge`);
+    `立方体チャレンジ（${MODES[mode].name}${isDaily?"・"+dailyLabel:""}）${lastFinal.avg.toFixed(2)}点・グレード${lastFinal.g} 称号「${lastFinal.ttl.name}」${spTxt}！${link} #立方体チャレンジ`,
+    `Cube Challenge (${MODES[mode].name}${isDaily?" · "+dailyLabel:""}) — ${lastFinal.avg.toFixed(2)} pts, grade ${lastFinal.g}, title "${lastFinal.ttl.name}"${spEn}!${link} #CubeChallenge`);
 }
 let lastShare=null;
+let shareRenderId=0;
+let nativeSharePending=false;
+function openShare(kind="summary",selected=-1){
+  if(!lastFinal)return;
+  $("#shareKind").value=isDaily?"summary":kind;
+  $("#shareKind").options[1].disabled=isDaily;
+  $("#shareAnswer").checked=false;
+  const select=$("#shareRound");select.innerHTML="";
+  roundsInfo.forEach((info,i)=>{
+    if(!info.shot)return;
+    const o=document.createElement("option");o.value=i;
+    o.textContent=`R${info.roundNo||i+1} · ${info.score.toFixed(2)}`;select.appendChild(o);
+  });
+  if(selected>=0) select.value=String(selected);
+  else{const best=roundsInfo.reduce((bi,r,i)=>r.shot&&!r.practice&&(bi<0||r.score>roundsInfo[bi].score)?i:bi,-1);if(best>=0)select.value=String(best);}
+  return shareResult();
+}
 async function shareResult(){
   if(!lastFinal) return;
+  const token=++shareRenderId;
+  const drawing=!isDaily && $("#shareKind").value==="drawing";
+  $("#shareRound").classList.toggle("hidden",!drawing);$("#shareAnswerLab").classList.toggle("hidden",!drawing);
+  lastShare=null;
+  for(const id of ["btnShareX","btnShareIg","btnShareSheet","btnShareCopy","btnShareSave"]) $("#"+id).disabled=true;
   try{
     const dataUrl=await buildShareCard();
     const blob=await (await fetch(dataUrl)).blob();
+    if(token!==shareRenderId)return;
     lastShare={dataUrl, blob, text:buildShareText()};
+    for(const id of ["btnShareX","btnShareIg","btnShareSheet","btnShareCopy","btnShareSave"]) $("#"+id).disabled=false;
     $("#sharePrev").src=dataUrl;
     // モバイル/ネイティブアプリはOSの共有シート（インスタ等に直接渡せる）ボタンを出す
     let sheet=CAP;
@@ -5297,21 +5777,27 @@ async function shareResult(){
       "𝕏は画像を自動コピーしてから投稿画面をひらくよ（Ctrl+Vで貼りつけ）",
       "For 𝕏: the image is auto-copied — press Ctrl+V in the compose window");
     $("#sharePopup").classList.remove("hidden");
-  }catch(_){ toast(tr("シェア画像の作成に失敗しました…","Couldn't build the share image…")); }
+  }catch(_){ if(token===shareRenderId)toast(tr("シェア画像の作成に失敗しました…","Couldn't build the share image…")); }
 }
-async function copyShareImage(){
-  try{ await navigator.clipboard.write([new ClipboardItem({"image/png":lastShare.blob})]); return true; }
+async function copyShareImage(share=lastShare){
+  if(!share)return false;
+  try{ await navigator.clipboard.write([new ClipboardItem({"image/png":share.blob})]); return true; }
   catch(_){ return false; }
 }
-function downloadShare(){
+function downloadShare(share=lastShare){
+  if(!share)return;
   const a=document.createElement("a");
-  a.href=lastShare.dataUrl; a.download="cube-challenge.png"; a.click();
+  a.href=share.dataUrl; a.download="cube-challenge.png"; a.click();
 }
 $("#btnShareX").addEventListener("click",async()=>{
-  if(!lastShare) return;
-  const copied=await copyShareImage();
-  if(!copied) downloadShare();
-  window.open("https://twitter.com/intent/tweet?text="+encodeURIComponent(lastShare.text),"_blank");
+  const share=lastShare,token=shareRenderId;
+  if(!share || share.posting) return;
+  share.posting=true;
+  const copied=await copyShareImage(share);
+  share.posting=false;
+  if(token!==shareRenderId || lastShare!==share)return;
+  if(!copied) downloadShare(share);
+  window.open("https://twitter.com/intent/tweet?text="+encodeURIComponent(share.text),"_blank");
   toast(copied ? tr("画像コピー済み！投稿画面で Ctrl+V で貼りつけてね📮","Image copied! Press Ctrl+V in the compose window 📮")
                : tr("画像を保存しました！投稿に添付してね📮","Image saved! Attach it to your post 📮"));
 });
@@ -5321,24 +5807,32 @@ $("#btnShareIg").addEventListener("click",()=>{
   toast(tr("画像を保存しました！Instagramアプリから投稿してね📷","Saved! Post it from the Instagram app 📷"));
 });
 $("#btnShareSheet").addEventListener("click",async()=>{
-  if(!lastShare) return;
+  const share=lastShare,token=shareRenderId;
+  if(!share) return;
   if(CAP){
+    if(nativeSharePending)return;
+    nativeSharePending=true;
     // App Store版: Capacitorプラグインでネイティブ共有（画像+テキスト）
     try{
       const {Filesystem, Share}=window.Capacitor.Plugins;
-      const b64=lastShare.dataUrl.split(",")[1];
+      const b64=share.dataUrl.split(",")[1];
       const f=await Filesystem.writeFile({path:"cube-challenge.png", data:b64, directory:"CACHE"});
-      await Share.share({text:lastShare.text, files:[f.uri]});
-    }catch(_){}
+      if(token!==shareRenderId || lastShare!==share)return;
+      await Share.share({text:share.text, files:[f.uri]});
+    }catch(_){}finally{nativeSharePending=false;}
     return;
   }
   try{
-    const f=new File([lastShare.blob],"cube-challenge.png",{type:"image/png"});
-    await navigator.share({files:[f], text:lastShare.text});
+    const f=new File([share.blob],"cube-challenge.png",{type:"image/png"});
+    await navigator.share({files:[f], text:share.text});
   }catch(_){}
 });
 $("#btnShareCopy").addEventListener("click",async()=>{
-  toast((await copyShareImage())
+  const share=lastShare,token=shareRenderId;
+  if(!share)return;
+  const copied=await copyShareImage(share);
+  if(token!==shareRenderId || lastShare!==share)return;
+  toast(copied
     ? tr("画像をコピーしました📋","Image copied 📋")
     : tr("コピーできませんでした…「ほぞん」を使ってね","Couldn't copy — use Save instead"));
 });
@@ -5347,10 +5841,15 @@ $("#btnShareSave").addEventListener("click",()=>{
   downloadShare();
   toast(tr("画像を保存しました💾","Image saved 💾"));
 });
-$("#btnShareClose").addEventListener("click",()=>$("#sharePopup").classList.add("hidden"));
-$("#sharePopup").addEventListener("click",e=>{ if(e.target.id==="sharePopup") $("#sharePopup").classList.add("hidden"); });
+function closeShare(){ shareRenderId++;lastShare=null;$("#sharePopup").classList.add("hidden"); }
+$("#btnShareClose").addEventListener("click",closeShare);
+$("#sharePopup").addEventListener("click",e=>{ if(e.target.id==="sharePopup") closeShare(); });
+for(const id of ["shareKind","shareRound","shareAnswer"]) $("#"+id).addEventListener("change",shareResult);
+$("#btnShareShot").addEventListener("click",e=>{e.stopPropagation();openShare("drawing",curShotIdx);});
 
 function toMenu(){
+  if(reviewSession){leaveReview();return;}
+  closeShare();lastFinal=null;
   stopTimer();
   hideJudgeHint();
   setState("menu");
@@ -5370,9 +5869,30 @@ function refreshMenuBest(){
   // チャレンジだけ単位がラウンド数
   $("#bestEndless").textContent = b.endless!==undefined
     ? tr(`ベスト ${b.endless}ラウンド`,`Best ${b.endless} rounds`) : "";
+  let old={};try{old=JSON.parse(localStorage.getItem(LEGACY_BEST_KEY))||{};}catch(_){}
+  $("#legacyBestLab").textContent=Object.keys(old).length
+    ? tr(`旧採点の記録は保存済み。現在は ${SCORE_GEN} のベストを表示しています。`,
+         `Earlier scoring records are kept. Bests shown use ${SCORE_GEN}.`) : "";
 }
 
 /* ================= wiring ================= */
+function openAlbum(){
+  let owned=[];try{const a=JSON.parse(localStorage.getItem(COLLECT_KEY));if(Array.isArray(a))owned=a;}catch(_){}
+  $("#albumGrid").innerHTML="";
+  for(const key of COLLECTIBLES){
+    const el=document.createElement("div");el.className="albumBadge";
+    const badge=SPECIAL_TITLES[key]||DOODLE_TITLES[key];
+    el.textContent=owned.includes(key)?`${badge.emoji} ${JA?badge.ja:badge.en}`:tr("◻ 未発見","◻ Undiscovered");
+    if(!owned.includes(key))el.style.opacity=".5";
+    $("#albumGrid").appendChild(el);
+  }
+  $("#albumPopup").classList.remove("hidden");
+}
+$("#btnAlbum").addEventListener("click",openAlbum);
+$("#collectLine").style.cursor="pointer";
+$("#collectLine").addEventListener("click",openAlbum);
+$("#btnAlbumClose").addEventListener("click",()=>$("#albumPopup").classList.add("hidden"));
+$("#albumPopup").addEventListener("click",e=>{if(e.target.id==="albumPopup")$("#albumPopup").classList.add("hidden");});
 /* ペン／指で描画中に手のひらや別の指がボタンへ触れても、判定・全消去・終了を
    実行しない。ブロック対象はそのpointerIdから生じる互換clickだけに限定する。 */
 const guardedButtonTouches=new Map();
@@ -5424,6 +5944,7 @@ $("#btnNext").addEventListener("click",next);
 $("#btnUndo").addEventListener("click",()=>undo(false));   // 引数なしで渡すとEventが真になるので包む
 $("#btnClear").addEventListener("click",clearAll);
 $("#btnMenu").addEventListener("click",()=>{
+  if(reviewSession){leaveReview();return;}
   /* デイリーは開始時に挑戦回数を使う。誤タップで退出しても回数は戻せないため、
      通常モードと違って明示確認を挟む。描画中は確認を読んでいる時間もタイマーから
      差し引かれないよう先に停止し、キャンセル時は3・2・1を挟んで再開する。 */
@@ -5446,7 +5967,7 @@ $("#btnRetry").addEventListener("click",()=>{
   if(twistSelRun) o.twist=gameTwist;
   startGame(mode, o);
 });
-$("#btnShare").addEventListener("click",shareResult);
+$("#btnShare").addEventListener("click",()=>openShare("summary"));
 $("#btnToMenu").addEventListener("click",toMenu);
 $("#finalSeed").addEventListener("click",async()=>{
   const base = PUBLIC_URL || (location.protocol.startsWith("http") ? location.origin+location.pathname : "");
@@ -5459,28 +5980,120 @@ $("#finalSeed").addEventListener("click",async()=>{
 
 /* ---- デイリーチャレンジ・シード入力・URLチャレンジ ---- */
 const DAILY_KEY="cube-challenge-daily-v1";
+const DAILY_PREFIX="cube-challenge-daily-v2:";
 /* きょうのチャレンジは1日3回まで（挑戦を始めた時点で1回消費する）。
    端末内の記録なので厳密な制限ではないが、粘り勝ちを防ぐ目安として機能する。 */
 const DAILY_MAX=3;
-function dailyRec(date){
-  const d=date||todaySeedStr();
-  let r=null; try{ r=JSON.parse(localStorage.getItem(DAILY_KEY)); }catch(_){}
-  if(!r || r.date!==d) r={date:d, score:null, tries:0};
-  if(typeof r.tries!=="number" || !(r.tries>=0)) r.tries=0;
-  if(typeof r.score!=="number") r.score=null;
-  return r;
+const dailyMemory=new Map();   // 保存が使えないブラウザーでも同じタブ内の回数は維持
+let dailyStartPending=false, dailyRefreshTimer=null, dailyFinalBestScore=null;
+function writeDailyEntry(key,value){
+  const json=JSON.stringify(value);
+  dailyMemory.set(key,json);
+  try{ localStorage.setItem(key,json); }catch(_){}
 }
-function saveDailyRec(r){ try{ localStorage.setItem(DAILY_KEY, JSON.stringify(r)); }catch(_){} }
-function dailyLeft(){ return Math.max(0, DAILY_MAX-dailyRec().tries); }
-function startDaily(){
-  const r=dailyRec();
-  if(r.tries>=DAILY_MAX){
-    toast(tr(`きょうの挑戦は${DAILY_MAX}回までです。また明日ね！`,`${DAILY_MAX} tries per day — see you tomorrow!`));
-    refreshDaily();
-    return;
+function dailyEntries(date){
+  const prefix=DAILY_PREFIX+date+":";
+  const entries=new Map();
+  dailyMemory.forEach((v,k)=>{ if(k.startsWith(prefix)) entries.set(k,v); });
+  try{
+    for(let i=0;i<localStorage.length;i++){
+      const key=localStorage.key(i);
+      if(key && key.startsWith(prefix)) entries.set(key,localStorage.getItem(key));
+    }
+  }catch(_){}
+  return entries;
+}
+function validDailyScore(value){ return typeof value==="number" && Number.isFinite(value) && value>=0 && value<=100; }
+function dailyRec(date,scoreGen=SCORE_GEN){
+  const d=date||todaySeedStr();
+  /* 旧キーは消さず、日付別に写して保存する。開始日が違うタブ同士でも上書きしない。
+     挑戦/得点を別キーへ追記するため、同日のベストと回数も read-modify-write で失わない。 */
+  let legacy=null; try{ legacy=JSON.parse(localStorage.getItem(DAILY_KEY)); }catch(_){}
+  if(legacy && /^daily-\d{4}-\d{2}-\d{2}$/.test(legacy.date)){
+    const tries=Number.isFinite(legacy.tries) ? Math.max(0,Math.floor(legacy.tries)) : 0;
+    const score=validDailyScore(legacy.score) ? legacy.score : null;
+    const legacyGen=typeof legacy.scoreGen==="string" ? legacy.scoreGen : "g3";
+    // 旧版タブから後で届いた記録も、同じキーの上書きで失わない。
+    const key=DAILY_PREFIX+legacy.date+`:legacy:${legacyGen}:${tries}:${score}`;
+    if(!dailyMemory.has(key)){
+      let saved=null; try{ saved=localStorage.getItem(key); }catch(_){}
+      if(saved===null) writeDailyEntry(key,{legacy:true,tries,score,scoreGen:legacyGen});
+    }
   }
-  r.tries++; saveDailyRec(r);
-  startGame("normal",{seed:todaySeedStr(),daily:true});
+  let baseTries=0, attempts=0, score=null;
+  dailyEntries(d).forEach(json=>{
+    let entry; try{ entry=JSON.parse(json); }catch(_){ return; }
+    if(!entry || typeof entry!=="object") return;
+    if(entry.legacy && Number.isFinite(entry.tries)) baseTries=Math.max(baseTries,Math.max(0,Math.floor(entry.tries)));
+    if(entry.attempt===1) attempts++;
+    if((entry.scoreGen||"g3")===scoreGen && validDailyScore(entry.score)) score=score===null ? entry.score : Math.max(score,entry.score);
+  });
+  return {date:d,score,tries:baseTries+attempts};
+}
+function saveDailyScore(date,score){
+  if(validDailyScore(score)) writeDailyEntry(DAILY_PREFIX+date+":score:"+SCORE_GEN+":"+score,{score,scoreGen:SCORE_GEN});
+}
+function dailyLeft(date){ return Math.max(0, DAILY_MAX-dailyRec(date).tries); }
+function reserveDailyAttempt(){
+  const date=todaySeedStr();   // ロック待機中に0時を越えたら、新しい日の問題として開始
+  if(dailyLeft(date)===0) return null;
+  const id=typeof crypto!=="undefined" && crypto.randomUUID ? crypto.randomUUID()
+    : Date.now().toString(36)+"-"+Math.random().toString(36).slice(2);
+  writeDailyEntry(DAILY_PREFIX+date+":try:"+id,{attempt:1});
+  return {date};
+}
+async function startDaily(){
+  if(dailyStartPending) return;
+  dailyStartPending=true;
+  refreshDaily();
+  try{
+    let attempt;
+    if(navigator.locks && typeof navigator.locks.request==="function"){
+      try{ attempt=await navigator.locks.request("cube-challenge-daily-start",reserveDailyAttempt); }
+      catch(_){ attempt=reserveDailyAttempt(); }
+    }else attempt=reserveDailyAttempt();
+    if(!attempt){
+      toast(tr(`きょうの挑戦は${DAILY_MAX}回までです。また明日ね！`,`${DAILY_MAX} tries per day — see you tomorrow!`));
+      return;
+    }
+    startGame("normal",{seed:attempt.date,daily:true});
+  }finally{
+    dailyStartPending=false;
+    refreshDaily();
+  }
+}
+function dailyResetText(now=Date.now()){
+  const day=24*60*60*1000;
+  const left=day-((now+9*60*60*1000)%day+day)%day;
+  const minutes=Math.ceil(left/60000), h=Math.floor(minutes/60), m=minutes%60;
+  const remaining=tr((h?`${h}時間`:"")+(m?`${m}分`:""),(h?`${h}h `:"")+(m?`${m}m`:"")).trim();
+  return tr(`毎日0:00更新（日本時間） · あと${remaining}`,`Resets daily at 00:00 JST · in ${remaining}`);
+}
+function dailyTwistPreview(seed=todaySeedStr()){
+  const date=seed.replace("daily-",""),start=Date.parse(date+"T00:00:00Z");
+  if(!Number.isFinite(start))return "";
+  const current=twistForDailySeed(seed);
+  const prefix=current?tr(`きょう：${TWISTS[current].name()} · `,`Today: ${TWISTS[current].name()} · `):"";
+  for(let days=1;days<=21;days++){
+    const next=new Date(start+days*86400000),iso=next.toISOString().slice(0,10);
+    const twist=twistForDailySeed("daily-"+iso);if(!twist)continue;
+    const label=(iso.slice(0,4)!==date.slice(0,4)?next.getUTCFullYear()+"/":"")+(next.getUTCMonth()+1)+"/"+next.getUTCDate();
+    return prefix+tr(`次の味変：${label} ${TWISTS[twist].name()}`,`Next twist: ${label} ${TWISTS[twist].name()}`);
+  }
+  return prefix;
+}
+function refreshDailyFinal(){
+  if(state!=="final" || !isDaily) return;
+  const rec=dailyRec(dailyDate), today=dailyDate===todaySeedStr(), left=dailyLeft();
+  const leftMsg=left>0 ? tr(`（${today?"":"きょうのお題は"}のこり${left}回）`,` (${left} left${today?"":" today"})`)
+    : tr("（きょうは終了）"," (done for today)");
+  const label=today ? tr("きょうのベスト","Today's best")
+    : tr(`${dailyDate.replace("daily-","")}のお題のベスト`,`Best for ${dailyDate.replace("daily-","")}`);
+  $("#finalBest").textContent = today && dailyFinalBestScore!==null && rec.score===dailyFinalBestScore
+    ? tr("🏆 きょうのベストこうしん！","🏆 New daily best!")+leftMsg
+    : `${label}：${rec.score===null?"—":rec.score.toFixed(2)}`+tr("点", " pts")+leftMsg;
+  $("#btnRetry").textContent=today ? tr("🔁 もういちど","🔁 Play again") : tr("📅 きょうのお題へ","📅 Today's challenge");
+  $("#btnRetry").style.opacity = left===0 ? .55 : 1;
 }
 function refreshDaily(){
   const rec=dailyRec(), left=Math.max(0, DAILY_MAX-rec.tries);
@@ -5489,13 +6102,23 @@ function refreshDaily(){
     ? tr(`のこり${left}回`,`${left} left`)
     : tr("きょうは終了","done for today"));
   const b=$("#btnDaily");
-  b.disabled = left===0;
+  b.disabled = left===0 || dailyStartPending;
   b.style.opacity = left===0 ? .55 : 1;
+  $("#dailyResetLab").textContent=dailyResetText();
+  $("#dailyTwistLab").textContent=dailyTwistPreview();
+  refreshDailyFinal();
+  refreshReviewAccess();
+  clearTimeout(dailyRefreshTimer);
+  if(!document.hidden) dailyRefreshTimer=setTimeout(refreshDaily,60000-Date.now()%60000+30);
 }
 /* メニューを開いたまま日付をまたぐと「きょうは終了」のまま固まるので、
-   タブ復帰・ページ復帰のたびに残り回数を引き直す */
+   分境界・タブ復帰・ページ復帰・別タブでの更新のたびに残り回数を引き直す */
 document.addEventListener("visibilitychange",()=>{ if(!document.hidden) refreshDaily(); });
 window.addEventListener("pageshow",()=>refreshDaily());
+window.addEventListener("focus",()=>refreshDaily());
+window.addEventListener("storage",e=>{
+  if(e.key===null || e.key===DAILY_KEY || e.key.startsWith(DAILY_PREFIX)) refreshDaily();
+});
 /* 言語切替ボタン（表示は「切替先」の言語名） */
 $("#btnLang").textContent = JA ? "🌐 English" : "🌐 日本語";
 $("#btnLang").addEventListener("click",()=>{
@@ -5509,8 +6132,9 @@ $("#btnLang").addEventListener("click",()=>{
 });
 
 $("#btnDaily").addEventListener("click",startDaily);
-$("#btnTwistGo").addEventListener("click",()=>$("#twistIntro").classList.add("hidden"));
-$("#twistIntro").addEventListener("click",e=>{ if(e.target.id==="twistIntro") $("#twistIntro").classList.add("hidden"); });
+function closeTwistIntro(){ $("#twistIntro").classList.add("hidden");resumeRoundTimer(); }
+$("#btnTwistGo").addEventListener("click",closeTwistIntro);
+$("#twistIntro").addEventListener("click",e=>{ if(e.target.id==="twistIntro") closeTwistIntro(); });
 $("#btnSeedPlay").addEventListener("click",()=>{
   const s=prompt(tr("シードを入力してね（配信者とおなじお題に挑戦！）\n※ノーマルモードで開始します。URLの ?seed=◯◯&mode=◯◯ でモード指定もできます",
                     "Enter a seed to play the same puzzles!\nStarts in Normal mode — use ?seed=…&mode=… in the URL for other modes"));
@@ -5548,7 +6172,7 @@ function unlockTwistSel(quiet){
 }
 if(twistSelUnlocked()) unlockTwistSel(true);
 document.querySelectorAll(".twistSelBtn").forEach(b=>
-  b.addEventListener("click",()=>startGame("normal",{twist:b.dataset.twist})));
+  b.addEventListener("click",()=>startGame("normal",{twist:b.dataset.twist,study:true})));
 const KONAMI=["arrowup","arrowup","arrowdown","arrowdown","arrowleft","arrowright","arrowleft","arrowright","b","a"];
 let konamiIdx=0;
 window.addEventListener("keydown",e=>{
@@ -5602,15 +6226,21 @@ document.addEventListener("keydown",tryUnlockAudio,true);
 window.addEventListener("keydown",e=>{
   const tag=(e.target&&e.target.tagName||"").toLowerCase();
   const typing=tag==="input"||tag==="textarea"||tag==="select"||!!(e.target&&e.target.isContentEditable);
-  if(e.code==="Space" && !typing && (state==="draw"||state==="roundResult")){
+  if(typing || e.defaultPrevented) return;
+  // 説明・拡大表示の背後を操作しない。ボタンのEnter/Spaceは標準のclickに任せる。
+  if(["#twistIntro","#shotPopup","#sharePopup","#albumPopup","#modePopup"].some(id=>!$(id).classList.contains("hidden"))) return;
+  const control=tag==="button"||tag==="a"||!!e.target?.closest?.('button,a,[role="button"],[role="link"]');
+  if(control && (e.key==="Enter"||e.code==="Space"))return;
+  if(e.code==="Space" && !e.ctrlKey && !e.metaKey && !e.altKey && (state==="draw"||state==="roundResult")){
     e.preventDefault();                    // Spaceによるページスクロールを止める
     if(!e.repeat){ spacePanHeld=true; refreshPanCursor(); }
-  }else if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==="z"){
+  }else if((e.ctrlKey||e.metaKey) && !e.shiftKey && !e.altKey &&
+           e.key.toLowerCase()==="z" && state==="draw"){
     undo(true); e.preventDefault();
   }else if(e.key==="Enter"){
     if(state==="draw"||state==="roundResult"){
       if(e.repeat) return;      // 長押しリピートで次ラウンドを誤爆しない
-      e.preventDefault();       // フォーカス中のボタンへのclick発火を止める
+      e.preventDefault();       // 描画側にフォーカスがあるときだけ採点・次へ
       state==="draw" ? submit(false) : next();
     }
   }else if((e.key.toLowerCase()==="x"||e.key.toLowerCase()==="e") && !typing &&
@@ -5622,9 +6252,10 @@ window.addEventListener("keydown",e=>{
 });
 window.addEventListener("keyup",e=>{
   if(e.code!=="Space") return;
+  const handled=spacePanHeld;
   spacePanHeld=false;
   refreshPanCursor();             // ドラッグ中ならpointerupまではgrabbingを保つ
-  e.preventDefault();
+  if(handled) e.preventDefault();
 });
 window.addEventListener("blur",()=>{
   spacePanHeld=false;
@@ -5849,17 +6480,19 @@ const generationSelfTest=(perSeed=64)=>{
 const inputRecoverySelfTest=()=>{
   const saved={strokes:structuredClone(strokes),cur:cur?structuredClone(cur):null,
     history:structuredClone(history),activeId,activeType,captureOk,lastActiveAt,lastPenAt,
-    erasing,eraseChanged,erasePrev,pausedLeft,state,studyRun,tool,
+    erasing,eraseChanged,erasePrev,eraseStart,eraseTravel,eraseUses,pausedLeft,state,studyRun,tool,
     roundPractice:round&&round.practice,inputPts:{...inputPts},hoverPos,
     touchPts:[...touchPts.entries()].map(([id,p])=>[id,{...p}]),pinch:pinch?{...pinch}:null,
-    dragPan:dragPan?{...dragPan}:null};
+    dragPan:dragPan?{...dragPan}:null,spacePanHeld};
   let ghost=false,stalePen=false,frozen=false,noOp=false,hoverEnd=false,
       practiceAbort=false,studyAbort=false,pinchCommit=false,palmBlocked=false,
       penZeroPressure=false,penZeroNoPressure=false,coalescedContact=false,
       mousePressure=false,pinchDotSuppressed=false,penPalmBlocked=false,
-      samePenRedown=false;
+      samePenRedown=false,palmFirstPen=false,fingerToPen=false,pinchToPen=false,
+      lateTouchIgnored=false;
   try{
     abortStroke(); dropTouches(); history=[]; strokes=[];
+    spacePanHeld=false; dragPan=null; lastPenAt=-1e9; setTool("pen",true);
     state="draw"; document.body.dataset.state=state; pausedLeft=null;
     touchPts.set(101,{x:10,y:10});
     cv.dispatchEvent(new PointerEvent("pointerdown",{pointerId:102,pointerType:"touch",isPrimary:true,
@@ -5969,6 +6602,45 @@ const inputRecoverySelfTest=()=>{
       activeId===510 && activeType==="pen" && cur&&cur.pts.length===1;
     abortStroke();
 
+    /* 掌が先に接触してもペンを優先し、掌の点は採点にも履歴にも残さない。 */
+    strokes=[]; history=[]; dropTouches(); lastPenAt=-1e9;
+    cv.dispatchEvent(new PointerEvent("pointerdown",{pointerId:511,pointerType:"touch",isPrimary:true,
+      clientX:100,clientY:100,buttons:1,bubbles:true,cancelable:true}));
+    cv.dispatchEvent(new PointerEvent("pointerdown",{pointerId:512,pointerType:"pen",isPrimary:true,
+      clientX:160,clientY:160,buttons:1,pressure:.5,bubbles:true,cancelable:true}));
+    palmFirstPen=activeId===512 && activeType==="pen" && cur&&cur.pts.length===1 &&
+      strokes.length===0 && history.length===0 && touchPts.size===0;
+    window.dispatchEvent(new PointerEvent("pointerup",{pointerId:511,pointerType:"touch",bubbles:true}));
+    window.dispatchEvent(new PointerEvent("pointercancel",{pointerId:511,pointerType:"touch",bubbles:true}));
+    window.dispatchEvent(new PointerEvent("pointermove",{pointerId:512,pointerType:"pen",
+      clientX:210,clientY:210,buttons:1,pressure:.5,bubbles:true,cancelable:true}));
+    lateTouchIgnored=activeId===512 && cur&&cur.pts.length>=2 && strokes.length===0;
+    abortStroke();
+
+    /* 指で意図的に描いた線は、ペンへ持ち替えても消さない。 */
+    strokes=[]; history=[]; dropTouches(); lastPenAt=-1e9;
+    cv.dispatchEvent(new PointerEvent("pointerdown",{pointerId:513,pointerType:"touch",isPrimary:true,
+      clientX:100,clientY:100,buttons:1,bubbles:true,cancelable:true}));
+    window.dispatchEvent(new PointerEvent("pointermove",{pointerId:513,pointerType:"touch",
+      clientX:150,clientY:150,buttons:1,bubbles:true,cancelable:true}));
+    cv.dispatchEvent(new PointerEvent("pointerdown",{pointerId:514,pointerType:"pen",isPrimary:true,
+      clientX:180,clientY:180,buttons:1,pressure:.5,bubbles:true,cancelable:true}));
+    fingerToPen=activeId===514 && activeType==="pen" && strokes.length===1 &&
+      strokes[0].pts.length>=2 && history.length===1;
+    abortStroke(); dropTouches();
+
+    /* 二本指操作からペンへ移ったら、古い指のmoveで再ズームしない。 */
+    strokes=[]; history=[]; lastPenAt=-1e9;
+    cv.dispatchEvent(new PointerEvent("pointerdown",{pointerId:515,pointerType:"touch",isPrimary:true,
+      clientX:100,clientY:100,buttons:1,bubbles:true,cancelable:true}));
+    cv.dispatchEvent(new PointerEvent("pointerdown",{pointerId:516,pointerType:"touch",isPrimary:false,
+      clientX:200,clientY:200,buttons:1,bubbles:true,cancelable:true}));
+    cv.dispatchEvent(new PointerEvent("pointerdown",{pointerId:517,pointerType:"pen",isPrimary:true,
+      clientX:160,clientY:160,buttons:1,pressure:.5,bubbles:true,cancelable:true}));
+    pinchToPen=activeId===517 && activeType==="pen" && pinch===null && touchPts.size===0 &&
+      strokes.length===0;
+    abortStroke(); dropTouches();
+
     /* 時間無制限ラウンドでも離脱時のポインタを掃除する。 */
     state="draw"; document.body.dataset.state=state;
     if(round) round.practice=true;
@@ -6007,16 +6679,18 @@ const inputRecoverySelfTest=()=>{
     strokes=saved.strokes; cur=saved.cur; history=saved.history; activeId=saved.activeId;
     activeType=saved.activeType; captureOk=saved.captureOk; lastActiveAt=saved.lastActiveAt;
     lastPenAt=saved.lastPenAt; erasing=saved.erasing; eraseChanged=saved.eraseChanged;
-    erasePrev=saved.erasePrev; pausedLeft=saved.pausedLeft; state=saved.state;
+    erasePrev=saved.erasePrev; eraseStart=saved.eraseStart; eraseTravel=saved.eraseTravel;
+    eraseUses=saved.eraseUses; pausedLeft=saved.pausedLeft; state=saved.state;
     document.body.dataset.state=state; studyRun=saved.studyRun; inputPts=saved.inputPts;
     if(round) round.practice=saved.roundPractice;
-    hoverPos=saved.hoverPos; dragPan=saved.dragPan; dropTouches();
+    hoverPos=saved.hoverPos; dragPan=saved.dragPan; spacePanHeld=saved.spacePanHeld; dropTouches();
     for(const [id,p] of saved.touchPts) touchPts.set(id,p);
     pinch=saved.pinch; setTool(saved.tool,true); rebuildInk(); render();
   }
   return {pass:ghost&&stalePen&&frozen&&noOp&&hoverEnd&&practiceAbort&&studyAbort&&
             pinchCommit&&palmBlocked&&penZeroPressure&&penZeroNoPressure&&coalescedContact&&
-            mousePressure&&pinchDotSuppressed&&penPalmBlocked&&samePenRedown,
+            mousePressure&&pinchDotSuppressed&&penPalmBlocked&&samePenRedown&&
+            palmFirstPen&&fingerToPen&&pinchToPen&&lateTouchIgnored,
           ghostTouchRecovered:ghost,stalePenRecovered:stalePen,
           frozenMoveBlocked:frozen,noOpEraserStable:noOp,hoverReleaseRecovered:hoverEnd,
           mouseHoverEndsWithoutExtension:hoverEnd,
@@ -6026,10 +6700,13 @@ const inputRecoverySelfTest=()=>{
           mouseZeroButtonsPressureContinues:mousePressure,
           pinchDotSuppressed,penPalmAfterZeroMoveBlocked:penPalmBlocked,
           samePenIdRedownRecovered:samePenRedown,
+          palmFirstPenAccepted:palmFirstPen,fingerStrokeSavedOnPenTakeover:fingerToPen,
+          pinchToPenRecovered:pinchToPen,lateTouchAfterPenIgnored:lateTouchIgnored,
           practiceBlurRecovered:practiceAbort,studyBlurRecovered:studyAbort,
           pinchCommitsStroke:pinchCommit,palmButtonBlocked:palmBlocked};
 };
-window.__cube = {
+// API公開の直前にも条件を置く。自己テストが増えてもリリース検査で直接確認できる。
+if(DEBUG_API) window.__cube = {
   get round(){ return round; },
   get strokes(){ return strokes; },
   get state(){ return state; },
@@ -6121,7 +6798,7 @@ if(!JA){
   document.querySelector('.modeBtn[data-mode="study"] .md').textContent="No time limit, nothing recorded — vanishing points revealed on judge";
   document.querySelector('.modeBtn[data-mode="endless"] .mn').textContent="♾️ Endless";
   document.querySelector('.modeBtn[data-mode="endless"] .md').textContent="Less time every round, and the pass line keeps rising";
-  $("#twistSelLab").textContent="🎮 Twist Select (nothing is recorded)";
+  $("#twistSelLab").textContent="🎮 Twist practice (no time limit · unranked)";
   document.querySelector('.twistSelBtn[data-twist="ta"]').textContent="⊞ Quartered";
   document.querySelector('.twistSelBtn[data-twist="dice"]').textContent="⚀ Die";
   document.querySelector('.twistSelBtn[data-twist="notch"]').textContent="🍫 Bitten";
@@ -6139,6 +6816,19 @@ if(!JA){
   $("#btnShareCopy").textContent="📋 Copy image";
   $("#btnShareSave").textContent="💾 Save image";
   $("#btnShareClose").textContent="✕ Close";
+  $("#btnReview").textContent="🎯 Review this puzzle";
+  $("#btnStudyReview").textContent="🎯 Review this puzzle";
+  $("#btnShareShot").textContent="📮 Share this drawing";
+  $("#skipPracticeLab span").textContent="Skip the 2 guided warm-ups (same 6 scored puzzles)";
+  $("#shareKind").setAttribute("aria-label","Share card type");
+  $("#shareKind").options[0].textContent="Score card";
+  $("#shareKind").options[1].textContent="One drawing";
+  $("#shareRound").setAttribute("aria-label","Round to share");
+  $("#shareAnswerLab span").textContent="Show answer overlay";
+  $("#btnAlbum").textContent="🎭 Badge album";
+  $("#albumTitle").textContent="🎭 Badge album";
+  $("#albumHint").textContent="Undiscovered badges stay hidden. Find them through the way you play.";
+  $("#btnAlbumClose").textContent="✕ Close";
 }
 /* ランキング有効時は日本語の注記も差し替え */
 if(JA){
@@ -6159,6 +6849,12 @@ if("serviceWorker" in navigator
   });
 }
 
+$('#rankLightNotice').textContent=tr('掲載は任意です。名前は空欄でもOK。名前・得点・入力方法を公開し、端末IDと投稿時刻を保存します。','Posting is optional. Blank names are auto-filled. Name, score and input method are public; browser ID and posting time are stored.');
+$('#btnRankSubmit').textContent=tr('ランキングに載せる','Post to leaderboard');
+$('#finalOverlay .foot').innerHTML=tr('ランキング掲載は、きょうのチャレンジの結果から任意で選べます。','Daily leaderboard publication is optional after playing.')+(JA?FOOT_LINKS_JA:FOOT_LINKS_EN);
+import('./light-menu.mjs').then(m=>m.mount({url:RANK_URL,publicKey:RANK_KEY,ja:JA,resultOnly:true,readRpc:'ranking_light_read_g4',game:{
+ unranked(kind){if(kind==='daily')startDaily();else startGame(kind);},menu:toMenu
+}})).catch(()=>toast(tr('メニューを読み込めません。再読み込みしてください。','Could not load menu. Please reload.')));
 resizeCanvases();
 refreshMenuBest();
 render();

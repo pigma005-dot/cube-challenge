@@ -1,9 +1,12 @@
 /* 立方体チャレンジ Service Worker
    キャッシュ名はリリースごとに GAME_VER と合わせて更新すること */
-const CACHE = "cube-challenge-v1.27-b20260818.1";
+const CACHE = "cube-challenge-v1.28-b20261030.6";
 const ASSETS = [
   "./",
   "./index.html",
+  "./light-menu.mjs",
+  "./privacy.html",
+  "./ranking-privacy.html",
   "./howto.png",
   "./moonrabbit.mp3",
   "./pandahush.mp3",
@@ -13,6 +16,16 @@ const ASSETS = [
   "./icon-512.png",
   "./icon-180.png",
 ];
+const APP_ROOT = new URL("./", self.location.href);
+const APP_INDEX = new URL("index.html", APP_ROOT);
+const isAppPage = url => url.origin === APP_ROOT.origin &&
+  (url.pathname === APP_ROOT.pathname || url.pathname === APP_INDEX.pathname);
+
+function cacheResponse(e, key, response) {
+  // 保存失敗は通信成功まで失敗扱いにしない。SWが終了しても保存を待てるようにする。
+  const copy = response.clone();
+  e.waitUntil(caches.open(CACHE).then(c => c.put(key, copy)).catch(() => {}));
+}
 
 self.addEventListener("install", e => {
   e.waitUntil(
@@ -37,14 +50,20 @@ self.addEventListener("fetch", e => {
 
   // ページ本体はネット優先（更新をすぐ反映）、オフライン時はキャッシュ
   if (e.request.mode === "navigate") {
+    // privacy.htmlや存在しないURLをゲーム本体として保存・代用しない。
+    if (!isAppPage(url)) return;
     e.respondWith(
       fetch(e.request)
         .then(r => {
-          const cp = r.clone();
-          caches.open(CACHE).then(c => c.put("./index.html", cp));
+          const finalURL = new URL(r.url || e.request.url);
+          if (r.status === 200 && isAppPage(finalURL) &&
+              /\btext\/html\b/i.test(r.headers.get("content-type") || "")) {
+            cacheResponse(e, APP_INDEX.href, r);
+          }
           return r;
         })
-        .catch(() => caches.match("./index.html"))
+        .catch(() => caches.open(CACHE).then(c => c.match(APP_INDEX.href))
+          .then(hit => hit || Response.error()))
     );
     return;
   }
@@ -53,8 +72,7 @@ self.addEventListener("fetch", e => {
   e.respondWith(
     caches.match(e.request).then(hit =>
       hit || fetch(e.request).then(r => {
-        const cp = r.clone();
-        caches.open(CACHE).then(c => c.put(e.request, cp));
+        if (r.ok && r.type !== "opaque") cacheResponse(e, e.request, r);
         return r;
       })
     )

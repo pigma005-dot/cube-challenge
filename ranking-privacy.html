@@ -1,0 +1,14 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>データ取り扱い / Data policy</title>
+<style>body{max-width:720px;margin:32px auto;padding:20px;font:16px/1.8 system-ui;color:#54455a;background:#fff8f0}h1{font-size:24px}a{color:#7956a6}</style>
+<h1>データの取り扱い（簡易ランキング版）</h1><p>更新日：2026年10月30日</p>
+<p>ゲームを始めるためのアカウント作成・ログイン・名前登録は不要です。今日のチャレンジの結果画面で「ランキングに載せる」を押した場合だけ、表示名、得点、お題の日付、入力方法、ブラウザーに保存するランダムIDをSupabaseに送信します。表示名・得点・入力方法は公開されます。名前は空欄でも自動で付けられます。本名や連絡先は入力しないでください。</p>
+<p>この版では線の座標を送信せず、サーバー再採点・Supabase匿名認証・Turnstileを使用しません。ランダムIDは端末内で作成するもので、本人を証明するものではありません。ブラウザーのデータ消去や別端末への移動では同じIDを引き継げません。</p>
+<p>重複投稿防止のため、投稿時刻と掲載更新回数も保存します。記録は自動削除せず、運営・削除依頼への対応に必要な範囲で保持します。100点の自動掲載と短時間の重複掲載を抑制しますが、不正がないことは保証しません。掲載されなくても端末内の得点は変わりません。</p>
+<p>起動時は配信元とゲームのバージョンをプレイ数集計用に送信します（端末内の成功記録により1日1回まで）。この送信内容にプレイヤーIDは含みません。自己ベスト・設定は端末に保存します。広告・アプリ横断追跡はありません。通信に伴いSupabase等がIPアドレス等を処理する場合があります。</p>
+<p>以前の作者向け再採点テストで送信した線の座標は、従来の7日経過後・期限切れランを対象とする毎時の削除処理を維持します。既存の試験記録は公開しません。得点等は別途保持し、バックアップは保存期間に従います。</p>
+<p>問い合わせ・削除依頼・不適切な名前の報告は<a href="https://x.com/daromeon">作者 @daromeon</a>まで。秘密鍵や認証情報は送らないでください。</p>
+<h1 lang="en">Data policy — basic leaderboard</h1><div lang="en">
+<p>No account, login or name entry is needed to start. Only pressing “Post to leaderboard” after Daily Challenge sends a display name, score, puzzle date, input method and a locally generated random ID to Supabase. Name, score and input method are public. A blank name is filled automatically. Do not enter personal contact details.</p>
+<p>This version uploads no strokes and uses no server rescoring, Supabase Auth or Turnstile. The local ID is not proof of identity and cannot be recovered after clearing browser data or changing devices. Posting times and update counts are stored to limit repeated submissions. Records have no automatic expiry; contact the author for deletion. Automatic publication of 100-point results and rapid duplicates is restricted, without changing local scores. Filtering does not guarantee authenticity.</p>
+<p>Launch counting sends distribution channel and version, without a player ID in that payload, at most once daily based on a local success marker. Best scores and settings stay on-device. No ads or cross-app tracking. Service providers may process connection data such as IP addresses.</p>
+<p>Previously uploaded private test drawings retain the existing hourly cleanup after 7 days once a run expires. Those test results remain excluded from public rankings. Other records and backups are retained separately. Contact <a href="https://x.com/daromeon">@daromeon</a> about deletion or abuse; never send secret keys or authentication tokens.</p></div></html>
