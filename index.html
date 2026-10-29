@@ -462,6 +462,87 @@
     #topbar>div:first-child{gap:4px;flex-wrap:nowrap;}
     #topbar .chip{font-size:11.5px;padding:4px 6px;}
   }
+/* Top screen only. Keep overflow available for extreme zoom/very short windows. */
+#menuOverlay .card:has(.guided){
+  box-sizing:border-box;
+  max-height:calc(100dvh - 64px);
+  padding:20px 26px;
+}
+#menuOverlay .card:has(.guided) #howtoBox{margin:4px 0 8px;line-height:0}
+body #menuOverlay .card:has(.guided) #howtoBox img{max-height:clamp(64px,16dvh,125px)}
+#menuOverlay .card:has(.guided) .sub{margin-bottom:8px}
+#menuOverlay #rank-play-panel.guided{margin:8px 0}
+#menuOverlay #rank-play-panel.guided .modeBtn{padding:10px 12px!important;gap:4px}
+#menuOverlay .guided .mode-kicker{margin-bottom:2px}
+#menuOverlay .guided .play-tag{padding-top:2px}
+#menuOverlay .guided #extras-entry{margin-top:8px}
+#menuOverlay .guided .board-link{margin-top:8px!important;padding:10px 14px!important}
+#menuOverlay .guided #dailyResetLab{margin:4px 2px 3px}
+#menuOverlay .guided #dailyTwistLab{margin:0 2px 5px}
+@media(max-height:740px){
+  body #menuOverlay .card:has(.guided){padding:14px 20px}
+  #menuOverlay .card:has(.guided) h1{font-size:24px}
+  #menuOverlay .card:has(.guided) .sub{font-size:12.5px;margin-bottom:5px}
+  body #menuOverlay .card:has(.guided) #howtoBox img{max-height:clamp(56px,13dvh,96px)}
+  #menuOverlay .card:has(.guided) #howtoBox{margin:2px 0 5px}
+  #menuOverlay #rank-play-panel.guided{margin:5px 0}
+  #menuOverlay #rank-play-panel.guided .modeBtn .mn{font-size:15px}
+  #menuOverlay #rank-play-panel.guided .modeBtn .md{margin-top:2px}
+  #menuOverlay .guided .mode-kicker{font-size:9px}
+  #menuOverlay .guided #extras-entry{margin-top:5px}
+  #menuOverlay .guided .board-link{margin-top:5px!important}
+}
+@media(max-width:340px) and (max-height:740px){
+  body #menuOverlay .card:has(.guided){padding:12px}
+  #menuOverlay #play-modes{grid-template-columns:1fr 1fr;gap:6px}
+  #menuOverlay #rank-play-panel.guided .modeBtn{padding:8px!important}
+  body #menuOverlay .card:has(.guided) h1{font-size:21px}
+}
+@media(max-height:540px) and (min-width:600px){
+  body #menuOverlay .card:has(.guided){width:min(800px,calc(100vw - 32px));max-width:800px;padding:8px 16px;display:grid;grid-template-columns:30% minmax(0,1fr);column-gap:18px;align-items:center}
+  #menuOverlay .card:has(.guided) h1{grid-column:1;grid-row:1;font-size:21px}
+  #menuOverlay .card:has(.guided) .sub{grid-column:1;grid-row:2}
+  #menuOverlay .card:has(.guided) #howtoBox{grid-column:1;grid-row:3;margin:3px 0}
+  body #menuOverlay .card:has(.guided) #howtoBox img{max-width:100%;max-height:90px}
+  #menuOverlay #challengeSlot{grid-column:2;grid-row:1 / 6;min-width:0}
+  #menuOverlay .card:has(.guided) .foot{grid-column:1;grid-row:4;flex-wrap:wrap;gap:2px 8px}
+  #menuOverlay .card:has(.guided) #cameraRule{grid-column:1;grid-row:5}
+}
+@media(max-width:420px) and (max-height:740px){
+  body #menuOverlay .card:has(.guided){padding:12px}
+  #menuOverlay #rank-play-panel.guided .modeBtn .md{font-size:11px;line-height:1.35}
+  #menuOverlay #rank-play-panel.guided .modeBtn .mn{font-size:14px;line-height:1.3}
+  #menuOverlay #rank-play-panel.guided .mode-kicker{font-size:8px;letter-spacing:0;line-height:1.3}
+}
+@media(max-width:340px) and (max-height:620px){
+  body #menuOverlay .card:has(.guided){padding:8px;max-height:calc(100dvh - 52px)}
+  body #menuOverlay .card:has(.guided) #howtoBox img{max-height:36px}
+  #menuOverlay .guided #dailyResetLab,#menuOverlay .guided #dailyTwistLab{font-size:10px;line-height:1.3}
+}
+
+/* Reserve the drawing toolbar's geometry during answer review. Only the action
+   in the submit slot remains visible/interactable. No coordinate bookkeeping. */
+#roundAction{position:relative;min-width:140px}
+#roundAction>#btnSubmit{width:100%}
+body[data-state="roundResult"] #toolbar{display:flex;visibility:hidden;pointer-events:none}
+body[data-state="roundResult"] #toolbar #nextBar{visibility:visible;pointer-events:auto}
+#roundAction #nextBar{position:absolute;inset:0;transform:none;width:100%;height:100%;display:block}
+body:not([data-state="roundResult"]) #roundAction #nextBar{display:none}
+#roundAction #btnNext{box-sizing:border-box;width:100%;height:100%;padding:6px 8px;white-space:normal;line-height:1.2}
+#roundAction #btnStudyReview{position:absolute;right:0;bottom:calc(100% + 8px)}
+@media(orientation:landscape){#roundAction{width:100%}}
+@media(orientation:portrait){
+  body[data-state="roundResult"] #bottomControls{
+    position:fixed;left:0;right:0;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:5;
+    display:flex;flex-direction:column;align-items:center;gap:5px;pointer-events:none;
+  }
+  body[data-state="roundResult"] #toolbar{position:static;left:auto;right:auto;top:auto;bottom:auto;transform:none}
+  body[data-state="roundResult"] #cameraDock{
+    position:static;left:auto;right:auto;top:auto;bottom:auto;
+    width:calc(100vw - 150px);max-width:calc(100vw - 150px);box-sizing:border-box;text-align:center;white-space:normal;
+  }
+}
+
 </style>
 </head>
 <body data-state="menu">
@@ -501,7 +582,7 @@
     </span>
     <button id="btnUndo" title="ひとつ戻す (Ctrl+Z)">↩️ もどす</button>
     <button id="btnClear" title="ぜんぶ消す">🗑️ ぜんぶけす</button>
-    <button id="btnSubmit" class="primary" title="判定！ (Enter)">✨ はんてい！</button>
+    <div id="roundAction"><button id="btnSubmit" class="primary" title="判定！ (Enter)">✨ はんてい！</button><div id="nextBar"><button id="btnNext" class="primary">➡️ つぎへ</button><button id="btnStudyReview" class="small hidden">🎯 この1問を復習</button></div></div>
   </div>
 </div>
 
@@ -515,7 +596,7 @@
   <div><span id="rpGrade"></span><span id="rpScore"></span></div>
   <div id="rpNote"></div>
 </div>
-<div id="nextBar"><button id="btnNext" class="primary">➡️ つぎへ</button><button id="btnStudyReview" class="small hidden">🎯 この1問を復習</button></div>
+
 <div id="reviewDock" class="hidden"><button id="btnGhost">前の線：オフ</button><button id="btnExitReview">結果へ戻る</button></div>
 
 <div id="menuOverlay" class="overlay">
@@ -669,7 +750,7 @@ const eraserR = () => ERASER_R/viewS;
 const GAME_VER = "1.28";   // 公開バージョン
 /* 同じ公開バージョン内の採点hotfixもスクリーンショットから識別できるようにする。
    sw.js のCACHE名にも同じBUILD_IDを含め、旧1.27キャッシュを確実に更新する。 */
-const BUILD_ID = "20261030.6";
+const BUILD_ID = "20261030.8";
 const SCORE_GEN="g4";    // 採点世代。旧記録は削除せず、別の記録として保持する
 // ネイティブアプリ（Capacitor/App Store版）で動いているか
 const CAP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());

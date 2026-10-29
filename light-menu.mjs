@@ -172,7 +172,7 @@ function guidedMenu({ el, text, read, preview, game, resultEntry = false, result
     for (const selector of [".play-choice", "#play-explain", "#rank-availability", "#rank-status-refresh"]) el.querySelector(selector).remove();
     el.querySelector(":scope > .menu-small").remove();
     for (const b of grid.querySelectorAll(".modeBtn")) b.querySelector(".play-tag").textContent = text("\u904A\u3076 \u2192", "Play \u2192");
-    grid.querySelector("#btnDaily .md").textContent = text("\u6BCE\u65E5\u5909\u308F\u308B\u304A\u984C\u306B\u6311\u6226\u3002\u7D50\u679C\u3092\u898B\u3066\u304B\u3089\u30E9\u30F3\u30AD\u30F3\u30B0\u63B2\u8F09\u3092\u9078\u3079\u307E\u3059\u3002", "A new challenge every day. Choose whether to post after seeing your result.");
+    grid.querySelector("#btnDaily .md").textContent = text("\u6BCE\u65E5\u5909\u308F\u308B\u304A\u984C\u306B\u6311\u6226\u3002", "A new challenge every day.");
     for (const id of ["dailyResetLab", "dailyTwistLab"]) {
       const note = document.getElementById(id);
       if (note) el.insertBefore(note, el.querySelector("#extras-entry"));
